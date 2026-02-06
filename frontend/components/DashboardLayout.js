@@ -4,10 +4,11 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { 
   FaHome, FaBox, FaUsers, FaShoppingCart, FaCog, FaSignOutAlt, 
-  FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch  
+  FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch,
+  FaTimesCircle  
 } from 'react-icons/fa';
 
-import { useSession, signOut, getSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -22,41 +23,67 @@ export default function DashboardLayout({ children }) {
     }
   }, [session, loading, router]);
 
-   // Fungsi untuk cek apakah user memiliki role PPK
+  // Fungsi untuk cek apakah user memiliki role PPK - DIPERBAIKI
   const hasPPKRole = () => {
-    if (!session?.user?.roles) return false;
+    console.log("🔍 Checking PPK role in session:", session);
     
-    // Cek beberapa kemungkinan format role
-    const userRoles = session.user.roles;
+    if (!session?.user) return false;
     
-    // Jika roles adalah array
-    if (Array.isArray(userRoles)) {
-      return userRoles.some(role => 
-        role.toLowerCase().includes('ppk') || 
-        role === 'PPK' ||
-        role === 'ppk'
+    // DEBUG: Tampilkan semua data user
+    console.log("🔍 User data:", session.user);
+    console.log("🔍 User role:", session.user.role);
+    
+    // Check 1: Role langsung dari user.role
+    if (session.user.role) {
+      const role = session.user.role.toLowerCase();
+      console.log("🔍 Checking role:", role);
+      
+      if (role.includes('ppk')) {
+        console.log("✅ User has PPK role (from user.role)");
+        return true;
+      }
+    }
+    
+    // Check 2: Check dari roles array (jika ada)
+    if (session.user.roles && Array.isArray(session.user.roles)) {
+      const hasRole = session.user.roles.some(role => 
+        role.toLowerCase().includes('ppk')
       );
+      if (hasRole) {
+        console.log("✅ User has PPK role (from user.roles array)");
+        return true;
+      }
     }
     
-    // Jika roles adalah string (dipisah koma atau format lain)
-    if (typeof userRoles === 'string') {
-      return userRoles.toLowerCase().includes('ppk');
+    // Check 3: Check dari roles string (jika ada)
+    if (session.user.roles && typeof session.user.roles === 'string') {
+      if (session.user.roles.toLowerCase().includes('ppk')) {
+        console.log("✅ User has PPK role (from user.roles string)");
+        return true;
+      }
     }
+    
+    console.log("❌ User does NOT have PPK role");
+    console.log("❌ Available user data:", {
+      role: session.user?.role,
+      roles: session.user?.roles,
+      allUserData: session.user
+    });
     
     return false;
   };
 
   const handleLogout = async () => {
-  try {
-    console.log("🚪 Logout via NextAuth");
-    await signOut({
-      callbackUrl: "/login"
-    });
-  } catch (err) {
-    console.error("Logout error:", err);
-    window.location.href = "/login";
-  }
-};
+    try {
+      console.log("🚪 Logout via NextAuth");
+      await signOut({
+        callbackUrl: "/login"
+      });
+    } catch (err) {
+      console.error("Logout error:", err);
+      window.location.href = "/login";
+    }
+  };
 
   if (loading) {
     return (
@@ -89,6 +116,19 @@ export default function DashboardLayout({ children }) {
     return name.charAt(0).toUpperCase();
   };
 
+  const getUserRoleDisplay = () => {
+    if (session?.user?.role) {
+      return session.user.role;
+    }
+    if (session?.user?.roles) {
+      if (Array.isArray(session.user.roles)) {
+        return session.user.roles.join(', ');
+      }
+      return session.user.roles;
+    }
+    return 'User';
+  };
+
   const menuGroups = [
     {
       title: 'Home',
@@ -102,7 +142,12 @@ export default function DashboardLayout({ children }) {
         { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
         // Menu Cari hanya ditampilkan jika user memiliki role PPK
         ...(hasPPKRole() ? [
-          { href: '/search', label: 'Batalkan Nominatif', icon: <FaSearch /> }
+          { 
+            href: '/search', 
+            label: 'Batalkan Nominatif', 
+            icon: <FaTimesCircle />, // Ganti icon yang lebih sesuai
+            description: 'Hanya untuk PPK' 
+          }
         ] : [])
       ]
     },
@@ -114,6 +159,15 @@ export default function DashboardLayout({ children }) {
       ]
     }
   ];
+
+  // DEBUG: Tambahkan display untuk role di header
+  const debugInfo = {
+    hasPPK: hasPPKRole(),
+    userRole: session?.user?.role,
+    userRoles: session?.user?.roles,
+    isArray: Array.isArray(session?.user?.roles),
+    allUserData: session?.user
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -167,10 +221,18 @@ export default function DashboardLayout({ children }) {
                         : 'hover:bg-gray-700'
                       }
                     `}
+                    title={item.description || item.label}
                   >
                     <span className="text-lg">{item.icon}</span>
                     {isSidebarOpen && (
-                      <span className="ml-3 font-medium">{item.label}</span>
+                      <div className="ml-3">
+                        <span className="font-medium block">{item.label}</span>
+                        {item.description && (
+                          <span className="text-xs text-gray-400 block">
+                            {item.description}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </Link>
                 ))}
@@ -185,9 +247,7 @@ export default function DashboardLayout({ children }) {
             <div className="mb-4 p-3 bg-gray-700 rounded-lg">
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                User ID: {session?.user?.id?.substring(0, 8)}...
-              </p>
+              
             </div>
           )}
           
@@ -221,11 +281,24 @@ export default function DashboardLayout({ children }) {
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">
-                {router.pathname === '/' ? 'Dashboard' : 'Aplikasi Keuangan'}
+                {router.pathname === '/' ? 'Dashboard' : 'Aplikasi Nominatif'}
               </h2>
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Debug Info Button - hanya di development */}
+              {process.env.NODE_ENV === 'development' && (
+                <button 
+                  onClick={() => {
+                    console.log("🔍 DEBUG Session Info:", debugInfo);
+                    alert(`User Role: ${session?.user?.role}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
+                  }}
+                  className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
+                >
+                  Debug Role
+                </button>
+              )}
+
               <button 
                 className="
                   relative p-2 rounded-full 
@@ -244,9 +317,16 @@ export default function DashboardLayout({ children }) {
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-800">{getUserName()}</p>
                   <p className="text-xs text-gray-500">
-                    {session?.user?.roles?.length > 0 
-                      ? `Roles: ${session.user.roles.join(', ')}`
-                      : 'Keycloak SSO User'}
+                    {session?.user?.role && (
+                      <span className={`px-2 py-1 rounded ${
+                        session.user.role.includes('admin') ? 'bg-red-100 text-red-800' :
+                        session.user.role.includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
+                        session.user.role.includes('kabalai') ? 'bg-purple-100 text-purple-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getUserRoleDisplay()}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="relative">

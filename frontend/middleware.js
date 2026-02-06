@@ -6,78 +6,80 @@ export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
-    const hostname = req.nextUrl.hostname;
     
     console.log("🛡️ Middleware - Path:", path);
-    console.log("🛡️ Middleware - Hostname:", hostname);
-    console.log("🛡️ Middleware - Has token:", !!token);
+    console.log("🛡️ Middleware - Hostname:", req.nextUrl.hostname);
+    console.log("🛡️ Middleware - Token present:", !!token);
     
     if (token) {
-      console.log("🛡️ Middleware - User:", token.user?.name);
-      console.log("🛡️ Middleware - Roles:", token.user?.roles);
-      console.log("🛡️ Middleware - Token expires:", token.expiresAt ? new Date(token.expiresAt * 1000).toISOString() : "N/A");
+      console.log("🛡️ Middleware - User:", token.name);
+      console.log("🛡️ Middleware - Role:", token.role);
+      
+      // You can add role-based access control here
+      if (path.startsWith('/admin') && token.role !== 'admin') {
+        const url = new URL('/unauthorized', req.url);
+        return NextResponse.redirect(url);
+      }
     }
     
-    // Token ada, lanjutkan
     return NextResponse.next();
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname;
-        const hostname = req.nextUrl.hostname;
         
-        console.log(`🔐 Auth check [${hostname}${path}]:`, !!token);
-        
-        // Public paths yang tidak perlu auth
+        // Public paths - no auth required
         const publicPaths = [
           '/login',
           '/api/auth',
           '/_next',
           '/favicon.ico',
-          '/public',
           '/images',
-          '/search', // Tambahkan /search ke public paths
+          '/css',
+          '/js',
+          '/public'
         ];
         
-        // Cek jika path adalah public
-        const isPublicPath = publicPaths.some(p => path.startsWith(p));
+        const isPublicPath = publicPaths.some(publicPath => 
+          path.startsWith(publicPath) || path.includes('.')
+        );
         
         if (isPublicPath) {
-          console.log(`✅ ${path} is public path, allowing access`);
+          console.log("🛡️ Middleware - Public path:", path);
           return true;
         }
         
-        // Untuk protected paths, butuh token
+        // Home page - allow both authenticated and unauthenticated
+        if (path === '/') {
+          console.log("🛡️ Middleware - Home page, allowing access");
+          return true;
+        }
+        
+        // Protected paths require authentication
         if (!token) {
-          console.log(`🚫 Access denied for ${path} - No token`);
-          return false;
+          console.log("🛡️ Middleware - No token, redirecting to login");
+          const url = new URL('/login', req.url);
+          url.searchParams.set('callbackUrl', req.url);
+          return NextResponse.redirect(url);
         }
         
-        // Cek jika token expired
-        if (token.expiresAt && Date.now() > token.expiresAt * 1000) {
-          console.log(`⏰ Token expired for ${path}`);
-          return false;
-        }
-        
-        console.log(`✅ Access granted for ${path}`);
+        console.log(`✅ Access granted for ${path} - User: ${token.name}, Role: ${token.role}`);
         return true;
       },
-    },
-    pages: {
-      signIn: "/login",
-      error: "/login",
     },
   }
 );
 
 export const config = {
   matcher: [
-    "/",
-    "/dashboard/:path*",
-    "/kegiatan/:path*",
-    "/profile/:path*",
-    "/settings/:path*",
-    "/api/protected/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api/auth (auth API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
   ],
 };
