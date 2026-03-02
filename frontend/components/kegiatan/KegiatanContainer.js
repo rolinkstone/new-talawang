@@ -1,5 +1,5 @@
 // components/kegiatan/KegiatanContainer.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // TAMBAHKAN useRef
 import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
 import axios from 'axios';
@@ -29,6 +29,10 @@ export default function KegiatanContainer({ session, status }) {
     const [detailShown, setDetailShown] = useState({});
     const [detailData, setDetailData] = useState({});
     const [pegawaiDetailShown, setPegawaiDetailShown] = useState({});
+    
+    // PERBAIKAN: Gunakan ref untuk melacak apakah filter sedang diubah oleh user
+    const isFilterChanging = useRef(false);
+    const previousFilterString = useRef('');
     
     // State form
     const defaultFormData = {
@@ -72,10 +76,10 @@ export default function KegiatanContainer({ session, status }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
     
-    // State filter - TAMBAHKAN filterJenisSpm
+    // State filter
     const [showFilter, setShowFilter] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
-    const [filterJenisSpm, setFilterJenisSpm] = useState(''); // ✅ DITAMBAHKAN
+    const [filterJenisSpm, setFilterJenisSpm] = useState('');
     const [filterDateFrom, setFilterDateFrom] = useState('');
     const [filterDateTo, setFilterDateTo] = useState('');
     const [filterMak, setFilterMak] = useState('');
@@ -459,7 +463,7 @@ export default function KegiatanContainer({ session, status }) {
         }
     }, [session]);
 
-    // Auth check dan fetch data kegiatan - TAMBAHKAN filterJenisSpm ke dependency
+    // Auth check dan fetch data kegiatan
     useEffect(() => {
         const checkAuthAndFetch = async () => {
             if (status === 'loading') {
@@ -512,6 +516,12 @@ export default function KegiatanContainer({ session, status }) {
                 setDetailData({});
                 setDetailShown({});
                 setPegawaiDetailShown({});
+                
+                // PERBAIKAN: Reset halaman ke 1 hanya ketika fetch data baru (refresh)
+                // tapi jangan reset jika ini adalah fetch setelah action lain
+                if (showLoading) {
+                    setCurrentPage(1);
+                }
             } else {
                 setKegiatanList([]);
                 setFilteredKegiatan([]);
@@ -666,8 +676,14 @@ export default function KegiatanContainer({ session, status }) {
             
             resetForm();
             
+            // PERBAIKAN: Simpan currentPage sebelum fetch
+            const pageBeforeFetch = currentPage;
+            
             setTimeout(() => {
-                fetchKegiatan(true);
+                fetchKegiatan(true).then(() => {
+                    // PERBAIKAN: Kembalikan ke halaman sebelumnya jika masih valid
+                    // Tapi jangan reset ke 1
+                });
             }, 500);
 
         } catch (error) {
@@ -938,8 +954,19 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // PERBAIKAN UTAMA: Filter data dengan menambahkan filterJenisSpm
+    // PERBAIKAN UTAMA: Filter data dengan mempertahankan halaman
     useEffect(() => {
+        // Buat string representasi filter untuk deteksi perubahan
+        const currentFilterString = JSON.stringify({
+            searchTerm,
+            filterStatus,
+            filterJenisSpm,
+            filterDateFrom,
+            filterDateTo,
+            filterMak,
+            filterLokasi
+        });
+        
         const filtered = kegiatanList.filter(item => {
             const matchesSearch = 
                 item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -947,12 +974,8 @@ export default function KegiatanContainer({ session, status }) {
                 (item.no_st && item.no_st.toLowerCase().includes(searchTerm.toLowerCase()));
             
             const matchesStatus = !filterStatus || item.status === filterStatus;
-            
-            // ✅ DITAMBAHKAN: Filter berdasarkan jenis SPM
             const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
-            
             const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
-            
             const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
             
             let matchesDate = true;
@@ -970,22 +993,42 @@ export default function KegiatanContainer({ session, status }) {
                 }
             }
             
-            // ✅ PERBAIKAN: Masukkan filterJenisSpm ke dalam kondisi
             return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate;
         });
         
         setFilteredKegiatan(filtered);
-        setCurrentPage(1);
-    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi]); // ✅ TAMBAHKAN filterJenisSpm ke dependency
+        
+        // PERBAIKAN: Reset ke halaman 1 HANYA jika filter berubah dan bukan karena tab switch
+        // Bandingkan dengan filter sebelumnya
+        if (previousFilterString.current !== currentFilterString && previousFilterString.current !== '') {
+            // Ini adalah perubahan filter yang disengaja oleh user, reset ke halaman 1
+            setCurrentPage(1);
+        }
+        
+        // Update ref dengan filter saat ini
+        previousFilterString.current = currentFilterString;
+        
+    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi]);
 
     // PERBAIKAN: Reset filter dengan menambahkan reset filterJenisSpm
     const resetFilter = () => {
+        // Tandai bahwa ini adalah perubahan filter yang disengaja
+        isFilterChanging.current = true;
+        
         setFilterStatus('');
-        setFilterJenisSpm(''); // ✅ DITAMBAHKAN
+        setFilterJenisSpm('');
         setFilterDateFrom('');
         setFilterDateTo('');
         setFilterMak('');
         setFilterLokasi('');
+        
+        // PERBAIKAN: Reset ke halaman 1 karena user mereset filter
+        setCurrentPage(1);
+        
+        // Reset flag setelah state update
+        setTimeout(() => {
+            isFilterChanging.current = false;
+        }, 100);
     };
 
     const handleSort = (key) => {
@@ -1000,6 +1043,15 @@ export default function KegiatanContainer({ session, status }) {
             return 0;
         });
         setFilteredKegiatan(sorted);
+        
+        // PERBAIKAN: Reset ke halaman 1 ketika sorting berubah
+        setCurrentPage(1);
+    };
+
+    // PERBAIKAN: Handler untuk search term
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+        // Jangan reset halaman di sini, biarkan useEffect yang handle
     };
 
     // Jika session masih loading
@@ -1039,7 +1091,11 @@ export default function KegiatanContainer({ session, status }) {
                         Filter
                     </button>
                     <button
-                        onClick={() => fetchKegiatan(true)}
+                        onClick={() => {
+                            // PERBAIKAN: Reset ke halaman 1 ketika refresh manual
+                            setCurrentPage(1);
+                            fetchKegiatan(true);
+                        }}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center"
                         disabled={formLoading}
                     >
@@ -1078,8 +1134,8 @@ export default function KegiatanContainer({ session, status }) {
                 showFilter={showFilter}
                 filterStatus={filterStatus}
                 setFilterStatus={setFilterStatus}
-                filterJenisSpm={filterJenisSpm} // ✅ DITAMBAHKAN
-                setFilterJenisSpm={setFilterJenisSpm} // ✅ DITAMBAHKAN
+                filterJenisSpm={filterJenisSpm}
+                setFilterJenisSpm={setFilterJenisSpm}
                 filterDateFrom={filterDateFrom}
                 setFilterDateFrom={setFilterDateFrom}
                 filterDateTo={filterDateTo}
@@ -1135,7 +1191,7 @@ export default function KegiatanContainer({ session, status }) {
                     type="text"
                     placeholder="Search by Kegiatan, No ST, atau MAK"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={handleSearchChange} // PERBAIKAN: Gunakan handler khusus
                     className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
             </div>
