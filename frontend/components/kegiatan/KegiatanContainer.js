@@ -487,7 +487,16 @@ export default function KegiatanContainer({ session, status }) {
         }
     }, [session]);
 
-    // Auth check dan fetch data kegiatan
+    // PERBAIKAN: Set filter default untuk Kabalai (opsional)
+    useEffect(() => {
+        if (userType.isKabalai) {
+            // Bisa diaktifkan jika ingin default menampilkan data yang perlu disetujui
+            // setFilterStatus('diketahui');
+            console.log('Kabalai user detected');
+        }
+    }, [userType.isKabalai]);
+
+    // Auth check dan fetch data kegiatan - PERBAIKAN untuk role Kabalai
     useEffect(() => {
         const checkAuthAndFetch = async () => {
             if (status === 'loading') {
@@ -497,7 +506,10 @@ export default function KegiatanContainer({ session, status }) {
             if (!session) {
                 router.push('/login');
             } else {
-                await fetchKegiatan();
+                // PERBAIKAN: Tunggu sebentar untuk memastikan userType sudah terisi
+                setTimeout(() => {
+                    fetchKegiatan();
+                }, 100);
             }
         };
 
@@ -506,9 +518,9 @@ export default function KegiatanContainer({ session, status }) {
         return () => {
             console.log('Component unmounting, cleaning up...');
         };
-    }, [session, status, router]);
+    }, [session, status, router, userType.isKabalai]); // Tambahkan userType.isKabalai
 
-    // Fetch data kegiatan
+    // Fetch data kegiatan - PERBAIKAN untuk role Kabalai
     const fetchKegiatan = async (showLoading = false) => {
         if (!session?.accessToken) {
             console.error('No access token available');
@@ -531,7 +543,27 @@ export default function KegiatanContainer({ session, status }) {
             });
             
             if (res.data.success && Array.isArray(res.data.data)) {
-                const sortedData = [...res.data.data].sort((a, b) => {
+                let data = [...res.data.data];
+                
+                // PERBAIKAN: Jika user adalah Kabalai, pastikan data dengan status 'diketahui' tetap muncul
+                if (userType.isKabalai) {
+                    // Tidak perlu filter khusus karena backend seharusnya sudah mengirim data yang relevan
+                    // Tapi kita bisa log untuk debugging
+                    const dataMenungguPersetujuan = data.filter(item => item.status === 'diketahui');
+                    console.log(`Kabalai: ${dataMenungguPersetujuan.length} data menunggu persetujuan`);
+                }
+                
+                // PERBAIKAN: Urutkan data dengan prioritas status 'diketahui' di atas untuk Kabalai
+                const sortedData = data.sort((a, b) => {
+                    // Untuk user Kabalai, prioritaskan status 'diketahui' di atas
+                    if (userType.isKabalai) {
+                        // Jika a status diketahui dan b tidak, a di atas
+                        if (a.status === 'diketahui' && b.status !== 'diketahui') return -1;
+                        // Jika b status diketahui dan a tidak, b di atas
+                        if (b.status === 'diketahui' && a.status !== 'diketahui') return 1;
+                    }
+                    
+                    // Untuk semua user, urutkan berdasarkan created_at (terbaru di atas)
                     return new Date(b.created_at || b.id) - new Date(a.created_at || a.id);
                 });
                 
@@ -1200,7 +1232,7 @@ export default function KegiatanContainer({ session, status }) {
                 />
             </div>
 
-            {/* Informasi role user */}
+            {/* Informasi role user - PERBAIKAN untuk Kabalai */}
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex items-center text-sm">
                     <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -1210,7 +1242,18 @@ export default function KegiatanContainer({ session, status }) {
                         <span className="font-medium">Akses saat ini:</span> 
                         {userType.isAdmin && ' Anda dapat melihat semua data sebagai Admin.'}
                         {userType.isPPK && ' Anda dapat melihat pengajuan yang ditujukan kepada PPK Anda.'}
-                        {userType.isKabalai && ' Anda dapat mengisi form "Menyetujui" untuk kegiatan yang sudah disetujui PPK.'}
+                        {userType.isKabalai && (
+                            <>
+                                {' Anda dapat melihat semua data, termasuk '}
+                                <span className="font-bold text-yellow-600">
+                                    {filteredKegiatan.filter(item => item.status === 'diketahui').length} data
+                                </span>
+                                {' yang menunggu persetujuan Anda (status "diketahui").'}
+                                <span className="block mt-1 text-xs text-blue-600">
+                                    Data dengan status "diketahui" ditampilkan di bagian atas untuk memudahkan akses.
+                                </span>
+                            </>
+                        )}
                         {userType.isRegularUser && ' Anda hanya dapat melihat dan mengelola data yang Anda buat sendiri.'}
                     </div>
                 </div>
@@ -1335,8 +1378,12 @@ export default function KegiatanContainer({ session, status }) {
                         {paginatedItems.length > 0 ? (
                             paginatedItems.map(item => (
                                 <React.Fragment key={item.id}>
-                                    {/* Baris utama dengan background kondisional */}
-                                    <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}>
+                                    {/* Baris utama dengan background kondisional - PERBAIKAN untuk highlight data Kabalai */}
+                                    <tr className={
+                                        (item.jenis_spm === 'KKP' ? 'bg-blue-50' : '') + 
+                                        ' ' + 
+                                        (userType.isKabalai && item.status === 'diketahui' && !item.nama_kabalai ? 'bg-yellow-50 border-l-4 border-yellow-400 font-medium' : 'hover:bg-gray-50')
+                                    }>
                                         <td className="px-6 py-4">{item.id}</td>
                                         
                                         <td className="px-6 py-4">
@@ -1578,17 +1625,17 @@ export default function KegiatanContainer({ session, status }) {
                                                     </button>
                                                 )}
                                                 
-                                                {/* Tombol Mengetahui - hanya untuk role Kabalai dan status disetujui */}
+                                                {/* Tombol Mengetahui - hanya untuk role Kabalai dan status diketahui */}
                                                 {userType.isKabalai && item.status === 'diketahui' && !item.nama_kabalai && (
                                                     <button
                                                         onClick={() => handleOpenPersetujuanModal(item.id, item)}
-                                                        className="flex items-center gap-2 px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition"
+                                                        className="flex items-center gap-2 px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition font-semibold"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                                                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                         </svg>
-                                                        Persetujuan
+                                                        Setujui
                                                     </button>
                                                 )}
 
