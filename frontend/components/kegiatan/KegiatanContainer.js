@@ -145,6 +145,127 @@ export default function KegiatanContainer({ session, status }) {
         return Number(number).toLocaleString('id-ID');
     };
 
+    // PERBAIKAN: Fungsi untuk menghitung total dari rincian biaya dengan akurat
+    const calculateTotalFromBiayaList = (biayaList) => {
+        if (!biayaList || !Array.isArray(biayaList)) return 0;
+        
+        let total = 0;
+        biayaList.forEach(b => {
+            // Hitung transportasi
+            const transportItems = b.transportasi || [];
+            const totalTransport = transportItems.reduce((sum, t) => sum + (Number(t.total) || 0), 0);
+            
+            // Hitung uang harian
+            const uangHarianItems = b.uang_harian || [];
+            const totalUH = uangHarianItems.reduce((sum, u) => sum + (Number(u.total) || 0), 0);
+            
+            // Hitung penginapan
+            const penginapanItems = b.penginapan || [];
+            const totalPenginapan = penginapanItems.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+            
+            total += totalTransport + totalUH + totalPenginapan;
+        });
+        
+        return total;
+    };
+
+    // PERBAIKAN: Fungsi untuk menghitung total per pegawai
+    const calculateTotalPerPegawai = (pegawai) => {
+        if (!pegawai || !pegawai.biaya_list) return 0;
+        return calculateTotalFromBiayaList(pegawai.biaya_list);
+    };
+
+    // PERBAIKAN: Calculate total nominatif dengan akurat
+    const calculateTotalNominatif = async (id, forceRefresh = false) => {
+        try {
+            console.log(`Menghitung total nominatif untuk kegiatan ID: ${id}, forceRefresh: ${forceRefresh}`);
+            
+            let data = detailData[id];
+            if (!data || forceRefresh) {
+                const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${id}/detail`, {
+                    headers: { 
+                        Authorization: `Bearer ${session?.accessToken}` 
+                    },
+                });
+                if (res.data.success) {
+                    data = res.data.data;
+                    setDetailData(prev => ({ ...prev, [id]: data }));
+                } else {
+                    console.error('Gagal mengambil detail data');
+                    return 0;
+                }
+            }
+
+            if (data && data.pegawai && Array.isArray(data.pegawai)) {
+                let totalKeseluruhan = 0;
+                const pegawaiWithCalculatedTotals = [];
+                
+                data.pegawai.forEach(p => {
+                    // Hitung total dari biaya_list
+                    const totalFromBiaya = calculateTotalPerPegawai(p);
+                    
+                    // Simpan total yang dihitung
+                    pegawaiWithCalculatedTotals.push({
+                        ...p,
+                        calculated_total_biaya: totalFromBiaya
+                    });
+                    
+                    totalKeseluruhan += totalFromBiaya;
+                    
+                    console.log(`Pegawai: ${p.nama}, Total dari rincian: ${totalFromBiaya}`);
+                });
+                
+                console.log(`Total keseluruhan kegiatan ${id}: ${totalKeseluruhan}`);
+                
+                // Update state dengan total yang benar
+                setKegiatanList(prev =>
+                    prev.map(k => k.id === id ? { ...k, total_nominatif: totalKeseluruhan } : k)
+                );
+                setFilteredKegiatan(prev =>
+                    prev.map(k => k.id === id ? { ...k, total_nominatif: totalKeseluruhan } : k)
+                );
+                
+                // Update detailData dengan total yang sudah dihitung
+                if (forceRefresh) {
+                    const updatedData = {
+                        ...data,
+                        pegawai: pegawaiWithCalculatedTotals
+                    };
+                    setDetailData(prev => ({ ...prev, [id]: updatedData }));
+                }
+                
+                return totalKeseluruhan;
+            }
+            
+            return 0;
+        } catch (error) {
+            console.error('Error calculating total nominatif:', error);
+            setNotificationMessage('Gagal menghitung total nominatif!');
+            setModalOpen(true);
+            return 0;
+        }
+    };
+
+    // PERBAIKAN: Hitung semua total untuk semua kegiatan
+    const calculateAllTotals = async () => {
+        setFormLoading(true);
+        try {
+            for (const item of kegiatanList) {
+                await calculateTotalNominatif(item.id, true);
+                // Delay sedikit agar tidak overload API
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            setNotificationMessage('Semua total nominatif berhasil dihitung ulang');
+            setModalOpen(true);
+        } catch (error) {
+            console.error('Error calculating all totals:', error);
+            setNotificationMessage('Gagal menghitung semua total nominatif');
+            setModalOpen(true);
+        } finally {
+            setFormLoading(false);
+        }
+    };
+
     // Fungsi helper untuk validasi status_2
     const hasValidStatus2 = (status2) => {
         return status2 !== undefined && 
@@ -374,89 +495,6 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Calculate total nominatif
-    const calculateTotalNominatif = async (id) => {
-        try {
-            let data = detailData[id];
-            if (!data) {
-                const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${id}/detail`, {
-                    headers: { 
-                        Authorization: `Bearer ${session?.accessToken}` 
-                    },
-                });
-                if (res.data.success) {
-                    data = res.data.data;
-                    setDetailData(prev => ({ ...prev, [id]: data }));
-                }
-            }
-
-            if (data && data.pegawai) {
-                let total = 0;
-                data.pegawai.forEach(p => {
-                    if (p.biaya_list) {
-                        p.biaya_list.forEach(b => {
-                            const totalTransport = b.transportasi.reduce((sum, t) => sum + Number(t.total || 0), 0);
-                            const totalUH = b.uang_harian.reduce((sum, u) => sum + Number(u.total || 0), 0);
-                            const totalPenginapan = b.penginapan.reduce((sum, p) => sum + Number(p.total || 0), 0);
-                            total += totalTransport + totalUH + totalPenginapan;
-                        });
-                    }
-                });
-
-                setKegiatanList(prev =>
-                    prev.map(k => (k.id === id ? { ...k, total_nominatif: total } : k))
-                );
-                setFilteredKegiatan(prev =>
-                    prev.map(k => (k.id === id ? { ...k, total_nominatif: total } : k))
-                );
-            }
-        } catch (error) {
-            console.error('Error calculating total nominatif:', error);
-            setNotificationMessage('Gagal menghitung total nominatif!');
-            setModalOpen(true);
-        }
-    };
-
-    // Modal handlers
-    const handleOpenKirimPPKModal = (id) => {
-        setSelectedKegiatanForPPK(id);
-        setShowKirimPPKModal(true);
-    };
-
-    const handleOpenMengetahuiModal = (id, kegiatanData) => {
-        setSelectedKegiatanForPersetujuan({ id, ...kegiatanData });
-        setShowMengetahuiModal(true);
-    };
-
-    const handleOpenPersetujuanModal = (id, kegiatanData) => {
-        setSelectedKegiatanForMengetahui({ id, ...kegiatanData });
-        setShowPersetujuanModal(true);
-    };
-
-    // Handler untuk Surat Tugas Modal
-    const handleOpenSuratTugasModal = (item) => {
-        if (!userType.isRegularUser) {
-            setNotificationMessage('Hanya user biasa yang dapat merekam surat tugas');
-            setModalOpen(true);
-            return;
-        }
-        
-        if (item.status !== 'disetujui') {
-            setNotificationMessage(`Kegiatan dengan status "${item.status}" tidak dapat direkam surat tugas. Hanya kegiatan dengan status "disetujui" yang dapat direkam surat tugas.`);
-            setModalOpen(true);
-            return;
-        }
-        
-        if (item.no_st && item.no_st.trim().length > 0) {
-            setNotificationMessage('Surat Tugas sudah direkam sebelumnya');
-            setModalOpen(true);
-            return;
-        }
-        
-        setSelectedKegiatanForST(item);
-        setShowSuratTugasModal(true);
-    };
-
     // Extract user info dari session
     useEffect(() => {
         if (session) {
@@ -572,6 +610,13 @@ export default function KegiatanContainer({ session, status }) {
                 setDetailData({});
                 setDetailShown({});
                 setPegawaiDetailShown({});
+                
+                // PERBAIKAN: Hitung total untuk setiap kegiatan setelah fetch
+                setTimeout(() => {
+                    sortedData.forEach(item => {
+                        calculateTotalNominatif(item.id);
+                    });
+                }, 500);
                 
                 if (showLoading) {
                     setCurrentPage(1);
@@ -917,7 +962,20 @@ export default function KegiatanContainer({ session, status }) {
                     }
                 });
                 if (res.data.success) {
-                    setDetailData(prev => ({ ...prev, [id]: res.data.data }));
+                    const data = res.data.data;
+                    // PERBAIKAN: Hitung ulang total untuk memastikan akurasi
+                    if (data && data.pegawai) {
+                        data.pegawai.forEach(p => {
+                            if (p.biaya_list) {
+                                const calculatedTotal = calculateTotalFromBiayaList(p.biaya_list);
+                                p.calculated_total_biaya = calculatedTotal;
+                            }
+                        });
+                    }
+                    setDetailData(prev => ({ ...prev, [id]: data }));
+                    
+                    // Hitung total nominatif
+                    await calculateTotalNominatif(id, true);
                 }
             } catch (error) {
                 console.error('Error fetching detail:', error);
@@ -943,11 +1001,13 @@ export default function KegiatanContainer({ session, status }) {
         try {
             console.log('Starting print process for item:', item.id);
             
-            await calculateTotalNominatif(item.id);
+            // Hitung ulang total sebelum print
+            const total = await calculateTotalNominatif(item.id, true);
             
             await new Promise(resolve => setTimeout(resolve, 150));
             
             const updatedItem = kegiatanList.find(k => k.id === item.id) || item;
+            updatedItem.total_nominatif = total;
             
             let data = detailData[item.id];
             if (!data) {
@@ -959,6 +1019,15 @@ export default function KegiatanContainer({ session, status }) {
                     });
                     if (res.data.success) {
                         data = res.data.data;
+                        // Hitung ulang total untuk setiap pegawai
+                        if (data && data.pegawai) {
+                            data.pegawai.forEach(p => {
+                                if (p.biaya_list) {
+                                    const calculatedTotal = calculateTotalFromBiayaList(p.biaya_list);
+                                    p.calculated_total_biaya = calculatedTotal;
+                                }
+                            });
+                        }
                         setDetailData(prev => ({ ...prev, [item.id]: data }));
                     }
                 } catch (error) {
@@ -982,6 +1051,7 @@ export default function KegiatanContainer({ session, status }) {
                             <head><title>Print Kegiatan ${item.id}</title></head>
                             <body>
                                 <h1>Kegiatan: ${item.kegiatan || '-'}</h1>
+                                <p>Total Nominatif: Rp ${formatRupiah(total)}</p>
                                 <p>Data untuk cetak tidak tersedia dalam format yang diharapkan</p>
                             </body>
                         </html>
@@ -1136,6 +1206,17 @@ export default function KegiatanContainer({ session, status }) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         Refresh
+                    </button>
+                    {/* PERBAIKAN: Tombol untuk menghitung ulang semua total */}
+                    <button
+                        onClick={calculateAllTotals}
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center"
+                        disabled={formLoading}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Hitung Ulang Total
                     </button>
                     {userType.isRegularUser && (
                         <button
@@ -1464,6 +1545,7 @@ export default function KegiatanContainer({ session, status }) {
                                                 )}
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm">
@@ -1485,6 +1567,7 @@ export default function KegiatanContainer({ session, status }) {
                                                 </div>
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm">
@@ -1502,6 +1585,7 @@ export default function KegiatanContainer({ session, status }) {
                                                 </div>
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col space-y-1">
                                                 <div className="font-medium text-gray-900 text-sm">
@@ -1516,18 +1600,22 @@ export default function KegiatanContainer({ session, status }) {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 font-semibold text-green-700">
-                                            {item.total_nominatif !== undefined ? (
-                                                <>Rp {formatRupiah(item.total_nominatif)}</>
-                                            ) : (
+                                        
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-2">
+                                                <span className="font-semibold text-green-700">
+                                                    Rp {formatRupiah(item.total_nominatif)}
+                                                </span>
+                                                {/* PERBAIKAN: Tombol hitung ulang per item */}
                                                 <button
-                                                    onClick={() => calculateTotalNominatif(item.id)}
-                                                    className="px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition"
+                                                    onClick={() => calculateTotalNominatif(item.id, true)}
+                                                    className="px-2 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500 transition text-xs"
                                                 >
-                                                    Hitung
+                                                    Hitung Ulang
                                                 </button>
-                                            )}
+                                            </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
@@ -1681,7 +1769,8 @@ export default function KegiatanContainer({ session, status }) {
                                                                     <td className="px-4 py-2">{p.nip}</td>
                                                                     <td className="px-4 py-2">{p.jabatan}</td>
                                                                     <td className="px-4 py-2 font-semibold text-green-700">
-                                                                        Rp {formatRupiah(p.total_biaya)}
+                                                                        {/* PERBAIKAN: Gunakan total yang dihitung dari rincian */}
+                                                                        Rp {formatRupiah(p.calculated_total_biaya || calculateTotalPerPegawai(p))}
                                                                     </td>
                                                                     <td className="px-4 py-2">
                                                                         <button
@@ -1697,30 +1786,32 @@ export default function KegiatanContainer({ session, status }) {
                                                                     <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-50'}>
                                                                         <td colSpan={6} className="px-4 py-2">
                                                                             {p.biaya_list.map((b, idx) => {
-                                                                                const totalTransport = b.transportasi.reduce(
-                                                                                    (sum, t) => sum + Number(t.total || 0),
-                                                                                    0
+                                                                                // PERBAIKAN: Hitung total dengan akurat
+                                                                                const transportItems = b.transportasi || [];
+                                                                                const uangHarianItems = b.uang_harian || [];
+                                                                                const penginapanItems = b.penginapan || [];
+                                                                                
+                                                                                const totalTransport = transportItems.reduce(
+                                                                                    (sum, t) => sum + (Number(t.total) || 0), 0
                                                                                 );
-                                                                                const totalUH = b.uang_harian.reduce(
-                                                                                    (sum, u) => sum + Number(u.total || 0),
-                                                                                    0
+                                                                                const totalUH = uangHarianItems.reduce(
+                                                                                    (sum, u) => sum + (Number(u.total) || 0), 0
                                                                                 );
-                                                                                const totalPenginapan = b.penginapan.reduce(
-                                                                                    (sum, p) => sum + Number(p.total || 0),
-                                                                                    0
+                                                                                const totalPenginapan = penginapanItems.reduce(
+                                                                                    (sum, p) => sum + (Number(p.total) || 0), 0
                                                                                 );
                                                                                 const grandTotal = totalTransport + totalUH + totalPenginapan;
 
                                                                                 return (
                                                                                     <div key={idx} className="mb-4 p-4 border border-gray-400 rounded-md">
-                                                                                        <h6 className="font-medium text-gray-800 mb-3">Rincian</h6>
+                                                                                        <h6 className="font-medium text-gray-800 mb-3">Rincian Biaya</h6>
                                                                                         <div className="overflow-x-auto">
                                                                                             <table className="min-w-full border border-gray-400 text-sm mb-3">
                                                                                                 <thead className="bg-gray-200">
                                                                                                     <tr>
-                                                                                                        <th colSpan="3" className="border border-gray-700 px-2 py-1 text-center">Transportasi</th>
-                                                                                                        <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center">Uang Harian</th>
-                                                                                                        <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center">Penginapan</th>
+                                                                                                        <th colSpan="3" className="border border-gray-700 px-2 py-1 text-center bg-blue-100">Transportasi</th>
+                                                                                                        <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center bg-yellow-100">Uang Harian</th>
+                                                                                                        <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center bg-green-100">Penginapan</th>
                                                                                                     </tr>
                                                                                                     <tr>
                                                                                                         {/* Transportasi Header */}
@@ -1744,50 +1835,50 @@ export default function KegiatanContainer({ session, status }) {
                                                                                                 <tbody>
                                                                                                     {(() => {
                                                                                                         const maxRows = Math.max(
-                                                                                                            b.transportasi.length,
-                                                                                                            b.uang_harian.length,
-                                                                                                            b.penginapan.length
+                                                                                                            transportItems.length,
+                                                                                                            uangHarianItems.length,
+                                                                                                            penginapanItems.length
                                                                                                         );
 
                                                                                                         return Array.from({ length: maxRows }).map((_, i) => (
                                                                                                             <tr key={i} className="hover:bg-gray-50">
                                                                                                                 {/* Transportasi Data */}
                                                                                                                 <td className="border px-2 py-1">
-                                                                                                                    {b.transportasi[i]?.trans || ""}
+                                                                                                                    {transportItems[i]?.trans || ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.transportasi[i] ? formatRupiah(b.transportasi[i].harga) : ""}
+                                                                                                                    {transportItems[i] ? formatRupiah(transportItems[i].harga) : ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.transportasi[i] ? formatRupiah(b.transportasi[i].total) : ""}
+                                                                                                                    {transportItems[i] ? formatRupiah(transportItems[i].total) : ""}
                                                                                                                 </td>
                                                                                                                 
                                                                                                                 {/* Uang Harian Data */}
                                                                                                                 <td className="border px-2 py-1">
-                                                                                                                    {b.uang_harian[i]?.jenis || ""}
+                                                                                                                    {uangHarianItems[i]?.jenis || ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-center">
-                                                                                                                    {b.uang_harian[i]?.qty || ""}
+                                                                                                                    {uangHarianItems[i]?.qty || ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.uang_harian[i] ? formatRupiah(b.uang_harian[i].harga) : ""}
+                                                                                                                    {uangHarianItems[i] ? formatRupiah(uangHarianItems[i].harga) : ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.uang_harian[i] ? formatRupiah(b.uang_harian[i].total) : ""}
+                                                                                                                    {uangHarianItems[i] ? formatRupiah(uangHarianItems[i].total) : ""}
                                                                                                                 </td>
                                                                                                                 
                                                                                                                 {/* Penginapan Data */}
                                                                                                                 <td className="border px-2 py-1">
-                                                                                                                    {b.penginapan[i]?.jenis || ""}
+                                                                                                                    {penginapanItems[i]?.jenis || ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-center">
-                                                                                                                    {b.penginapan[i]?.qty || ""}
+                                                                                                                    {penginapanItems[i]?.qty || ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.penginapan[i] ? formatRupiah(b.penginapan[i].harga) : ""}
+                                                                                                                    {penginapanItems[i] ? formatRupiah(penginapanItems[i].harga) : ""}
                                                                                                                 </td>
                                                                                                                 <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.penginapan[i] ? formatRupiah(b.penginapan[i].total) : ""}
+                                                                                                                    {penginapanItems[i] ? formatRupiah(penginapanItems[i].total) : ""}
                                                                                                                 </td>
                                                                                                             </tr>
                                                                                                         ));
@@ -1795,27 +1886,29 @@ export default function KegiatanContainer({ session, status }) {
                                                                                                     
                                                                                                     {/* Total Row */}
                                                                                                     <tr className="bg-gray-100 font-medium">
-                                                                                                        <td colSpan="2" className="border px-2 py-1 text-right">Total Transportasi:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
+                                                                                                        <td colSpan="2" className="border px-2 py-1 text-right font-bold">Total Transportasi:</td>
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700 font-bold">
                                                                                                             Rp {formatRupiah(totalTransport)}
                                                                                                         </td>
                                                                                                         
-                                                                                                        <td colSpan="3" className="border px-2 py-1 text-right">Total Uang Harian:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
+                                                                                                        <td colSpan="3" className="border px-2 py-1 text-right font-bold">Total Uang Harian:</td>
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700 font-bold">
                                                                                                             Rp {formatRupiah(totalUH)}
                                                                                                         </td>
                                                                                                         
-                                                                                                        <td colSpan="3" className="border px-2 py-1 text-right">Total Penginapan:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
+                                                                                                        <td colSpan="3" className="border px-2 py-1 text-right font-bold">Total Penginapan:</td>
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700 font-bold">
                                                                                                             Rp {formatRupiah(totalPenginapan)}
                                                                                                         </td>
                                                                                                     </tr>
                                                                                                 </tbody>
                                                                                             </table>
                                                                                         </div>
+                                                                                        
+                                                                                        {/* PERBAIKAN: Total Rincian Ini */}
                                                                                         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                                                                                             <div className="flex justify-between items-center">
-                                                                                                <span className="font-medium text-gray-700">Total Rincian Ini:</span>
+                                                                                                <span className="font-bold text-gray-700">Total Rincian Ini:</span>
                                                                                                 <span className="text-xl font-bold text-green-800">
                                                                                                     Rp {formatRupiah(grandTotal)}
                                                                                                 </span>
