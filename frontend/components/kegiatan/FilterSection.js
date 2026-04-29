@@ -15,6 +15,10 @@ const FilterSection = ({
     setFilterMak,
     filterLokasi,
     setFilterLokasi,
+    filterStatus2,
+    setFilterStatus2,
+    filterCatatanStatus2,
+    setFilterCatatanStatus2,
     resetFilter,
     filteredKegiatan,
     kegiatanList
@@ -54,6 +58,24 @@ const FilterSection = ({
                         <option value="dikembalikan">Dikembalikan</option>
                         <option value="diketahui">Diketahui</option>
                         <option value="selesai">Selesai</option>
+                        <option value="dibatalkan">Dibatalkan</option>
+                    </select>
+                </div>
+                
+                {/* Filter Status 2 (Status Sakti) */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status Sakti (Status 2)
+                    </label>
+                    <select
+                        value={filterStatus2}
+                        onChange={(e) => setFilterStatus2(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">Semua Status Sakti</option>
+                        <option value="SELESAI">SELESAI</option>
+                        <option value="DIPROSES">DIPROSES</option>
+                        <option value="Belum diisi">Belum diisi</option>
                     </select>
                 </div>
                 
@@ -70,7 +92,6 @@ const FilterSection = ({
                         <option value="">Semua Jenis</option>
                         <option value="LS">LS (Langsung)</option>
                         <option value="KKP">KKP (Kartu Kredit Pemerintah)</option>
-                       
                     </select>
                 </div>
                 
@@ -128,7 +149,21 @@ const FilterSection = ({
                     />
                 </div>
                 
-                {/* Filter Tambahan jika diperlukan */}
+                {/* Filter No SPM / Catatan Status 2 */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        No SPM (Catatan Status 2)
+                    </label>
+                    <input
+                        type="text"
+                        value={filterCatatanStatus2}
+                        onChange={(e) => setFilterCatatanStatus2(e.target.value)}
+                        placeholder="Cari berdasarkan No SPM..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                
+                {/* Pencarian Cepat */}
                 <div className="lg:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Pencarian Cepat
@@ -145,7 +180,7 @@ const FilterSection = ({
             </div>
             
             {/* Info Jumlah Data */}
-            <div className="mt-4 flex justify-between items-center">
+            <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
                 <div className="text-sm text-gray-600">
                     Menampilkan <span className="font-semibold">{filteredKegiatan.length}</span> dari <span className="font-semibold">{kegiatanList.length}</span> kegiatan
                 </div>
@@ -158,6 +193,18 @@ const FilterSection = ({
                             <button 
                                 onClick={() => setFilterStatus('')}
                                 className="text-indigo-600 hover:text-indigo-800"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    
+                    {filterStatus2 && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full flex items-center gap-1">
+                            Status Sakti: {filterStatus2}
+                            <button 
+                                onClick={() => setFilterStatus2('')}
+                                className="text-purple-600 hover:text-purple-800"
                             >
                                 ×
                             </button>
@@ -194,6 +241,42 @@ const FilterSection = ({
                             <button 
                                 onClick={() => setFilterDateTo('')}
                                 className="text-green-600 hover:text-green-800"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    
+                    {filterMak && (
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full flex items-center gap-1">
+                            MAK: {filterMak}
+                            <button 
+                                onClick={() => setFilterMak('')}
+                                className="text-yellow-600 hover:text-yellow-800"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    
+                    {filterLokasi && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full flex items-center gap-1">
+                            Lokasi: {filterLokasi}
+                            <button 
+                                onClick={() => setFilterLokasi('')}
+                                className="text-orange-600 hover:text-orange-800"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                    
+                    {filterCatatanStatus2 && (
+                        <span className="px-2 py-1 bg-pink-100 text-pink-800 text-xs rounded-full flex items-center gap-1">
+                            No SPM: {filterCatatanStatus2}
+                            <button 
+                                onClick={() => setFilterCatatanStatus2('')}
+                                className="text-pink-600 hover:text-pink-800"
                             >
                                 ×
                             </button>

@@ -88,6 +88,10 @@ export default function KegiatanContainer({ session, status }) {
     const [filterMak, setFilterMak] = useState('');
     const [filterLokasi, setFilterLokasi] = useState('');
     
+    // TAMBAHAN: State filter baru untuk status2 dan catatan_status_2
+    const [filterStatus2, setFilterStatus2] = useState('');
+    const [filterCatatanStatus2, setFilterCatatanStatus2] = useState('');
+    
     // State modal
     const [modalOpen, setModalOpen] = useState(false);
     const [notificationMessage, setNotificationMessage] = useState('');
@@ -151,6 +155,20 @@ export default function KegiatanContainer({ session, status }) {
                status2 !== null && 
                status2 !== '' && 
                String(status2).trim().length > 0;
+    };
+
+    // PERBAIKAN: Fungsi untuk mendapatkan warna status2
+    const getStatus2Color = (status2) => {
+        if (!status2) return 'bg-gray-100 text-gray-600 border-gray-200';
+        
+        const statusLower = status2.toLowerCase();
+        if (statusLower === 'selesai') {
+            return 'bg-green-100 text-green-800 border-green-200';
+        } else if (statusLower === 'diproses' || statusLower === 'proses') {
+            return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        } else {
+            return 'bg-gray-100 text-gray-600 border-gray-200';
+        }
     };
 
     // Fungsi renderStatusBadge yang sesuai dengan backend
@@ -397,7 +415,7 @@ export default function KegiatanContainer({ session, status }) {
                         p.biaya_list.forEach(b => {
                             const totalTransport = b.transportasi.reduce((sum, t) => sum + Number(t.total || 0), 0);
                             const totalUH = b.uang_harian.reduce((sum, u) => sum + Number(u.total || 0), 0);
-                            const totalPenginapan = b.penginapan.reduce((sum, p) => sum + Number(p.total || 0), 0);
+                            const totalPenginapan = b.penginapan.reduce((sum, pItem) => sum + Number(pItem.total || 0), 0);
                             total += totalTransport + totalUH + totalPenginapan;
                         });
                     }
@@ -934,11 +952,11 @@ export default function KegiatanContainer({ session, status }) {
                 }
             }
             
-            const pegawaiList = data?.pegawai || [];
+            const pegawaiListData = data?.pegawai || [];
             
             try {
                 setTimeout(() => {
-                    handlePrint(updatedItem, pegawaiList);
+                    handlePrint(updatedItem, pegawaiListData);
                 }, 100);
                 
             } catch (printError) {
@@ -968,7 +986,7 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Filter data dengan mempertahankan halaman
+    // PERBAIKAN: Filter data dengan filter baru termasuk status2 dan catatan_status_2
     useEffect(() => {
         const currentFilterString = JSON.stringify({
             searchTerm,
@@ -977,7 +995,9 @@ export default function KegiatanContainer({ session, status }) {
             filterDateFrom,
             filterDateTo,
             filterMak,
-            filterLokasi
+            filterLokasi,
+            filterStatus2,
+            filterCatatanStatus2
         });
         
         const filtered = kegiatanList.filter(item => {
@@ -990,6 +1010,13 @@ export default function KegiatanContainer({ session, status }) {
             const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
             const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
             const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
+            
+            // TAMBAHAN: Filter untuk status2
+            const matchesStatus2 = !filterStatus2 || item.status_2 === filterStatus2;
+            
+            // TAMBAHAN: Filter untuk catatan_status_2 (No SPM)
+            const matchesCatatanStatus2 = !filterCatatanStatus2 || 
+                (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
             
             let matchesDate = true;
             if (filterDateFrom || filterDateTo) {
@@ -1006,7 +1033,7 @@ export default function KegiatanContainer({ session, status }) {
                 }
             }
             
-            return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate;
+            return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate && matchesStatus2 && matchesCatatanStatus2;
         });
         
         setFilteredKegiatan(filtered);
@@ -1017,8 +1044,9 @@ export default function KegiatanContainer({ session, status }) {
         
         previousFilterString.current = currentFilterString;
         
-    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi]);
+    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi, filterStatus2, filterCatatanStatus2]);
 
+    // PERBAIKAN: Reset filter termasuk filter baru
     const resetFilter = () => {
         isFilterChanging.current = true;
         
@@ -1028,6 +1056,8 @@ export default function KegiatanContainer({ session, status }) {
         setFilterDateTo('');
         setFilterMak('');
         setFilterLokasi('');
+        setFilterStatus2('');
+        setFilterCatatanStatus2('');
         
         setCurrentPage(1);
         
@@ -1130,7 +1160,7 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Filter Section */}
+            {/* Filter Section - TAMBAHKAN props baru */}
             <FilterSection
                 showFilter={showFilter}
                 filterStatus={filterStatus}
@@ -1145,6 +1175,10 @@ export default function KegiatanContainer({ session, status }) {
                 setFilterMak={setFilterMak}
                 filterLokasi={filterLokasi}
                 setFilterLokasi={setFilterLokasi}
+                filterStatus2={filterStatus2}
+                setFilterStatus2={setFilterStatus2}
+                filterCatatanStatus2={filterCatatanStatus2}
+                setFilterCatatanStatus2={setFilterCatatanStatus2}
                 resetFilter={resetFilter}
                 filteredKegiatan={filteredKegiatan}
                 kegiatanList={kegiatanList}
@@ -1216,13 +1250,18 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Tampilkan filter aktif */}
+            {/* Tampilkan filter aktif - TAMBAHKAN filter baru */}
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm font-medium text-gray-700 mb-2">Filter Aktif:</div>
                 <div className="flex flex-wrap gap-2">
                     {filterStatus && (
                         <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-sm rounded-full">
                             Status: {filterStatus}
+                        </span>
+                    )}
+                    {filterStatus2 && (
+                        <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                            Status Proses: {filterStatus2}
                         </span>
                     )}
                     {filterJenisSpm && (
@@ -1246,14 +1285,19 @@ export default function KegiatanContainer({ session, status }) {
                         </span>
                     )}
                     {filterLokasi && (
-                        <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
                             Lokasi: {filterLokasi}
+                        </span>
+                    )}
+                    {filterCatatanStatus2 && (
+                        <span className="px-3 py-1 bg-pink-100 text-pink-800 text-sm rounded-full">
+                            No SPM: {filterCatatanStatus2}
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* Table */}
+            {/* Table - tetap sama seperti desain asli */}
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -1365,18 +1409,14 @@ export default function KegiatanContainer({ session, status }) {
                                                     </button>
                                                 </div>
 
-                                                {/* Status 2 - hanya tampil untuk status selesai */}
+                                                {/* Status 2 - hanya tampil untuk status selesai dengan perbedaan warna */}
                                                 {item.status === 'selesai' && (
                                                     <div className="mt-1">
                                                         <div className="text-xs text-gray-500 mb-1">Status Sakti:</div>
                                                         <div className="flex flex-col items-start gap-2">
                                                             {item.status_2?.trim() ? (
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className={`px-3 py-1 text-xs font-medium rounded-full border ${
-                                                                        item.status_2.toLowerCase() === 'diproses' 
-                                                                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                                                            : 'bg-green-100 text-green-800 border-green-200'
-                                                                    }`}>
+                                                                    <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatus2Color(item.status_2)}`}>
                                                                         {item.status_2} {item.catatan_status_2 ? `|| ${item.catatan_status_2}` : ''}
                                                                     </span>
                                                                     
@@ -1417,6 +1457,7 @@ export default function KegiatanContainer({ session, status }) {
                                                 )}
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm">
@@ -1659,7 +1700,7 @@ export default function KegiatanContainer({ session, status }) {
                                                                                     0
                                                                                 );
                                                                                 const totalPenginapan = b.penginapan.reduce(
-                                                                                    (sum, p) => sum + Number(p.total || 0),
+                                                                                    (sum, pItem) => sum + Number(pItem.total || 0),
                                                                                     0
                                                                                 );
                                                                                 const grandTotal = totalTransport + totalUH + totalPenginapan;
@@ -1676,18 +1717,13 @@ export default function KegiatanContainer({ session, status }) {
                                                                                                         <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center">Penginapan</th>
                                                                                                     </tr>
                                                                                                     <tr>
-                                                                                                        {/* Transportasi Header */}
                                                                                                         <th className="border border-gray-700 px-2 py-1">Jenis</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Harga</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Total</th>
-                                                                                                        
-                                                                                                        {/* Uang Harian Header */}
                                                                                                         <th className="border border-gray-700 px-2 py-1">Jenis</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Qty</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Harga</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Total</th>
-                                                                                                        
-                                                                                                        {/* Penginapan Header */}
                                                                                                         <th className="border border-gray-700 px-2 py-1">Jenis</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Qty</th>
                                                                                                         <th className="border border-gray-700 px-2 py-1">Harga</th>
@@ -1701,67 +1737,29 @@ export default function KegiatanContainer({ session, status }) {
                                                                                                             b.uang_harian.length,
                                                                                                             b.penginapan.length
                                                                                                         );
-
                                                                                                         return Array.from({ length: maxRows }).map((_, i) => (
                                                                                                             <tr key={i} className="hover:bg-gray-50">
-                                                                                                                {/* Transportasi Data */}
-                                                                                                                <td className="border px-2 py-1">
-                                                                                                                    {b.transportasi[i]?.trans || ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.transportasi[i] ? formatRupiah(b.transportasi[i].harga) : ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.transportasi[i] ? formatRupiah(b.transportasi[i].total) : ""}
-                                                                                                                </td>
-                                                                                                                
-                                                                                                                {/* Uang Harian Data */}
-                                                                                                                <td className="border px-2 py-1">
-                                                                                                                    {b.uang_harian[i]?.jenis || ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-center">
-                                                                                                                    {b.uang_harian[i]?.qty || ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.uang_harian[i] ? formatRupiah(b.uang_harian[i].harga) : ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.uang_harian[i] ? formatRupiah(b.uang_harian[i].total) : ""}
-                                                                                                                </td>
-                                                                                                                
-                                                                                                                {/* Penginapan Data */}
-                                                                                                                <td className="border px-2 py-1">
-                                                                                                                    {b.penginapan[i]?.jenis || ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-center">
-                                                                                                                    {b.penginapan[i]?.qty || ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right">
-                                                                                                                    {b.penginapan[i] ? formatRupiah(b.penginapan[i].harga) : ""}
-                                                                                                                </td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">
-                                                                                                                    {b.penginapan[i] ? formatRupiah(b.penginapan[i].total) : ""}
-                                                                                                                </td>
+                                                                                                                <td className="border px-2 py-1">{b.transportasi[i]?.trans || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{b.transportasi[i] ? formatRupiah(b.transportasi[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.transportasi[i] ? formatRupiah(b.transportasi[i].total) : ""}</td>
+                                                                                                                <td className="border px-2 py-1">{b.uang_harian[i]?.jenis || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-center">{b.uang_harian[i]?.qty || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{b.uang_harian[i] ? formatRupiah(b.uang_harian[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.uang_harian[i] ? formatRupiah(b.uang_harian[i].total) : ""}</td>
+                                                                                                                <td className="border px-2 py-1">{b.penginapan[i]?.jenis || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-center">{b.penginapan[i]?.qty || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{b.penginapan[i] ? formatRupiah(b.penginapan[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.penginapan[i] ? formatRupiah(b.penginapan[i].total) : ""}</td>
                                                                                                             </tr>
                                                                                                         ));
                                                                                                     })()}
-                                                                                                    
-                                                                                                    {/* Total Row */}
                                                                                                     <tr className="bg-gray-100 font-medium">
                                                                                                         <td colSpan="2" className="border px-2 py-1 text-right">Total Transportasi:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
-                                                                                                            Rp {formatRupiah(totalTransport)}
-                                                                                                        </td>
-                                                                                                        
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalTransport)}</td>
                                                                                                         <td colSpan="3" className="border px-2 py-1 text-right">Total Uang Harian:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
-                                                                                                            Rp {formatRupiah(totalUH)}
-                                                                                                        </td>
-                                                                                                        
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalUH)}</td>
                                                                                                         <td colSpan="3" className="border px-2 py-1 text-right">Total Penginapan:</td>
-                                                                                                        <td className="border px-2 py-1 text-right text-green-700">
-                                                                                                            Rp {formatRupiah(totalPenginapan)}
-                                                                                                        </td>
+                                                                                                        <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalPenginapan)}</td>
                                                                                                     </tr>
                                                                                                 </tbody>
                                                                                             </table>
@@ -1769,9 +1767,7 @@ export default function KegiatanContainer({ session, status }) {
                                                                                         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                                                                                             <div className="flex justify-between items-center">
                                                                                                 <span className="font-medium text-gray-700">Total Rincian Ini:</span>
-                                                                                                <span className="text-xl font-bold text-green-800">
-                                                                                                    Rp {formatRupiah(grandTotal)}
-                                                                                                </span>
+                                                                                                <span className="text-xl font-bold text-green-800">Rp {formatRupiah(grandTotal)}</span>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
