@@ -775,7 +775,9 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         role: req.user.extractedRoles || req.user.role,
         isAdmin: req.user.isAdmin,
         isPPK: req.user.isPPK,
-        isKabalai: req.user.isKabalai
+        isKabalai: req.user.isKabalai,
+        userNip: req.user.nip,
+        userId: req.user.user_id
     });
 
     if (!id || isNaN(id)) {
@@ -786,7 +788,37 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
     }
 
     try {
-        const { where, params } = buildSingleItemWhereClause(req.user, id, 'k.id');
+        // Buat WHERE clause manual - TIDAK menggunakan buildSingleItemWhereClause
+        let where = '';
+        let params = [id];
+        
+        if (req.user.isAdmin) {
+            console.log('👑 Admin access - no filter');
+            where = `WHERE k.id = ?`;
+        } 
+        else if (req.user.isPPK) {
+            console.log('📋 PPK access - filter by ppk_id');
+            where = `WHERE k.id = ? AND k.ppk_id = ?`;
+            params.push(req.user.user_id);
+        } 
+        else if (req.user.isKabalai) {
+            console.log('🏢 Kabalai access - no filter');
+            where = `WHERE k.id = ?`;
+        } 
+        else {
+            // Regular user - cek di tabel nominatif_pegawai
+            const normalizedNip = String(req.user.nip || '').replace(/\s/g, '');
+            console.log(`👤 Regular User access - checking NIP: ${normalizedNip}`);
+            where = `WHERE k.id = ? AND EXISTS (
+                SELECT 1 FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = k.id 
+                AND REPLACE(p.nip, ' ', '') = ?
+            )`;
+            params.push(normalizedNip);
+        }
+        
+        console.log('SQL WHERE clause:', where);
+        console.log('SQL Params:', params);
 
         const kegiatanQuery = `
         SELECT 
@@ -808,159 +840,63 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
             DATE_FORMAT(k.tanggal_disetujui, '%Y-%m-%d %H:%i:%s') as tanggal_disetujui,
             DATE_FORMAT(k.tanggal_diketahui, '%Y-%m-%d %H:%i:%s') as tanggal_diketahui,
             k.catatan,
-            
-            
             k.no_st,
             k.tgl_st,  
             DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st_format,
             k.catatan_kabalai,
             k.diketahui_oleh,
-            
             DATE_FORMAT(k.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
             DATE_FORMAT(k.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at
         FROM accounting.nominatif_kegiatan k
         ${where}
-    `;
+        `;
         
         const [kegiatanRows] = await db.query(kegiatanQuery, params);
 
         if (kegiatanRows.length === 0) {
             console.log(`❌ Kegiatan ID ${id} tidak ditemukan untuk detail`);
-            
-            let errorMessage = 'Kegiatan tidak ditemukan';
-            if (req.user.isPPK) {
-                errorMessage = 'Kegiatan tidak ditemukan atau bukan pengajuan untuk PPK Anda';
-            } else if (req.user.isRegularUser) {
-                errorMessage = 'Kegiatan tidak ditemukan atau Anda tidak memiliki akses';
-            }
-            
             return res.status(404).json({
                 success: false,
-                message: errorMessage
+                message: 'Kegiatan tidak ditemukan atau Anda tidak memiliki akses'
             });
         }
 
         const kegiatanData = kegiatanRows[0];
 
-        const pegawaiQuery = `
+        // Ambil pegawai
+        let pegawaiQuery = `
             SELECT 
                 p.id,
                 p.nama,
                 p.nip,
                 p.jabatan,
-                p.total_biaya
+                p.total_biaya,
+                k.id as kwitansi_id,
+                k.no_lpd,
+                k.tgl_kwitansi,
+                k.upload_kwitansi,
+                k.status_ttd,
+                k.tgl_ttd,
+                k.catatan_ttd,
+                CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
             FROM accounting.nominatif_pegawai p
+            LEFT JOIN accounting.kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
             WHERE p.kegiatan_id = ?
-            ORDER BY p.id ASC
         `;
-
-        const [pegawaiRows] = await db.query(pegawaiQuery, [id]);
-
-        if (pegawaiRows.length > 0) {
-            const pegawaiIds = pegawaiRows.map(p => p.id);
-            
-            const biayaQuery = `
-                SELECT 
-                    b.id as biaya_id,
-                    b.pegawai_id
-                FROM accounting.nominatif_biaya_kegiatan b
-                WHERE b.pegawai_id IN (?)
-                ORDER BY b.id ASC
-            `;
-
-            const [biayaRows] = await db.query(biayaQuery, [pegawaiIds]);
-
-            const biayaByPegawai = {};
-            biayaRows.forEach(b => {
-                if (!biayaByPegawai[b.pegawai_id]) {
-                    biayaByPegawai[b.pegawai_id] = [];
-                }
-                biayaByPegawai[b.pegawai_id].push(b);
-            });
-
-            const biayaIds = biayaRows.map(b => b.biaya_id);
-            
-            if (biayaIds.length > 0) {
-                const [transportasiRows] = await db.query(
-                    `SELECT * FROM accounting.nominatif_transportasi WHERE biaya_id IN (?)`, 
-                    [biayaIds]
-                );
-                
-                const [uangHarianRows] = await db.query(
-                    `SELECT * FROM accounting.nominatif_uang_harian_items WHERE biaya_id IN (?)`, 
-                    [biayaIds]
-                );
-                
-                const [penginapanRows] = await db.query(
-                    `SELECT * FROM accounting.nominatif_penginapan_items WHERE biaya_id IN (?)`, 
-                    [biayaIds]
-                );
-
-                const transportasiByBiaya = {};
-                const uangHarianByBiaya = {};
-                const penginapanByBiaya = {};
-
-                transportasiRows.forEach(t => {
-                    if (!transportasiByBiaya[t.biaya_id]) {
-                        transportasiByBiaya[t.biaya_id] = [];
-                    }
-                    transportasiByBiaya[t.biaya_id].push({
-                        id: t.id,
-                        trans: t.trans,
-                        harga: parseFloat(t.harga) || 0,
-                        total: parseFloat(t.total) || 0
-                    });
-                });
-
-                uangHarianRows.forEach(uh => {
-                    if (!uangHarianByBiaya[uh.biaya_id]) {
-                        uangHarianByBiaya[uh.biaya_id] = [];
-                    }
-                    uangHarianByBiaya[uh.biaya_id].push({
-                        id: uh.id,
-                        jenis: uh.jenis,
-                        qty: parseFloat(uh.qty) || 0,
-                        harga: parseFloat(uh.harga) || 0,
-                        total: parseFloat(uh.total) || 0
-                    });
-                });
-
-                penginapanRows.forEach(ph => {
-                    if (!penginapanByBiaya[ph.biaya_id]) {
-                        penginapanByBiaya[ph.biaya_id] = [];
-                    }
-                    penginapanByBiaya[ph.biaya_id].push({
-                        id: ph.id,
-                        jenis: ph.jenis,
-                        qty: parseFloat(ph.qty) || 0,
-                        harga: parseFloat(ph.harga) || 0,
-                        total: parseFloat(ph.total) || 0
-                    });
-                });
-
-                pegawaiRows.forEach(pegawai => {
-                    pegawai.biaya_list = [];
-                    
-                    if (biayaByPegawai[pegawai.id]) {
-                        biayaByPegawai[pegawai.id].forEach(biaya => {
-                            const biayaDetail = {
-                                biaya_id: biaya.biaya_id,
-                                transportasi: transportasiByBiaya[biaya.biaya_id] || [],
-                                uang_harian: uangHarianByBiaya[biaya.biaya_id] || [],
-                                penginapan: penginapanByBiaya[biaya.biaya_id] || []
-                            };
-                            
-                            const subtotalTransport = biayaDetail.transportasi.reduce((sum, t) => sum + t.total, 0);
-                            const subtotalUangHarian = biayaDetail.uang_harian.reduce((sum, uh) => sum + uh.total, 0);
-                            const subtotalPenginapan = biayaDetail.penginapan.reduce((sum, ph) => sum + ph.total, 0);
-                            biayaDetail.subtotal = subtotalTransport + subtotalUangHarian + subtotalPenginapan;
-                            
-                            pegawai.biaya_list.push(biayaDetail);
-                        });
-                    }
-                });
-            }
+        
+        const pegawaiParams = [id];
+        
+        // Jika bukan admin, filter pegawai berdasarkan NIP user
+        if (!req.user.isAdmin && !req.user.isPPK && !req.user.isKabalai && req.user.nip) {
+            const normalizedNip = String(req.user.nip).replace(/\s/g, '');
+            pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
+            pegawaiParams.push(normalizedNip);
+            console.log(`Filtering pegawai for NIP: ${normalizedNip}`);
         }
+        
+        pegawaiQuery += ` ORDER BY p.id ASC`;
+        
+        const [pegawaiRows] = await db.query(pegawaiQuery, pegawaiParams);
 
         const responseData = {
             ...kegiatanData,
@@ -974,32 +910,11 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Detail lengkap kegiatan berhasil diambil',
-            data: responseData,
-            user: username,
-            role: req.user.extractedRoles || req.user.role,
-            user_type: {
-                isAdmin: req.user.isAdmin,
-                isPPK: req.user.isPPK,
-                isKabalai: req.user.isKabalai,
-                isRegularUser: req.user.isRegularUser
-            },
-            is_owner: req.user.isAdmin || req.user.isKabalai || 
-                     responseData.user_id === getUserId(req.user) || 
-                     (req.user.isPPK && responseData.ppk_id === getUserId(req.user))
+            data: responseData
         });
 
     } catch (error) {
         console.error('❌ Error fetching full detail:', error);
-        
-        if (error.code === 'ER_BAD_FIELD_ERROR') {
-            return res.status(500).json({
-                success: false,
-                message: 'Struktur database tidak sesuai. Kolom yang diminta tidak ditemukan.',
-                error: error.sqlMessage,
-                suggestion: 'Periksa struktur tabel pegawai dan pastikan kolom yang dibutuhkan ada.'
-            });
-        }
-        
         res.status(500).json({
             success: false,
             message: 'Terjadi kesalahan server',

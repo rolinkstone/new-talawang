@@ -6,6 +6,9 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 
+// IMPORT MIDDLEWARE KEYCLOAK AUTH
+const { keycloakAuth, getUsername, getUserId } = require('../middleware/keycloakAuth');
+
 // Setup upload directory
 const uploadDir = path.join(__dirname, '../public/uploads/kwitansi');
 if (!fs.existsSync(uploadDir)) {
@@ -28,6 +31,12 @@ function cleanFilePath(filePath) {
     }
     return clean;
 }
+
+// Helper normalisasi NIP
+const normalizeNip = (nip) => {
+    if (!nip) return '';
+    return String(nip).replace(/\s/g, '');
+};
 
 // Multer configuration
 const storage = multer.diskStorage({
@@ -57,109 +66,124 @@ const upload = multer({
     }
 });
 
+// ============ ROUTES ============
+
 // GET kegiatan with pegawai that need kwitansi input (support admin)
-router.get('/need-kwitansi', async (req, res) => {
+router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     try {
-        const userId = req.user?.id;
-        const userRoles = req.user?.roles || [];
-        const isAdmin = userRoles.some(role => role.toLowerCase() === 'admin');
+        const user = req.user;
+        const userNip = user?.nip || '';
+        const isAdmin = user?.isAdmin || false;
         
-        console.log('🔍 Need Kwitansi Request:');
-        console.log('User ID:', userId);
+        const normalizedUserNip = normalizeNip(userNip);
+        
+        console.log(`🔍 ${getUsername(user)} mengakses need-kwitansi`);
+        console.log('User NIP:', normalizedUserNip);
         console.log('Is Admin:', isAdmin);
-        console.log('User Roles:', userRoles);
         
-        let kondisiUser = '';
-        let params = [];
-        
-        // Jika bukan admin, filter berdasarkan user_id
-        if (!isAdmin && userId) {
-            kondisiUser = ' AND n.user_id = ?';
-            params.push(userId);
-            console.log('Filtering for user:', userId);
-        } else if (isAdmin) {
-            console.log('Admin mode: showing all data');
-        }
-        
-        const kegiatanQuery = `
-            SELECT n.*, 
-                   COUNT(DISTINCT p.id) as total_pegawai,
-                   COUNT(DISTINCT k.id) as sudah_input
+        let kegiatanQuery = `
+            SELECT DISTINCT n.*
             FROM nominatif_kegiatan n
-            LEFT JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-            LEFT JOIN kwitansi_perjadin k ON n.id = k.kegiatan_id AND p.id = k.pegawai_id
-            WHERE n.status = 'selesai' ${kondisiUser}
-            GROUP BY n.id
-            ORDER BY n.created_at DESC
+            JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
         `;
         
-        console.log('Executing query...');
-        const [kegiatanResults] = await db.query(kegiatanQuery, params);
-        console.log(`Found ${kegiatanResults.length} kegiatan with status 'selesai'`);
+        if (!isAdmin && normalizedUserNip) {
+            kegiatanQuery += ` WHERE REPLACE(p.nip, ' ', '') = ?`;
+        }
         
-        // For each kegiatan, get pegawai list with status
-        for (let kegiatan of kegiatanResults) {
-         const pegawaiQuery = `
-                SELECT p.*, 
+        kegiatanQuery += ` ORDER BY n.created_at DESC`;
+        
+        const queryParams = (!isAdmin && normalizedUserNip) ? [normalizedUserNip] : [];
+        const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        
+        console.log(`Found ${kegiatanList.length} kegiatan`);
+        
+        const result = [];
+        
+        for (const kegiatan of kegiatanList) {
+            let pegawaiQuery = `
+                SELECT 
+                    p.*,
                     k.id as kwitansi_id,
                     k.no_lpd,
                     k.tgl_kwitansi,
                     k.upload_kwitansi,
-                    k.status_input,
                     k.status_ttd,
                     k.tgl_ttd,
                     k.catatan_ttd,
-                    p.nip,
                     CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
                 FROM nominatif_pegawai p
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
                 WHERE p.kegiatan_id = ?
             `;
-            const [pegawaiResults] = await db.query(pegawaiQuery, [kegiatan.id]);
-            console.log(`Kegiatan ${kegiatan.id} has ${pegawaiResults.length} pegawai`);
             
-            // Fix file path for each pegawai
-            const fixedPegawai = pegawaiResults.map(pegawai => {
-                if (pegawai.upload_kwitansi) {
-                    pegawai.upload_kwitansi = cleanFilePath(pegawai.upload_kwitansi);
-                }
-                return pegawai;
+            const pegawaiParams = [kegiatan.id];
+            
+            if (!isAdmin && normalizedUserNip) {
+                pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
+                pegawaiParams.push(normalizedUserNip);
+            }
+            
+            const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
+            
+            if (pegawaiList.length === 0) {
+                continue;
+            }
+            
+            let totalPegawaiQuery = `SELECT COUNT(*) as total FROM nominatif_pegawai WHERE kegiatan_id = ?`;
+            let sudahInputQuery = `SELECT COUNT(*) as total FROM kwitansi_perjadin WHERE kegiatan_id = ?`;
+            
+            let totalPegawaiParams = [kegiatan.id];
+            let sudahInputParams = [kegiatan.id];
+            
+            if (!isAdmin && normalizedUserNip) {
+                totalPegawaiQuery += ` AND REPLACE(nip, ' ', '') = ?`;
+                sudahInputQuery += ` AND pegawai_id IN (SELECT id FROM nominatif_pegawai WHERE REPLACE(nip, ' ', '') = ? AND kegiatan_id = ?)`;
+                totalPegawaiParams.push(normalizedUserNip);
+                sudahInputParams.push(normalizedUserNip, kegiatan.id);
+            }
+            
+            const [totalPegawai] = await db.query(totalPegawaiQuery, totalPegawaiParams);
+            const [sudahInput] = await db.query(sudahInputQuery, sudahInputParams);
+            
+            result.push({
+                ...kegiatan,
+                total_pegawai: totalPegawai[0].total,
+                sudah_input: sudahInput[0].total,
+                pegawai: pegawaiList
             });
-            
-            kegiatan.pegawai = fixedPegawai;
-            kegiatan.sudah_input = kegiatan.sudah_input || 0;
-            kegiatan.total_pegawai = kegiatan.total_pegawai || 0;
         }
         
-        res.status(200).json({ success: true, data: kegiatanResults });
+        console.log(`✅ ${getUsername(user)}: Returning ${result.length} kegiatan`);
+        
+        res.status(200).json({ 
+            success: true, 
+            data: result
+        });
+        
     } catch (error) {
-        console.error('❌ Error fetching need kwitansi:', error);
+        console.error('❌ Error in need-kwitansi:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// GET all kwitansi (support admin)
-router.get('/', async (req, res) => {
+// GET all kwitansi
+router.get('/', keycloakAuth, async (req, res) => {
     try {
-        const userId = req.user?.id;
-        const userRoles = req.user?.roles || [];
-        const isAdmin = userRoles.some(role => role.toLowerCase() === 'admin');
+        const user = req.user;
+        const userNip = user?.nip || '';
+        const isAdmin = user?.isAdmin || false;
         
-        let kondisiUser = '';
-        let params = [];
+        const normalizedUserNip = normalizeNip(userNip);
         
-        if (!isAdmin && userId) {
-            kondisiUser = ' AND n.user_id = ?';
-            params.push(userId);
-        }
+        console.log(`📋 ${getUsername(user)} mengakses daftar kwitansi`);
         
-        const query = `
+        let query = `
             SELECT k.*, 
                    n.kegiatan as nama_kegiatan, 
                    n.mak, 
                    n.kota_kab_kecamatan,
                    n.no_st,
-                   n.user_id as kegiatan_user_id,
                    p.nama as nama_pegawai,
                    p.nip,
                    p.total_biaya,
@@ -167,9 +191,16 @@ router.get('/', async (req, res) => {
             FROM kwitansi_perjadin k
             JOIN nominatif_kegiatan n ON k.kegiatan_id = n.id
             LEFT JOIN nominatif_pegawai p ON k.pegawai_id = p.id
-            WHERE 1=1 ${kondisiUser}
-            ORDER BY k.created_at DESC
         `;
+        
+        let params = [];
+        
+        if (!isAdmin && normalizedUserNip) {
+            query += ` WHERE REPLACE(p.nip, ' ', '') = ?`;
+            params.push(normalizedUserNip);
+        }
+        
+        query += ` ORDER BY k.created_at DESC`;
         
         const [results] = await db.query(query, params);
         
@@ -182,15 +213,18 @@ router.get('/', async (req, res) => {
         
         res.status(200).json({ success: true, data: fixedResults });
     } catch (error) {
-        console.error('Error fetching kwitansi:', error);
+        console.error('❌ Error fetching kwitansi:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // GET single kwitansi by id
-router.get('/:id', async (req, res) => {
+router.get('/:id', keycloakAuth, async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
+        
+        console.log(`📋 ${getUsername(user)} mengakses kwitansi ID: ${id}`);
         
         const query = `
             SELECT k.*, 
@@ -218,13 +252,13 @@ router.get('/:id', async (req, res) => {
         
         res.status(200).json({ success: true, data: results[0] });
     } catch (error) {
-        console.error('Error fetching kwitansi by id:', error);
+        console.error('❌ Error fetching kwitansi by id:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // POST create new kwitansi
-router.post('/', (req, res) => {
+router.post('/', keycloakAuth, (req, res) => {
     upload.single('upload_kwitansi')(req, res, async (err) => {
         if (err) {
             console.error('Upload error:', err);
@@ -232,16 +266,11 @@ router.post('/', (req, res) => {
         }
         
         try {
+            const user = req.user;
             const { kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi } = req.body;
             const upload_kwitansi = req.file ? `/uploads/kwitansi/${req.file.filename}` : null;
             
-            console.log('📝 Saving kwitansi:', {
-                kegiatan_id,
-                pegawai_id,
-                no_lpd,
-                tgl_kwitansi,
-                upload_kwitansi
-            });
+            console.log(`📝 ${getUsername(user)} menyimpan kwitansi untuk pegawai ID: ${pegawai_id}`);
             
             if (!kegiatan_id) {
                 return res.status(400).json({ success: false, message: 'Kegiatan harus dipilih' });
@@ -262,7 +291,7 @@ router.post('/', (req, res) => {
             
             const [result] = await db.query(query, [kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, upload_kwitansi]);
             
-            console.log('✅ Kwitansi saved with ID:', result.insertId);
+            console.log(`✅ Kwitansi saved with ID: ${result.insertId}`);
             
             res.status(201).json({ 
                 success: true, 
@@ -270,17 +299,20 @@ router.post('/', (req, res) => {
                 message: 'Kwitansi berhasil disimpan'
             });
         } catch (error) {
-            console.error('Error creating kwitansi:', error);
+            console.error('❌ Error creating kwitansi:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });
 });
 
 // UPDATE kwitansi
-router.put('/:id', async (req, res) => {
+router.put('/:id', keycloakAuth, async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
         const { no_lpd, tgl_kwitansi } = req.body;
+        
+        console.log(`📝 ${getUsername(user)} mengupdate kwitansi ID: ${id}`);
         
         if (!no_lpd || !no_lpd.trim()) {
             return res.status(400).json({ success: false, message: 'No LPD harus diisi' });
@@ -300,15 +332,18 @@ router.put('/:id', async (req, res) => {
         
         res.status(200).json({ success: true, message: 'Kwitansi berhasil diperbarui' });
     } catch (error) {
-        console.error('Error updating kwitansi:', error);
+        console.error('❌ Error updating kwitansi:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // DELETE kwitansi
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', keycloakAuth, async (req, res) => {
     try {
         const { id } = req.params;
+        const user = req.user;
+        
+        console.log(`🗑️ ${getUsername(user)} menghapus kwitansi ID: ${id}`);
         
         const [rows] = await db.query('SELECT upload_kwitansi FROM kwitansi_perjadin WHERE id = ?', [id]);
         
@@ -319,8 +354,6 @@ router.delete('/:id', async (req, res) => {
             if (fs.existsSync(fullPath)) {
                 fs.unlinkSync(fullPath);
                 console.log('🗑️ File deleted:', fullPath);
-            } else {
-                console.log('⚠️ File not found:', fullPath);
             }
         }
         
@@ -328,30 +361,25 @@ router.delete('/:id', async (req, res) => {
         
         res.status(200).json({ success: true, message: 'Kwitansi berhasil dihapus' });
     } catch (error) {
-        console.error('Error deleting kwitansi:', error);
+        console.error('❌ Error deleting kwitansi:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// routes/kwitansi.js - tambahkan endpoint ini
-
 // POST untuk persetujuan tanda tangan
-router.post('/approve-ttd/:kwitansiId', async (req, res) => {
+router.post('/approve-ttd/:kwitansiId', keycloakAuth, async (req, res) => {
     try {
         const { kwitansiId } = req.params;
-        const userNip = req.user?.nip; // Gunakan NIP dari token
+        const user = req.user;
+        const userNip = user?.nip || '';
         const { status_ttd, catatan_ttd } = req.body;
         
-        console.log('=== APPROVE TTD ===');
-        console.log('Kwitansi ID:', kwitansiId);
-        console.log('User NIP:', userNip);
-        console.log('Status:', status_ttd);
+        console.log(`✍️ ${getUsername(user)} approve TTD untuk kwitansi ID: ${kwitansiId}`);
         
-        // Validasi input
         if (!userNip) {
             return res.status(401).json({ 
                 success: false, 
-                message: 'User tidak terautentikasi atau NIP tidak ditemukan' 
+                message: 'User tidak terautentikasi' 
             });
         }
         
@@ -362,15 +390,8 @@ router.post('/approve-ttd/:kwitansiId', async (req, res) => {
             });
         }
         
-        // Fungsi normalisasi NIP (hilangkan spasi)
-        const normalizeNip = (nip) => {
-            if (!nip) return '';
-            return String(nip).replace(/\s/g, '');
-        };
-        
         const userNipNormalized = normalizeNip(userNip);
         
-        // Cek kwitansi dan data pegawai terkait (tanpa p.user_id)
         const [kwitansi] = await db.query(`
             SELECT k.*, p.id as pegawai_id, p.nama as pegawai_nama, p.nip as pegawai_nip
             FROM kwitansi_perjadin k
@@ -388,19 +409,13 @@ router.post('/approve-ttd/:kwitansiId', async (req, res) => {
         const kwitansiData = kwitansi[0];
         const pegawaiNipNormalized = normalizeNip(kwitansiData.pegawai_nip);
         
-        console.log('Pegawai NIP (normalized):', pegawaiNipNormalized);
-        console.log('User NIP (normalized):', userNipNormalized);
-        console.log('NIP Match:', pegawaiNipNormalized === userNipNormalized);
-        
-        // Hanya pegawai yang bersangkutan yang bisa approve (berdasarkan NIP)
         if (pegawaiNipNormalized !== userNipNormalized) {
             return res.status(403).json({ 
                 success: false, 
-                message: 'Tidak memiliki akses. Hanya pegawai yang bersangkutan yang dapat menyetujui kwitansi ini.' 
+                message: 'Tidak memiliki akses. Hanya pegawai yang bersangkutan yang dapat menyetujui.' 
             });
         }
         
-        // Cek apakah sudah disetujui sebelumnya
         if (kwitansiData.status_ttd === 'sudah') {
             return res.status(400).json({ 
                 success: false, 
@@ -408,20 +423,13 @@ router.post('/approve-ttd/:kwitansiId', async (req, res) => {
             });
         }
         
-        // Update status kwitansi
-        const query = `
-            UPDATE kwitansi_perjadin 
-            SET status_ttd = ?, 
-                tgl_ttd = ?,
-                catatan_ttd = ?
-            WHERE id = ?
-        `;
-        
         const tgl_ttd = status_ttd === 'sudah' ? new Date() : null;
         
-        await db.query(query, [status_ttd, tgl_ttd, catatan_ttd || null, kwitansiId]);
-        
-        console.log('Kwitansi berhasil diupdate, status:', status_ttd);
+        await db.query(`
+            UPDATE kwitansi_perjadin 
+            SET status_ttd = ?, tgl_ttd = ?, catatan_ttd = ?
+            WHERE id = ?
+        `, [status_ttd, tgl_ttd, catatan_ttd || null, kwitansiId]);
         
         res.status(200).json({ 
             success: true, 
@@ -429,18 +437,17 @@ router.post('/approve-ttd/:kwitansiId', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Error approving TTD:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Terjadi kesalahan server: ' + error.message 
-        });
+        console.error('❌ Error approving TTD:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // GET cek status persetujuan
-router.get('/status-ttd/:kwitansiId', async (req, res) => {
+router.get('/status-ttd/:kwitansiId', keycloakAuth, async (req, res) => {
     try {
         const { kwitansiId } = req.params;
+        const user = req.user;
+        
         const [rows] = await db.query(`
             SELECT status_ttd, tgl_ttd, catatan_ttd 
             FROM kwitansi_perjadin 
@@ -449,7 +456,94 @@ router.get('/status-ttd/:kwitansiId', async (req, res) => {
         
         res.status(200).json({ success: true, data: rows[0] });
     } catch (error) {
-        console.error('Error fetching status TTD:', error);
+        console.error('❌ Error fetching status TTD:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET detail kegiatan untuk kwitansi (DIPERBAIKI dengan filter akses)
+router.get('/kegiatan/:id/detail', keycloakAuth, async (req, res) => {
+    try {
+        const kegiatanId = req.params.id;
+        const user = req.user;
+        const userNip = user?.nip || '';
+        const isAdmin = user?.isAdmin || false;
+        
+        const normalizedUserNip = normalizeNip(userNip);
+        
+        console.log(`📋 ${getUsername(user)} mengakses detail kegiatan ID: ${kegiatanId}`);
+        console.log('User NIP:', normalizedUserNip);
+        console.log('Is Admin:', isAdmin);
+        
+        // Cek apakah user memiliki akses ke kegiatan ini
+        let hasAccess = false;
+        
+        if (isAdmin) {
+            hasAccess = true;
+        } else {
+            // Cek apakah user terdaftar sebagai pegawai di kegiatan ini
+            const [accessCheck] = await db.query(`
+                SELECT COUNT(*) as count FROM nominatif_pegawai 
+                WHERE kegiatan_id = ? AND REPLACE(nip, ' ', '') = ?
+            `, [kegiatanId, normalizedUserNip]);
+            
+            hasAccess = accessCheck[0].count > 0;
+            console.log(`Access check for user ${normalizedUserNip}: ${hasAccess ? 'GRANTED' : 'DENIED'}`);
+        }
+        
+        if (!hasAccess) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Anda tidak memiliki akses ke kegiatan ini' 
+            });
+        }
+        
+        // Ambil data kegiatan
+        const [kegiatan] = await db.query(`
+            SELECT *, kegiatan as nama_kegiatan 
+            FROM nominatif_kegiatan 
+            WHERE id = ?
+        `, [kegiatanId]);
+        
+        if (kegiatan.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
+        }
+        
+        // Ambil pegawai - untuk admin tampilkan semua, untuk user biasa tampilkan hanya dirinya
+        let pegawaiQuery = `
+            SELECT p.*, 
+                   k.id as kwitansi_id,
+                   k.no_lpd,
+                   k.tgl_kwitansi,
+                   k.upload_kwitansi,
+                   k.status_ttd,
+                   k.tgl_ttd,
+                   k.catatan_ttd,
+                   CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
+            FROM nominatif_pegawai p
+            LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
+            WHERE p.kegiatan_id = ?
+        `;
+        
+        const pegawaiParams = [kegiatanId];
+        
+        if (!isAdmin && normalizedUserNip) {
+            pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
+            pegawaiParams.push(normalizedUserNip);
+        }
+        
+        const [pegawai] = await db.query(pegawaiQuery, pegawaiParams);
+        
+        res.status(200).json({ 
+            success: true, 
+            data: {
+                ...kegiatan[0],
+                pegawai: pegawai
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching kegiatan detail:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
