@@ -9,6 +9,7 @@ require('dotenv').config({ path: '.env.local' });
 const authRoutes = require('./routes/auth');
 const keycloakRoutes = require('./routes/keycloak');
 const kegiatanRoutes = require('./routes/kegiatan');
+const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
 const indexRoutes = require('./routes/index');
 

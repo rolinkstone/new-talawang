@@ -32,11 +32,29 @@ export const authOptions = {
           }
         }
         
+        // Extract NIP from preferred_username or other fields
+        // preferred_username biasanya berisi NIP tanpa spasi (contoh: 198701042009121003)
+        let nip = profile.preferred_username || '';
+        
+        // Jika NIP dari database ada spasi, Anda bisa menyimpannya dalam format asli
+        // Tapi untuk session, kita simpan tanpa spasi agar mudah dibandingkan
+        // Atau simpan keduanya: nip (tanpa spasi) dan nip_raw (dengan spasi)
+        
+        console.log("📋 Profile data:", {
+          sub: profile.sub,
+          preferred_username: profile.preferred_username,
+          email: profile.email,
+          name: profile.name,
+          nip: nip
+        });
+        
         return {
           id: profile.sub,
           name: profile.name || profile.preferred_username,
           email: profile.email,
           role: role,
+          nip: nip,  // ← TAMBAHKAN NIP
+          username: profile.preferred_username,  // ← TAMBAHKAN username sebagai alternatif
         };
       },
     }),
@@ -52,10 +70,13 @@ export const authOptions = {
         token.name = user.name;
         token.email = user.email;
         token.role = user.role;
+        token.nip = user.nip;  // ← TAMBAHKAN NIP ke token
+        token.username = user.username;  // ← TAMBAHKAN username ke token
         token.accessToken = account.access_token;
         token.expiresAt = account.expires_at;
       }
       
+      console.log("🔄 JWT - Token has nip:", !!token.nip);
       return token;
     },
 
@@ -69,6 +90,8 @@ export const authOptions = {
           name: token.name,
           email: token.email,
           role: token.role,
+          nip: token.nip,  // ← TAMBAHKAN NIP ke session.user
+          username: token.username,  // ← TAMBAHKAN username ke session.user
         };
         
         session.accessToken = token.accessToken;
@@ -76,7 +99,8 @@ export const authOptions = {
           new Date(token.expiresAt * 1000).toISOString() : null;
       }
       
-      console.log("💼 SESSION - User:", session.user?.name, "Role:", session.user?.role);
+      console.log("💼 SESSION - User:", session.user?.name, "Role:", session.user?.role, "Has NIP:", !!session.user?.nip);
+      console.log("💼 SESSION - NIP value:", session.user?.nip);
       console.log("💼 SESSION - Size:", JSON.stringify(session).length);
       
       return session;

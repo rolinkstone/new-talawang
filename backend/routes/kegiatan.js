@@ -4798,4 +4798,35 @@ router.get('/admin/status2-report', keycloakAuth, async (req, res) => {
         });
     }
 });
+
+// routes/kegiatan.js
+// GET users list for admin filter
+router.get('/users', async (req, res) => {
+    try {
+        // Ambil daftar user yang pernah membuat kegiatan
+        // Gunakan user_id langsung karena tabel user mungkin tidak memiliki kolom name
+        const query = `
+            SELECT DISTINCT 
+                n.user_id as id,
+                n.user_id
+            FROM nominatif_kegiatan n
+            WHERE n.user_id IS NOT NULL
+            ORDER BY n.user_id ASC
+        `;
+        const [results] = await db.query(query);
+        
+        // Format response - gunakan user_id sebagai nama tampilan
+        const users = results.map(user => ({
+            id: user.user_id,
+            name: user.user_id, // Gunakan user_id sebagai nama
+            username: user.user_id,
+            email: `${user.user_id}@example.com`
+        }));
+        
+        res.status(200).json({ success: true, data: users });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 module.exports = router;

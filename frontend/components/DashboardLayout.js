@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { 
   FaHome, FaBox, FaUsers, FaShoppingCart, FaCog, FaSignOutAlt, 
   FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch,
-  FaTimesCircle  
+  FaTimesCircle, FaFileInvoice, FaReceipt  
 } from 'react-icons/fa';
 
 import { useSession, signOut } from 'next-auth/react';
@@ -23,17 +23,15 @@ export default function DashboardLayout({ children }) {
     }
   }, [session, loading, router]);
 
-  // Fungsi untuk cek apakah user memiliki role PPK - DIPERBAIKI
+  // Fungsi untuk cek apakah user memiliki role PPK
   const hasPPKRole = () => {
     console.log("🔍 Checking PPK role in session:", session);
     
     if (!session?.user) return false;
     
-    // DEBUG: Tampilkan semua data user
     console.log("🔍 User data:", session.user);
     console.log("🔍 User role:", session.user.role);
     
-    // Check 1: Role langsung dari user.role
     if (session.user.role) {
       const role = session.user.role.toLowerCase();
       console.log("🔍 Checking role:", role);
@@ -44,7 +42,6 @@ export default function DashboardLayout({ children }) {
       }
     }
     
-    // Check 2: Check dari roles array (jika ada)
     if (session.user.roles && Array.isArray(session.user.roles)) {
       const hasRole = session.user.roles.some(role => 
         role.toLowerCase().includes('ppk')
@@ -55,7 +52,6 @@ export default function DashboardLayout({ children }) {
       }
     }
     
-    // Check 3: Check dari roles string (jika ada)
     if (session.user.roles && typeof session.user.roles === 'string') {
       if (session.user.roles.toLowerCase().includes('ppk')) {
         console.log("✅ User has PPK role (from user.roles string)");
@@ -64,16 +60,33 @@ export default function DashboardLayout({ children }) {
     }
     
     console.log("❌ User does NOT have PPK role");
-    console.log("❌ Available user data:", {
-      role: session.user?.role,
-      roles: session.user?.roles,
-      allUserData: session.user
-    });
+    return false;
+  };
+
+  // Fungsi untuk cek apakah user memiliki role Admin
+  const hasAdminRole = () => {
+    if (!session?.user) return false;
+    
+    if (session.user.role) {
+      const role = session.user.role.toLowerCase();
+      if (role.includes('admin')) {
+        return true;
+      }
+    }
+    
+    if (session.user.roles && Array.isArray(session.user.roles)) {
+      return session.user.roles.some(role => role.toLowerCase().includes('admin'));
+    }
+    
+    if (session.user.roles && typeof session.user.roles === 'string') {
+      return session.user.roles.toLowerCase().includes('admin');
+    }
     
     return false;
   };
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       console.log("🚪 Logout via NextAuth");
       await signOut({
@@ -82,6 +95,8 @@ export default function DashboardLayout({ children }) {
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -97,7 +112,7 @@ export default function DashboardLayout({ children }) {
   }
 
   if (!session) {
-    return null; // Component akan redirect otomatis
+    return null;
   }
 
   const getUserName = () => {
@@ -140,12 +155,19 @@ export default function DashboardLayout({ children }) {
       title: 'Transaksi',
       items: [
         { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
+        // Menu Kwitansi - ditampilkan untuk SEMUA USER (karena setiap user perlu input kwitansi)
+        { 
+          href: '/kwitansi', 
+          label: 'Kwitansi Perjadin', 
+          icon: <FaReceipt />,
+          description: 'Input kwitansi perjalanan dinas'
+        },
         // Menu Cari hanya ditampilkan jika user memiliki role PPK
         ...(hasPPKRole() ? [
           { 
             href: '/search', 
             label: 'Batalkan Nominatif', 
-            icon: <FaTimesCircle />, // Ganti icon yang lebih sesuai
+            icon: <FaTimesCircle />,
             description: 'Hanya untuk PPK' 
           }
         ] : [])
@@ -154,15 +176,15 @@ export default function DashboardLayout({ children }) {
     {
       title: 'Pengaturan',
       items: [
-        { href: '/profile', label: 'Profile', icon: <FaCog /> },
+        { href: '/pegawai', label: 'Profile', icon: <FaCog /> },
         { href: '/settings', label: 'Settings', icon: <FaCog /> }
       ]
     }
   ];
 
-  // DEBUG: Tambahkan display untuk role di header
   const debugInfo = {
     hasPPK: hasPPKRole(),
+    hasAdmin: hasAdminRole(),
     userRole: session?.user?.role,
     userRoles: session?.user?.roles,
     isArray: Array.isArray(session?.user?.roles),
@@ -247,7 +269,6 @@ export default function DashboardLayout({ children }) {
             <div className="mb-4 p-3 bg-gray-700 rounded-lg">
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
-              
             </div>
           )}
           
@@ -281,7 +302,11 @@ export default function DashboardLayout({ children }) {
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">
-                {router.pathname === '/' ? 'Dashboard' : 'Aplikasi Nominatif'}
+                {router.pathname === '/' ? 'Dashboard' : 
+                 router.pathname === '/kwitansi' ? 'Kwitansi Perjalanan Dinas' :
+                 router.pathname === '/kegiatan' ? 'Nominatif Kegiatan' :
+                 router.pathname === '/search' ? 'Batalkan Nominatif' :
+                 'Aplikasi Nominatif'}
               </h2>
             </div>
 
@@ -291,7 +316,7 @@ export default function DashboardLayout({ children }) {
                 <button 
                   onClick={() => {
                     console.log("🔍 DEBUG Session Info:", debugInfo);
-                    alert(`User Role: ${session?.user?.role}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
+                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
                   }}
                   className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
                 >
@@ -319,9 +344,9 @@ export default function DashboardLayout({ children }) {
                   <p className="text-xs text-gray-500">
                     {session?.user?.role && (
                       <span className={`px-2 py-1 rounded ${
-                        session.user.role.includes('admin') ? 'bg-red-100 text-red-800' :
-                        session.user.role.includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
-                        session.user.role.includes('kabalai') ? 'bg-purple-100 text-purple-800' :
+                        session.user.role.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
+                        session.user.role.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
+                        session.user.role.toLowerCase().includes('kabalai') ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {getUserRoleDisplay()}
