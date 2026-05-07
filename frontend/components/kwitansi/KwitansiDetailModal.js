@@ -12,71 +12,85 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     
-    // Normalisasi NIP (hilangkan spasi) untuk perbandingan
+    // State untuk TTD dari profile (hanya ditampilkan setelah approved)
+    const [ttdPegawaiUrl, setTtdPegawaiUrl] = useState(null);
+    const [ttdPpkUrl, setTtdPpkUrl] = useState(null);
+    const [ttdBendaharaUrl, setTtdBendaharaUrl] = useState(null);
+    const [loadingTtd, setLoadingTtd] = useState(false);
+    
+    // Normalisasi NIP (hilangkan spasi)
     const normalizeNip = (value) => {
         if (!value) return '';
         return String(value).replace(/\s/g, '');
     };
     
-    // Ambil identitas user dari session (NIP atau username)
+    // Ambil identitas user dari session
     const userNipRaw = session?.user?.nip || session?.user?.username || '';
     const userNip = normalizeNip(userNipRaw);
     
-    // Ambil NIP pegawai dari item (dengan spasi atau tanpa spasi)
+    // Ambil NIP pegawai dari item
     const pegawaiNipRaw = item.nip || '';
     const pegawaiNip = normalizeNip(pegawaiNipRaw);
     
-    // Cek apakah sama (setelah dinormalisasi)
+    // Cek apakah user adalah pegawai yang bersangkutan
     const isPegawai = userNip && pegawaiNip && userNip === pegawaiNip;
     
-    // DEBUG DETAIL - Cek semua kondisi untuk tombol
+    // Cek apakah tombol approve harus ditampilkan
     const shouldShowButtons = isPegawai && statusTtd === 'belum';
     
-    console.log('=== DEBUG PERSETUJUAN DETAIL ===');
-    console.log('1. SESSION DATA:');
-    console.log('   - Session object:', session);
-    console.log('   - session?.user:', session?.user);
-    console.log('   - session?.user?.nip:', session?.user?.nip);
-    console.log('   - session?.user?.username:', session?.user?.username);
-    console.log('2. NIP COMPARISON:');
-    console.log('   - User Raw:', userNipRaw);
-    console.log('   - User Normalized:', userNip);
-    console.log('   - User Length:', userNip.length);
-    console.log('   - Pegawai Raw:', pegawaiNipRaw);
-    console.log('   - Pegawai Normalized:', pegawaiNip);
-    console.log('   - Pegawai Length:', pegawaiNip.length);
-    console.log('   - Is Pegawai (strict):', userNip === pegawaiNip);
-    console.log('   - Is Pegawai (boolean):', isPegawai);
-    console.log('3. STATUS CONDITIONS:');
-    console.log('   - statusTtd:', statusTtd);
-    console.log('   - statusTtd === "belum":', statusTtd === 'belum');
-    console.log('4. BUTTON CONDITIONS:');
-    console.log('   - isPegawai:', isPegawai);
-    console.log('   - statusTtd === "belum":', statusTtd === 'belum');
-    console.log('   - shouldShowButtons:', shouldShowButtons);
-    console.log('5. ITEM DATA:');
-    console.log('   - Item ID:', item.id);
-    console.log('   - Kwitansi ID:', item.kwitansi_id);
-    console.log('   - Item NIP:', item.nip);
-    console.log('   - Item Nama Pegawai:', item.nama_pegawai);
-    console.log('   - Item Status TTD dari DB:', item.status_ttd);
+    // Fungsi untuk mengambil TTD dari profile berdasarkan path
+    const getTtdImageUrl = (ttdPath) => {
+        if (!ttdPath) return null;
+        
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        let cleanPath = ttdPath;
+        
+        if (cleanPath.startsWith('/api/')) {
+            cleanPath = cleanPath.replace('/api', '');
+        }
+        
+        if (!cleanPath.startsWith('/uploads')) {
+            cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
+        }
+        
+        return `${baseUrl}${cleanPath}`;
+    };
     
-    // Cek apakah session ada
-    if (!session) {
-        console.error('SESSION TIDAK ADA! User mungkin belum login.');
-    }
+    // Load TTD dari profile yang sudah disimpan di kwitansi (hanya jika sudah disetujui)
+    useEffect(() => {
+        const loadTtdImages = async () => {
+            setLoadingTtd(true);
+            
+            // Hanya tampilkan TTD jika status sudah disetujui
+            if (statusTtd === 'sudah') {
+                // TTD Pegawai
+                if (item.ttd_pegawai_path) {
+                    setTtdPegawaiUrl(getTtdImageUrl(item.ttd_pegawai_path));
+                }
+                
+                // TTD PPK
+                if (item.ttd_ppk_path) {
+                    setTtdPpkUrl(getTtdImageUrl(item.ttd_ppk_path));
+                }
+                
+                // TTD Bendahara
+                if (item.ttd_bendahara_path) {
+                    setTtdBendaharaUrl(getTtdImageUrl(item.ttd_bendahara_path));
+                }
+            } else {
+                // Kosongkan TTD jika belum disetujui
+                setTtdPegawaiUrl(null);
+                setTtdPpkUrl(null);
+                setTtdBendaharaUrl(null);
+            }
+            
+            setLoadingTtd(false);
+        };
+        
+        loadTtdImages();
+    }, [item, statusTtd]);
     
-    // Cek apakah userNip kosong
-    if (!userNip) {
-        console.error('USER NIP KOSONG! Session user tidak memiliki NIP atau username.');
-        console.log('   - Session user keys:', Object.keys(session?.user || {}));
-    }
-    
-    // Cek apakah pegawaiNip kosong
-    if (!pegawaiNip) {
-        console.error('PEGAWAI NIP KOSONG! Item tidak memiliki NIP.');
-    }
-    
+    // Setup file URL untuk kwitansi
     useEffect(() => {
         if (item.upload_kwitansi) {
             const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
@@ -105,13 +119,33 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
             
             const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/approve-ttd/${kwitansiId}`,
-                { status_ttd: status, catatan_ttd: status === 'ditolak' ? catatanTtd : null },
+                { 
+                    status_ttd: status, 
+                    catatan_ttd: status === 'ditolak' ? catatanTtd : null,
+                    user_nip: userNip // Kirim NIP user untuk mengambil TTD dari profile
+                },
                 { headers: { Authorization: `Bearer ${session.accessToken}` } }
             );
             
             if (response.data.success) {
                 setStatusTtd(status);
                 setMessage(response.data.message);
+                
+                // Jika approve berhasil, reload TTD images
+                if (status === 'sudah') {
+                    // TTD akan diambil dari respons backend
+                    if (response.data.ttd_pegawai_path) {
+                        setTtdPegawaiUrl(getTtdImageUrl(response.data.ttd_pegawai_path));
+                    }
+                    if (response.data.ttd_ppk_path) {
+                        setTtdPpkUrl(getTtdImageUrl(response.data.ttd_ppk_path));
+                    }
+                    if (response.data.ttd_bendahara_path) {
+                        setTtdBendaharaUrl(getTtdImageUrl(response.data.ttd_bendahara_path));
+                    }
+                }
+                
+                // Refresh data setelah approve
                 setTimeout(() => {
                     if (onRefresh) onRefresh();
                     onClose();
@@ -220,21 +254,19 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                         </button>
                     </div>
                     
-                    {/* DEBUG PANEL - Hanya untuk development */}
+                    {/* DEBUG PANEL - Hanya development */}
                     {process.env.NODE_ENV !== 'production' && (
                         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono">
                             <details>
-                                <summary className="font-bold cursor-pointer">🔧 Debug Info (Klik untuk detail)</summary>
+                                <summary className="font-bold cursor-pointer">🔧 Debug Info</summary>
                                 <div className="mt-2 space-y-1">
                                     <p><strong>Session User NIP:</strong> {userNip || '(kosong)'}</p>
-                                    <p><strong>Session User Raw:</strong> {userNipRaw || '(kosong)'}</p>
                                     <p><strong>Item NIP:</strong> {pegawaiNip || '(kosong)'}</p>
-                                    <p><strong>Item NIP Raw:</strong> {pegawaiNipRaw || '(kosong)'}</p>
                                     <p><strong>Is Pegawai:</strong> {String(isPegawai)}</p>
                                     <p><strong>Status TTD:</strong> {statusTtd}</p>
-                                    <p><strong>Harusnya Muncul Tombol:</strong> {String(shouldShowButtons)}</p>
-                                    <p><strong>Session Ada:</strong> {String(!!session)}</p>
-                                    <p><strong>Session User Keys:</strong> {Object.keys(session?.user || {}).join(', ') || '(tidak ada)'}</p>
+                                    <p><strong>TTD Pegawai Path:</strong> {item.ttd_pegawai_path || '(kosong)'}</p>
+                                    <p><strong>TTD PPK Path:</strong> {item.ttd_ppk_path || '(kosong)'}</p>
+                                    <p><strong>TTD Bendahara Path:</strong> {item.ttd_bendahara_path || '(kosong)'}</p>
                                 </div>
                             </details>
                         </div>
@@ -246,6 +278,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                         </div>
                     )}
                     
+                    {/* Info Kegiatan */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="bg-gray-50 p-3 rounded">
                             <p className="font-medium">No ST</p>
@@ -291,6 +324,95 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                             </div>
                         )}
                         
+                        {/* Tanda Tangan Digital - HANYA TAMPIL JIKA SUDAH DISETUJUI */}
+                        {statusTtd === 'sudah' && (
+                            <div className="mt-4 pt-4 border-t">
+                                <h5 className="font-semibold text-gray-700 mb-3">Tanda Tangan Digital</h5>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* TTD Pegawai */}
+                                    <div className="text-center p-3 bg-white rounded-lg shadow">
+                                        <p className="text-sm font-medium text-gray-600 mb-2">Pegawai</p>
+                                        {loadingTtd ? (
+                                            <div className="flex justify-center py-4">
+                                                <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                            </div>
+                                        ) : ttdPegawaiUrl ? (
+                                            <div>
+                                                <img 
+                                                    src={ttdPegawaiUrl} 
+                                                    alt="TTD Pegawai" 
+                                                    className="max-h-20 mx-auto object-contain"
+                                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                                />
+                                                <p className="text-xs text-green-600 mt-2">
+                                                    ✓ Tanda tangan digital
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 py-4">Belum ada TTD digital</p>
+                                        )}
+                                    </div>
+                                    
+                                    {/* TTD PPK */}
+                                    <div className="text-center p-3 bg-white rounded-lg shadow">
+                                        <p className="text-sm font-medium text-gray-600 mb-2">PPK</p>
+                                        {loadingTtd ? (
+                                            <div className="flex justify-center py-4">
+                                                <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                            </div>
+                                        ) : ttdPpkUrl ? (
+                                            <div>
+                                                <img 
+                                                    src={ttdPpkUrl} 
+                                                    alt="TTD PPK" 
+                                                    className="max-h-20 mx-auto object-contain"
+                                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                                />
+                                                <p className="text-xs text-green-600 mt-2">
+                                                    ✓ Tanda tangan digital
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 py-4">Belum ada TTD digital</p>
+                                        )}
+                                    </div>
+                                    
+                                    {/* TTD Bendahara */}
+                                    <div className="text-center p-3 bg-white rounded-lg shadow">
+                                        <p className="text-sm font-medium text-gray-600 mb-2">Bendahara</p>
+                                        {loadingTtd ? (
+                                            <div className="flex justify-center py-4">
+                                                <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                            </div>
+                                        ) : ttdBendaharaUrl ? (
+                                            <div>
+                                                <img 
+                                                    src={ttdBendaharaUrl} 
+                                                    alt="TTD Bendahara" 
+                                                    className="max-h-20 mx-auto object-contain"
+                                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                                />
+                                                <p className="text-xs text-green-600 mt-2">
+                                                    ✓ Tanda tangan digital
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 py-4">Belum ada TTD digital</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
                         {/* Tombol Persetujuan untuk Pegawai */}
                         {shouldShowButtons && (
                             <div className="mt-4 pt-4 border-t">
@@ -327,8 +449,6 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 </div>
                             </div>
                         )}
-                        
-                       
                         
                         {isPegawai && statusTtd !== 'belum' && (
                             <div className="mt-4 pt-4 border-t text-center text-gray-500">

@@ -1,4 +1,3 @@
-// components/kegiatan/KegiatanContainer.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'next-auth/react';
@@ -30,11 +29,8 @@ export default function KegiatanContainer({ session, status }) {
     const [detailData, setDetailData] = useState({});
     const [pegawaiDetailShown, setPegawaiDetailShown] = useState({});
     
-    // PERBAIKAN: Gunakan ref untuk melacak apakah filter sedang diubah oleh user
     const isFilterChanging = useRef(false);
     const previousFilterString = useRef('');
-    
-    // PERBAIKAN: Tambahkan ref untuk form container
     const formContainerRef = useRef(null);
     
     // State form
@@ -65,21 +61,18 @@ export default function KegiatanContainer({ session, status }) {
         }
     ];
 
-    // State form
     const [showForm, setShowForm] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState(defaultFormData);
     const [pegawaiList, setPegawaiList] = useState(defaultPegawaiList);
     
-    // State UI
     const [formLoading, setFormLoading] = useState(false);
     const [formError, setFormError] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
     
-    // State filter
     const [showFilter, setShowFilter] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
     const [filterJenisSpm, setFilterJenisSpm] = useState('');
@@ -87,19 +80,15 @@ export default function KegiatanContainer({ session, status }) {
     const [filterDateTo, setFilterDateTo] = useState('');
     const [filterMak, setFilterMak] = useState('');
     const [filterLokasi, setFilterLokasi] = useState('');
-    
-    // TAMBAHAN: State filter baru untuk status2 dan catatan_status_2
     const [filterStatus2, setFilterStatus2] = useState('');
     const [filterCatatanStatus2, setFilterCatatanStatus2] = useState('');
     
-    // State modal
     const [modalOpen, setModalOpen] = useState(false);
     const [notificationMessage, setNotificationMessage] = useState('');
     const [confirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     
-    // State untuk modals tambahan
     const [showKirimPPKModal, setShowKirimPPKModal] = useState(false);
     const [selectedKegiatanForPPK, setSelectedKegiatanForPPK] = useState(null);
     const [showMengetahuiModal, setShowMengetahuiModal] = useState(false);
@@ -107,20 +96,16 @@ export default function KegiatanContainer({ session, status }) {
     const [showPersetujuanModal, setShowPersetujuanModal] = useState(false);
     const [selectedKegiatanForMengetahui, setSelectedKegiatanForMengetahui] = useState(null);
     
-    // State untuk Surat Tugas Modal
     const [showSuratTugasModal, setShowSuratTugasModal] = useState(false);
     const [selectedKegiatanForST, setSelectedKegiatanForST] = useState(null);
     
-    // State untuk HistoriModal
     const [showHistoriModal, setShowHistoriModal] = useState(false);
     const [selectedHistoriItem, setSelectedHistoriItem] = useState(null);
 
-    // State untuk Status2 Modal
     const [showStatus2Modal, setShowStatus2Modal] = useState(false);
     const [selectedStatus2Item, setSelectedStatus2Item] = useState(null);
     const [status2Loading, setStatus2Loading] = useState(false);
     
-    // State user info
     const [userRole, setUserRole] = useState('');
     const [userType, setUserType] = useState({
         isAdmin: false,
@@ -149,7 +134,6 @@ export default function KegiatanContainer({ session, status }) {
         return Number(number).toLocaleString('id-ID');
     };
 
-    // Fungsi helper untuk validasi status_2
     const hasValidStatus2 = (status2) => {
         return status2 !== undefined && 
                status2 !== null && 
@@ -157,7 +141,6 @@ export default function KegiatanContainer({ session, status }) {
                String(status2).trim().length > 0;
     };
 
-    // PERBAIKAN: Fungsi untuk mendapatkan warna status2
     const getStatus2Color = (status2) => {
         if (!status2) return 'bg-gray-100 text-gray-600 border-gray-200';
         
@@ -171,7 +154,6 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Fungsi renderStatusBadge yang sesuai dengan backend
     const renderStatusBadge = (status, no_st = null, tgl_st = null) => {
         let bgColor = '';
         let textColor = '';
@@ -197,81 +179,36 @@ export default function KegiatanContainer({ session, status }) {
                     bgColor = 'bg-gradient-to-r from-gray-100 to-gray-200 border border-gray-300';
                     textColor = 'text-gray-700';
                     displayText = 'Draft';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 case 'diajukan':
                     bgColor = 'bg-gradient-to-r from-amber-100 to-yellow-100 border border-amber-300';
                     textColor = 'text-amber-800';
                     displayText = 'Diajukan';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5.586L4.707 4.293a1 1 0 00-1.414 1.414l5 5a1 1 0 001.414 0l5-5a1 1 0 00-1.414-1.414L11 9.586V4a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 case 'disetujui':
                     bgColor = 'bg-gradient-to-r from-blue-100 to-sky-100 border border-blue-300';
                     textColor = 'text-blue-800';
                     displayText = 'Disetujui';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 case 'diketahui':
                     bgColor = 'bg-gradient-to-r from-indigo-100 to-purple-100 border border-indigo-300';
                     textColor = 'text-indigo-800';
                     displayText = 'Diketahui';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 case 'dikembalikan':
                     bgColor = 'bg-gradient-to-r from-rose-100 to-red-100 border border-rose-300';
                     textColor = 'text-rose-800';
                     displayText = 'Dikembalikan';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 case 'selesai':
                     bgColor = 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300';
                     textColor = 'text-green-800';
                     displayText = 'Selesai';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                    );
-                    break;
-                case 'dibatalkan':
-                    bgColor = 'bg-gradient-to-r from-gray-300 to-gray-400 border border-gray-400';
-                    textColor = 'text-gray-900';
-                    displayText = 'Dibatalkan';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                    );
                     break;
                 default:
                     bgColor = 'bg-gradient-to-r from-gray-100 to-gray-200 border border-gray-300';
                     textColor = 'text-gray-700';
                     displayText = status || 'Draft';
-                    icon = (
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
-                    );
             }
         }
         
@@ -283,7 +220,6 @@ export default function KegiatanContainer({ session, status }) {
         );
     };
 
-    // PERBAIKAN: Fungsi untuk scroll ke form dan fokus
     const scrollToFormAndFocus = () => {
         setTimeout(() => {
             if (formContainerRef.current) {
@@ -292,19 +228,16 @@ export default function KegiatanContainer({ session, status }) {
                     block: 'start' 
                 });
                 
-                // Fokus ke input pertama setelah scroll selesai
                 setTimeout(() => {
                     const firstInput = document.querySelector('input[name="kegiatan"]');
                     if (firstInput) {
                         firstInput.focus();
-                        console.log('Focused on first input');
                     }
                 }, 500);
             }
         }, 100);
     };
 
-    // Handler untuk HistoriModal
     const handleOpenHistoriModal = (item) => {
         setSelectedHistoriItem(item);
         setShowHistoriModal(true);
@@ -315,9 +248,7 @@ export default function KegiatanContainer({ session, status }) {
         setSelectedHistoriItem(null);
     };
 
-    // Handler untuk Status2 Modal
     const handleOpenStatus2Modal = (item) => {
-        console.log('Membuka modal Status2 untuk item:', item);
         setSelectedStatus2Item(item);
         setShowStatus2Modal(true);
     };
@@ -331,7 +262,6 @@ export default function KegiatanContainer({ session, status }) {
     const handleSaveStatus2 = async (data) => {
         try {
             setStatus2Loading(true);
-            console.log('Menyimpan status2:', data);
             
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${data.id}/status2`, {
                 method: 'PUT',
@@ -376,9 +306,7 @@ export default function KegiatanContainer({ session, status }) {
                 
                 setNotificationMessage(`Status 2 berhasil diperbarui: "${data.status_2}"`);
                 setModalOpen(true);
-                
                 handleCloseStatus2Modal();
-                
             } else {
                 setNotificationMessage(`Gagal update: ${result.message}`);
                 setModalOpen(true);
@@ -410,16 +338,35 @@ export default function KegiatanContainer({ session, status }) {
 
             if (data && data.pegawai) {
                 let total = 0;
-                data.pegawai.forEach(p => {
-                    if (p.biaya_list) {
-                        p.biaya_list.forEach(b => {
-                            const totalTransport = b.transportasi.reduce((sum, t) => sum + Number(t.total || 0), 0);
-                            const totalUH = b.uang_harian.reduce((sum, u) => sum + Number(u.total || 0), 0);
-                            const totalPenginapan = b.penginapan.reduce((sum, pItem) => sum + Number(pItem.total || 0), 0);
-                            total += totalTransport + totalUH + totalPenginapan;
-                        });
+                const pegawaiListData = data.pegawai || [];
+                
+                for (const pegawai of pegawaiListData) {
+                    if (pegawai.biaya_list) {
+                        for (const biaya of pegawai.biaya_list) {
+                            for (const t of biaya.transportasi || []) {
+                                total += Number(t.total || 0);
+                            }
+                            for (const u of biaya.uang_harian || []) {
+                                total += Number(u.total || 0);
+                            }
+                            for (const p of biaya.penginapan || []) {
+                                total += Number(p.total || 0);
+                            }
+                        }
+                    } else if (pegawai.biaya) {
+                        for (const biaya of pegawai.biaya) {
+                            for (const t of biaya.transportasi || []) {
+                                total += Number(t.total || 0);
+                            }
+                            for (const u of biaya.uang_harian_items || []) {
+                                total += Number(u.total || 0);
+                            }
+                            for (const p of biaya.penginapan_items || []) {
+                                total += Number(p.total || 0);
+                            }
+                        }
                     }
-                });
+                }
 
                 setKegiatanList(prev =>
                     prev.map(k => (k.id === id ? { ...k, total_nominatif: total } : k))
@@ -435,7 +382,6 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Modal handlers
     const handleOpenKirimPPKModal = (id) => {
         setSelectedKegiatanForPPK(id);
         setShowKirimPPKModal(true);
@@ -451,7 +397,6 @@ export default function KegiatanContainer({ session, status }) {
         setShowPersetujuanModal(true);
     };
 
-    // Handler untuk Surat Tugas Modal
     const handleOpenSuratTugasModal = (item) => {
         if (!userType.isRegularUser) {
             setNotificationMessage('Hanya user biasa yang dapat merekam surat tugas');
@@ -460,7 +405,7 @@ export default function KegiatanContainer({ session, status }) {
         }
         
         if (item.status !== 'disetujui') {
-            setNotificationMessage(`Kegiatan dengan status "${item.status}" tidak dapat direkam surat tugas. Hanya kegiatan dengan status "disetujui" yang dapat direkam surat tugas.`);
+            setNotificationMessage(`Kegiatan dengan status "${item.status}" tidak dapat direkam surat tugas.`);
             setModalOpen(true);
             return;
         }
@@ -587,18 +532,13 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Fungsi reset
     const resetFormCompletely = () => {
-        console.log('Resetting form completely...');
-        
         setFormData({ ...defaultFormData });
         setPegawaiList(JSON.parse(JSON.stringify(defaultPegawaiList)));
         setIsEditMode(false);
         setEditId(null);
         setFormError('');
         setFormLoading(false);
-        
-        console.log('Form completely reset');
     };
 
     const resetForm = () => {
@@ -607,20 +547,15 @@ export default function KegiatanContainer({ session, status }) {
     };
 
     const handleOpenNewForm = () => {
-        console.log('Opening new form...');
-        
         if (showForm) {
             resetForm();
         } else {
             resetFormCompletely();
             setShowForm(true);
-            
-            // PERBAIKAN: Scroll ke form dan fokus
             scrollToFormAndFocus();
         }
     };
 
-    // Handle submit form
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         
@@ -635,7 +570,6 @@ export default function KegiatanContainer({ session, status }) {
                 return;
             }
 
-            // Validasi
             if (!formData.kegiatan.trim()) {
                 setFormError('Nama Kegiatan wajib diisi');
                 setFormLoading(false);
@@ -648,7 +582,6 @@ export default function KegiatanContainer({ session, status }) {
                 return;
             }
 
-            // Persiapkan payload
             const payload = {
                 ...formData,
                 pegawai: pegawaiList.map(pegawai => ({
@@ -657,14 +590,14 @@ export default function KegiatanContainer({ session, status }) {
                     jabatan: pegawai.jabatan || '',
                     total_biaya: pegawai.total_biaya || 0,
                     biaya: pegawai.biaya.map(biaya => ({
-                        transportasi: biaya.transportasi
+                        transportasi: (biaya.transportasi || [])
                             .filter(t => t.trans || t.harga || t.total)
                             .map(t => ({
                                 trans: t.trans || '',
                                 harga: Number(t.harga) || 0,
                                 total: Number(t.total) || 0
                             })),
-                        uang_harian_items: biaya.uang_harian_items
+                        uang_harian_items: (biaya.uang_harian_items || [])
                             .filter(u => u.jenis || u.qty || u.harga || u.total)
                             .map(u => ({
                                 jenis: u.jenis || '',
@@ -672,7 +605,7 @@ export default function KegiatanContainer({ session, status }) {
                                 harga: Number(u.harga) || 0,
                                 total: Number(u.total) || 0
                             })),
-                        penginapan_items: biaya.penginapan_items
+                        penginapan_items: (biaya.penginapan_items || [])
                             .filter(p => p.jenis || p.qty || p.harga || p.total)
                             .map(p => ({
                                 jenis: p.jenis || '',
@@ -702,33 +635,22 @@ export default function KegiatanContainer({ session, status }) {
                 });
             }
 
-            const successMessage = isEditMode 
-                ? 'Data kegiatan berhasil diperbarui!' 
-                : 'Kegiatan baru berhasil ditambahkan!';
-            
-            setNotificationMessage(response.data.message || successMessage);
+            setNotificationMessage(response.data.message || (isEditMode ? 'Data berhasil diperbarui!' : 'Kegiatan berhasil ditambahkan!'));
             setModalOpen(true);
-            
             resetForm();
             
             setTimeout(() => {
                 fetchKegiatan(true);
             }, 500);
-
         } catch (error) {
             console.error('Error saving kegiatan:', error);
-            
-            const errorMsg = error.response?.data?.message || 
-                            error.response?.data?.error || 
-                            error.message || 
-                            'Terjadi kesalahan saat menyimpan data';
+            const errorMsg = error.response?.data?.message || error.message || 'Terjadi kesalahan saat menyimpan data';
             setFormError(errorMsg);
         } finally {
             setFormLoading(false);
         }
     };
 
-    // PERBAIKAN: Load data untuk edit dengan scroll ke form
     const loadDataForEdit = async (id) => {
         try {
             setFormLoading(true);
@@ -812,12 +734,11 @@ export default function KegiatanContainer({ session, status }) {
                     setPegawaiList(JSON.parse(JSON.stringify(defaultPegawaiList)));
                 }
                 
-                // PERBAIKAN: Scroll ke form dan fokus setelah data dimuat
                 scrollToFormAndFocus();
             }
         } catch (error) {
             console.error('Error loading data for edit:', error);
-            setFormError('Gagal memuat data untuk edit: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+            setFormError('Gagal memuat data untuk edit');
         } finally {
             setFormLoading(false);
         }
@@ -834,7 +755,6 @@ export default function KegiatanContainer({ session, status }) {
 
     const confirmDelete = async () => {
         if (!itemToDelete || !session?.accessToken) {
-            console.error('Missing itemToDelete or accessToken');
             return;
         }
         
@@ -847,10 +767,7 @@ export default function KegiatanContainer({ session, status }) {
                     headers: { 
                         Authorization: `Bearer ${session.accessToken}` 
                     },
-                    timeout: 10000,
-                    validateStatus: function (status) {
-                        return status >= 200 && status < 500;
-                    }
+                    timeout: 10000
                 }
             );
             
@@ -861,18 +778,9 @@ export default function KegiatanContainer({ session, status }) {
             } else {
                 throw new Error(response.data.message || 'Gagal menghapus kegiatan');
             }
-            
         } catch (error) {
             console.error('Error details:', error);
-            
-            let errorMessage = 'Terjadi kesalahan saat menghapus kegiatan!';
-            
-            if (error.response?.data?.message) {
-                errorMessage = error.response.data.message;
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-            
+            const errorMessage = error.response?.data?.message || error.message || 'Terjadi kesalahan saat menghapus kegiatan!';
             setNotificationMessage(errorMessage);
             setConfirmDeleteModalOpen(false);
         } finally {
@@ -890,7 +798,6 @@ export default function KegiatanContainer({ session, status }) {
         setItemToDelete(null);
     };
 
-    // Toggle detail kegiatan
     const toggleDetail = async (id) => {
         const newDetailShown = { ...detailShown, [id]: !detailShown[id] };
         setDetailShown(newDetailShown);
@@ -913,27 +820,19 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Toggle detail pegawai
     const togglePegawaiDetail = (id) => {
         setPegawaiDetailShown(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    // Fungsi handlePrintItem
     const handlePrintItem = async (item, event) => {
         if (event) {
             event.preventDefault();
             event.stopPropagation();
-            event.nativeEvent.stopImmediatePropagation();
         }
 
         try {
-            console.log('Starting print process for item:', item.id);
-            
             await calculateTotalNominatif(item.id);
-            
             await new Promise(resolve => setTimeout(resolve, 150));
-            
-            const updatedItem = kegiatanList.find(k => k.id === item.id) || item;
             
             let data = detailData[item.id];
             if (!data) {
@@ -953,103 +852,75 @@ export default function KegiatanContainer({ session, status }) {
             }
             
             const pegawaiListData = data?.pegawai || [];
-            
-            try {
-                setTimeout(() => {
-                    handlePrint(updatedItem, pegawaiListData);
-                }, 100);
-                
-            } catch (printError) {
-                console.error('Error in handlePrint function:', printError);
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    printWindow.document.write(`
-                        <html>
-                            <head><title>Print Kegiatan ${item.id}</title></head>
-                            <body>
-                                <h1>Kegiatan: ${item.kegiatan || '-'}</h1>
-                                <p>Data untuk cetak tidak tersedia dalam format yang diharapkan</p>
-                            </body>
-                        </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.print();
-                    printWindow.close();
-                }
-            }
-            
+            setTimeout(() => {
+                handlePrint(item, pegawaiListData);
+            }, 100);
         } catch (error) {
             console.error('Error dalam proses print:', error);
             handlePrint(item, []);
-            setNotificationMessage('Print berhasil, namun mungkin ada data yang belum terupdate');
-            setModalOpen(true);
         }
     };
 
-    // PERBAIKAN: Filter data dengan filter baru termasuk status2 dan catatan_status_2
-    useEffect(() => {
-        const currentFilterString = JSON.stringify({
-            searchTerm,
-            filterStatus,
-            filterJenisSpm,
-            filterDateFrom,
-            filterDateTo,
-            filterMak,
-            filterLokasi,
-            filterStatus2,
-            filterCatatanStatus2
-        });
+  useEffect(() => {
+    const filtered = kegiatanList.filter(item => {
+        const matchesSearch = 
+            item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (item.no_st && item.no_st.toLowerCase().includes(searchTerm.toLowerCase()));
         
-        const filtered = kegiatanList.filter(item => {
-            const matchesSearch = 
-                item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.no_st && item.no_st.toLowerCase().includes(searchTerm.toLowerCase()));
-            
-            const matchesStatus = !filterStatus || item.status === filterStatus;
-            const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
-            const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
-            const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
-            
-            // TAMBAHAN: Filter untuk status2
-            const matchesStatus2 = !filterStatus2 || item.status_2 === filterStatus2;
-            
-            // TAMBAHAN: Filter untuk catatan_status_2 (No SPM)
-            const matchesCatatanStatus2 = !filterCatatanStatus2 || 
-                (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
-            
-            let matchesDate = true;
-            if (filterDateFrom || filterDateTo) {
-                const itemDate = new Date(item.rencana_tanggal_pelaksanaan || item.created_at);
-                const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
-                const toDate = filterDateTo ? new Date(filterDateTo) : null;
-                
-                if (fromDate && toDate) {
-                    matchesDate = itemDate >= fromDate && itemDate <= toDate;
-                } else if (fromDate) {
-                    matchesDate = itemDate >= fromDate;
-                } else if (toDate) {
-                    matchesDate = itemDate <= toDate;
-                }
+        const matchesStatus = !filterStatus || item.status === filterStatus;
+        const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
+        const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
+        const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
+        
+        // PERBAIKAN: Filter status2 yang menangani null value
+        let matchesStatus2 = true;
+        if (filterStatus2) {
+            if (filterStatus2 === 'Belum diisi') {
+                // Filter untuk data yang null, undefined, atau string kosong
+                matchesStatus2 = !item.status_2 || 
+                                 item.status_2 === null || 
+                                 item.status_2 === undefined || 
+                                 String(item.status_2).trim() === '';
+            } else {
+                // Filter untuk nilai spesifik seperti 'SELESAI' atau 'DIPROSES'
+                matchesStatus2 = item.status_2 && 
+                                 String(item.status_2).toUpperCase() === filterStatus2.toUpperCase();
             }
-            
-            return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate && matchesStatus2 && matchesCatatanStatus2;
-        });
-        
-        setFilteredKegiatan(filtered);
-        
-        if (previousFilterString.current !== currentFilterString && previousFilterString.current !== '') {
-            setCurrentPage(1);
         }
         
-        previousFilterString.current = currentFilterString;
+        const matchesCatatanStatus2 = !filterCatatanStatus2 || 
+            (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
         
-    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi, filterStatus2, filterCatatanStatus2]);
-
-    // PERBAIKAN: Reset filter termasuk filter baru
+        let matchesDate = true;
+        if (filterDateFrom || filterDateTo) {
+            const itemDate = new Date(item.rencana_tanggal_pelaksanaan || item.created_at);
+            const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
+            const toDate = filterDateTo ? new Date(filterDateTo) : null;
+            
+            if (fromDate && toDate) {
+                matchesDate = itemDate >= fromDate && itemDate <= toDate;
+            } else if (fromDate) {
+                matchesDate = itemDate >= fromDate;
+            } else if (toDate) {
+                matchesDate = itemDate <= toDate;
+            }
+        }
+        
+        return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate && matchesStatus2 && matchesCatatanStatus2;
+    });
+    
+    setFilteredKegiatan(filtered);
+    
+    if (previousFilterString.current !== JSON.stringify({
+        searchTerm, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo,
+        filterMak, filterLokasi, filterStatus2, filterCatatanStatus2
+    })) {
+        setCurrentPage(1);
+    }
+    
+}, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi, filterStatus2, filterCatatanStatus2]);
     const resetFilter = () => {
-        isFilterChanging.current = true;
-        
         setFilterStatus('');
         setFilterJenisSpm('');
         setFilterDateFrom('');
@@ -1058,12 +929,7 @@ export default function KegiatanContainer({ session, status }) {
         setFilterLokasi('');
         setFilterStatus2('');
         setFilterCatatanStatus2('');
-        
         setCurrentPage(1);
-        
-        setTimeout(() => {
-            isFilterChanging.current = false;
-        }, 100);
     };
 
     const handleSort = (key) => {
@@ -1078,7 +944,6 @@ export default function KegiatanContainer({ session, status }) {
             return 0;
         });
         setFilteredKegiatan(sorted);
-        
         setCurrentPage(1);
     };
 
@@ -1086,12 +951,10 @@ export default function KegiatanContainer({ session, status }) {
         setSearchTerm(e.target.value);
     };
 
-    // Jika session masih loading
     if (status === 'loading') {
         return <LoadingSpinner />;
     }
 
-    // Jika tidak ada session
     if (!session) {
         return null;
     }
@@ -1160,7 +1023,7 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Filter Section - TAMBAHKAN props baru */}
+            {/* Filter Section */}
             <FilterSection
                 showFilter={showFilter}
                 filterStatus={filterStatus}
@@ -1184,9 +1047,8 @@ export default function KegiatanContainer({ session, status }) {
                 kegiatanList={kegiatanList}
             />
 
-            {/* PERBAIKAN: Tambahkan ref ke container form */}
+            {/* Form Container */}
             <div ref={formContainerRef}>
-                {/* Form Create/Edit Kegiatan */}
                 {showForm && userType.isRegularUser && (
                     <KegiatanForm
                         editId={editId}
@@ -1206,7 +1068,6 @@ export default function KegiatanContainer({ session, status }) {
                 )}
             </div>
 
-            {/* Pesan untuk non-regular user */}
             {showForm && !userType.isRegularUser && (
                 <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-center">
@@ -1214,10 +1075,7 @@ export default function KegiatanContainer({ session, status }) {
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
                         <p className="text-red-700">
-                            Hanya user biasa (regular user) yang dapat membuat atau mengedit kegiatan. 
-                            {userType.isAdmin && ' Anda adalah Admin.'}
-                            {userType.isPPK && ' Anda adalah PPK.'}
-                            {userType.isKabalai && ' Anda adalah Kabalai.'}
+                            Hanya user biasa yang dapat membuat atau mengedit kegiatan.
                         </p>
                     </div>
                 </div>
@@ -1250,7 +1108,7 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Tampilkan filter aktif - TAMBAHKAN filter baru */}
+            {/* Active Filters */}
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm font-medium text-gray-700 mb-2">Filter Aktif:</div>
                 <div className="flex flex-wrap gap-2">
@@ -1297,81 +1155,34 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Table - tetap sama seperti desain asli */}
+            {/* Table */}
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300">
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('id')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">ID</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id')}>
+                                ID
                             </th>
-                            
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('status')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Status</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}>
+                                Status
                             </th>
-
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('jenis_spm')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Jenis SPM</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('jenis_spm')}>
+                                Jenis SPM
                             </th>
-                            
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('mak')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Kegiatan & MAK</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
-                                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 left-0 whitespace-nowrap z-10">
-                                    Kegiatan & MAK & No ST
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('mak')}>
+                                Kegiatan & MAK
                             </th>
-                            
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('realisasi_anggaran_sebelumnya')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Realisasi Dan Target</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
-                                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 left-0 whitespace-nowrap z-10">
-                                    Realisasi Anggaran Sebelumnya
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('realisasi_anggaran_sebelumnya')}>
+                                Realisasi Dan Target
                             </th>
-                            
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('lokasi_tanggal')}>
-                                <div className="flex flex-col items-center justify-center">
-                                    <div className="flex items-center">
-                                        <span className="truncate">Lokasi & Tanggal</span>
-                                        <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                    </div>
-                                    <div className="text-[9px] font-normal text-gray-500 truncate max-w-[120px]">
-                                        Kota/Kab/Kec • Tanggal Pelaksanaan
-                                    </div>
-                                </div>
-                                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 left-0 whitespace-nowrap z-10">
-                                    Lokasi: Kota/Kabupaten/Kecamatan | Tanggal: Rencana Pelaksanaan (Range)
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('lokasi_tanggal')}>
+                                Lokasi & Tanggal
                             </th>
-                                                        
-                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200 transition-colors duration-100 group relative" onClick={() => handleSort('total_nominatif')}>
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Nominatif</span>
-                                    <span className="text-[9px] text-gray-400 ml-1">↕</span>
-                                </div>
-                                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs px-2 py-1 rounded -top-8 left-0 whitespace-nowrap z-10">
-                                    Total Nominatif
-                                </div>
+                            <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('total_nominatif')}>
+                                Nominatif
                             </th>
-                            
                             <th className="px-2 py-2 text-center text-[11px] font-bold text-white uppercase tracking-tight bg-gradient-to-r from-blue-600 to-blue-700">
-                                <div className="flex items-center justify-center">
-                                    <span className="truncate">Aksi</span>
-                                </div>
+                                Aksi
                             </th>
                         </tr>
                     </thead>
@@ -1379,42 +1190,29 @@ export default function KegiatanContainer({ session, status }) {
                         {paginatedItems.length > 0 ? (
                             paginatedItems.map(item => (
                                 <React.Fragment key={item.id}>
-                                    {/* Baris utama dengan background kondisional */}
                                     <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}>
                                         <td className="px-6 py-4">{item.id}</td>
                                         
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-2">
-                                                {/* Status Utama */}
                                                 <div className="flex items-center space-x-2">
                                                     <button
                                                         onClick={() => handleOpenHistoriModal(item)}
                                                         className="text-xs text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2 py-1.5 rounded-md transition-colors duration-200 flex items-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 border border-blue-200 hover:border-blue-300 bg-blue-50/50"
                                                         title="Lihat catatan dan riwayat perubahan"
                                                     >
-                                                        <svg 
-                                                            className="w-3.5 h-3.5 mr-1.5 text-blue-600" 
-                                                            fill="none" 
-                                                            stroke="currentColor" 
-                                                            viewBox="0 0 24 24"
-                                                        >
-                                                            <path 
-                                                                strokeLinecap="round" 
-                                                                strokeLinejoin="round" 
-                                                                strokeWidth={2} 
-                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
-                                                            />
+                                                        <svg className="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                         </svg>
                                                         {renderStatusBadge(item.status, item.no_st, item.tgl_st)}
                                                     </button>
                                                 </div>
 
-                                                {/* Status 2 - hanya tampil untuk status selesai dengan perbedaan warna */}
                                                 {item.status === 'selesai' && (
                                                     <div className="mt-1">
                                                         <div className="text-xs text-gray-500 mb-1">Status Sakti:</div>
                                                         <div className="flex flex-col items-start gap-2">
-                                                            {item.status_2?.trim() ? (
+                                                            {hasValidStatus2(item.status_2) ? (
                                                                 <div className="flex items-center gap-2">
                                                                     <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatus2Color(item.status_2)}`}>
                                                                         {item.status_2} {item.catatan_status_2 ? `|| ${item.catatan_status_2}` : ''}
@@ -1460,25 +1258,18 @@ export default function KegiatanContainer({ session, status }) {
                                         
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
-                                                <div className="text-sm">
-                                                {item.jenis_spm}
-                                                </div> 
+                                                <div className="text-sm">{item.jenis_spm}</div>
                                             </div>
                                         </td>
 
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
-                                                <div className="font-medium text-gray-900">
-                                                    {item.kegiatan || '-'}
-                                                </div>
-                                                <div className="font-medium text-gray-900">
-                                                    {item.mak || '-'}
-                                                </div>
-                                                <div className="font-medium text-gray-900">
-                                                    {item.no_st || '-'}
-                                                </div>
+                                                <div className="font-medium text-gray-900">{item.kegiatan || '-'}</div>
+                                                <div className="font-medium text-gray-900">{item.mak || '-'}</div>
+                                                <div className="font-medium text-gray-900">{item.no_st || '-'}</div>
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="text-sm">
@@ -1487,7 +1278,6 @@ export default function KegiatanContainer({ session, status }) {
                                                 <div className="text-sm">
                                                     <span className="font-medium">Realisasi Sebelumnya:</span> {item.realisasi_anggaran_sebelumnya}
                                                 </div>
-                                            
                                                 <div className="text-sm">
                                                     <span className="font-medium">Realisasi Output Sebelumnya:</span> {item.realisasi_output_sebelumnya}
                                                 </div>
@@ -1496,11 +1286,10 @@ export default function KegiatanContainer({ session, status }) {
                                                 </div>
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col space-y-1">
-                                                <div className="font-medium text-gray-900 text-sm">
-                                                    {item.kota_kab_kecamatan || '-'}
-                                                </div>
+                                                <div className="font-medium text-gray-900 text-sm">{item.kota_kab_kecamatan || '-'}</div>
                                                 <div className="text-xs text-gray-600">
                                                     {item.rencana_tanggal_pelaksanaan 
                                                         ? (item.rencana_tanggal_pelaksanaan_akhir 
@@ -1510,6 +1299,7 @@ export default function KegiatanContainer({ session, status }) {
                                                 </div>
                                             </div>
                                         </td>
+                                        
                                         <td className="px-6 py-4 font-semibold text-green-700">
                                             {item.total_nominatif !== undefined ? (
                                                 <>Rp {formatRupiah(item.total_nominatif)}</>
@@ -1522,10 +1312,10 @@ export default function KegiatanContainer({ session, status }) {
                                                 </button>
                                             )}
                                         </td>
+                                        
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
-                                                    {/* Edit Button - hanya untuk regular user dan status draft/dikembalikan */}
                                                     {userType.isRegularUser && 
                                                     (item.status === 'draft' || item.status === 'dikembalikan') && (
                                                         <button
@@ -1533,14 +1323,12 @@ export default function KegiatanContainer({ session, status }) {
                                                             className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
                                                         >
                                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M15.232 5.232l3.536 3.536M9 11l6-6 3.536 3.536L12 14H9v-3z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6 3.536 3.536L12 14H9v-3z" />
                                                             </svg>
                                                             Edit
                                                         </button>
                                                     )}
                                                     
-                                                    {/* Delete Button - hanya untuk regular user dan status draft/dikembalikan */}
                                                     {userType.isRegularUser && 
                                                     (item.status === 'draft' || item.status === 'dikembalikan') && (
                                                         <button
@@ -1548,14 +1336,12 @@ export default function KegiatanContainer({ session, status }) {
                                                             className="flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
                                                         >
                                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3m-9 0h12" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3m-9 0h12" />
                                                             </svg>
                                                             Delete
                                                         </button>
                                                     )}
                                                     
-                                                    {/* TOMBOL PRINT */}
                                                     {(item.status === 'selesai' || item.status === 'diketahui' || item.status === 'disetujui') && (
                                                         <button
                                                             onClick={(e) => handlePrintItem(item, e)}
@@ -1563,36 +1349,20 @@ export default function KegiatanContainer({ session, status }) {
                                                             title="Cetak Dokumen"
                                                         >
                                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                                                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                                             </svg>
                                                             Print
                                                         </button>
                                                     )}
+                                                    
                                                     <button
                                                         onClick={() => toggleDetail(item.id)}
                                                         className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
                                                     >
-                                                        {detailShown[item.id] ? (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-5.523 0-10-4-10-7s4.477-7 10-7c1.15 0 2.262.183 3.315.525M9.88 9.88a3 3 0 104.24 4.24" />
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M3 3l18 18" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                            </svg>
-                                                        )}
                                                         {detailShown[item.id] ? "Hide" : "Show"}
                                                     </button>
                                                 </div>
                                                 
-                                                {/* Tombol Kirim ke PPK - hanya untuk regular user dan status draft/dikembalikan */}
                                                 {userType.isRegularUser && 
                                                 (item.status === 'draft' || item.status === 'dikembalikan') && (
                                                     <button
@@ -1606,7 +1376,6 @@ export default function KegiatanContainer({ session, status }) {
                                                     </button>
                                                 )}
                                                 
-                                                {/* Tombol Persetujuan - hanya untuk role PPK dan status diajukan */}
                                                 {userType.isPPK && item.status === 'diajukan' && (
                                                     <button
                                                         onClick={() => handleOpenMengetahuiModal(item.id, item)}
@@ -1619,21 +1388,18 @@ export default function KegiatanContainer({ session, status }) {
                                                     </button>
                                                 )}
                                                 
-                                                {/* Tombol Mengetahui - hanya untuk role Kabalai dan status disetujui */}
                                                 {userType.isKabalai && item.status === 'diketahui' && !item.nama_kabalai && (
                                                     <button
                                                         onClick={() => handleOpenPersetujuanModal(item.id, item)}
                                                         className="flex items-center gap-2 px-3 py-1 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                         </svg>
                                                         Persetujuan
                                                     </button>
                                                 )}
 
-                                                {/* Tombol Surat Tugas */}
                                                 {userType.isRegularUser && 
                                                 item.status === 'disetujui' && 
                                                 (!item.no_st || item.no_st.trim().length === 0) && (
@@ -1642,8 +1408,7 @@ export default function KegiatanContainer({ session, status }) {
                                                         className="flex items-center justify-center gap-2 px-4 py-2 w-full min-w-[120px] bg-orange-600 text-white rounded-md hover:bg-orange-700 transition mt-2"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                         </svg>
                                                         <span className="whitespace-nowrap">Surat Tugas</span>
                                                     </button>
@@ -1691,17 +1456,14 @@ export default function KegiatanContainer({ session, status }) {
                                                                     <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-50'}>
                                                                         <td colSpan={6} className="px-4 py-2">
                                                                             {p.biaya_list.map((b, idx) => {
-                                                                                const totalTransport = b.transportasi.reduce(
-                                                                                    (sum, t) => sum + Number(t.total || 0),
-                                                                                    0
+                                                                                const totalTransport = (b.transportasi || []).reduce(
+                                                                                    (sum, t) => sum + Number(t.total || 0), 0
                                                                                 );
-                                                                                const totalUH = b.uang_harian.reduce(
-                                                                                    (sum, u) => sum + Number(u.total || 0),
-                                                                                    0
+                                                                                const totalUH = (b.uang_harian || []).reduce(
+                                                                                    (sum, u) => sum + Number(u.total || 0), 0
                                                                                 );
-                                                                                const totalPenginapan = b.penginapan.reduce(
-                                                                                    (sum, pItem) => sum + Number(pItem.total || 0),
-                                                                                    0
+                                                                                const totalPenginapan = (b.penginapan || []).reduce(
+                                                                                    (sum, pItem) => sum + Number(pItem.total || 0), 0
                                                                                 );
                                                                                 const grandTotal = totalTransport + totalUH + totalPenginapan;
 
@@ -1733,23 +1495,23 @@ export default function KegiatanContainer({ session, status }) {
                                                                                                 <tbody>
                                                                                                     {(() => {
                                                                                                         const maxRows = Math.max(
-                                                                                                            b.transportasi.length,
-                                                                                                            b.uang_harian.length,
-                                                                                                            b.penginapan.length
+                                                                                                            (b.transportasi || []).length,
+                                                                                                            (b.uang_harian || []).length,
+                                                                                                            (b.penginapan || []).length
                                                                                                         );
                                                                                                         return Array.from({ length: maxRows }).map((_, i) => (
                                                                                                             <tr key={i} className="hover:bg-gray-50">
-                                                                                                                <td className="border px-2 py-1">{b.transportasi[i]?.trans || ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right">{b.transportasi[i] ? formatRupiah(b.transportasi[i].harga) : ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.transportasi[i] ? formatRupiah(b.transportasi[i].total) : ""}</td>
-                                                                                                                <td className="border px-2 py-1">{b.uang_harian[i]?.jenis || ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-center">{b.uang_harian[i]?.qty || ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right">{b.uang_harian[i] ? formatRupiah(b.uang_harian[i].harga) : ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.uang_harian[i] ? formatRupiah(b.uang_harian[i].total) : ""}</td>
-                                                                                                                <td className="border px-2 py-1">{b.penginapan[i]?.jenis || ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-center">{b.penginapan[i]?.qty || ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right">{b.penginapan[i] ? formatRupiah(b.penginapan[i].harga) : ""}</td>
-                                                                                                                <td className="border px-2 py-1 text-right font-medium">{b.penginapan[i] ? formatRupiah(b.penginapan[i].total) : ""}</td>
+                                                                                                                <td className="border px-2 py-1">{(b.transportasi || [])[i]?.trans || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].total) : ""}</td>
+                                                                                                                <td className="border px-2 py-1">{(b.uang_harian || [])[i]?.jenis || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-center">{(b.uang_harian || [])[i]?.qty || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].total) : ""}</td>
+                                                                                                                <td className="border px-2 py-1">{(b.penginapan || [])[i]?.jenis || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-center">{(b.penginapan || [])[i]?.qty || ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].harga) : ""}</td>
+                                                                                                                <td className="border px-2 py-1 text-right font-medium">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].total) : ""}</td>
                                                                                                             </tr>
                                                                                                         ));
                                                                                                     })()}
@@ -1839,7 +1601,6 @@ export default function KegiatanContainer({ session, status }) {
                 onConfirm={confirmDelete}
             />
 
-            {/* Modal Histori */}
             <HistoriModal
                 show={showHistoriModal}
                 onClose={handleCloseHistoriModal}
@@ -1847,7 +1608,6 @@ export default function KegiatanContainer({ session, status }) {
                 formatDateForDisplay={formatDateForDisplay}
             />
 
-            {/* Modal Status2 */}
             <Status2Modal
                 show={showStatus2Modal}
                 onClose={handleCloseStatus2Modal}
@@ -1856,7 +1616,6 @@ export default function KegiatanContainer({ session, status }) {
                 isLoading={status2Loading}
             />
 
-            {/* Modal Kirim ke PPK */}
             {showKirimPPKModal && (
                 <KirimPPKModal
                     show={showKirimPPKModal}
@@ -1871,7 +1630,6 @@ export default function KegiatanContainer({ session, status }) {
                 />
             )}
 
-            {/* Modal Persetujuan PPK */}
             {showMengetahuiModal && (
                 <MengetahuiModal
                     show={showMengetahuiModal}
@@ -1886,7 +1644,6 @@ export default function KegiatanContainer({ session, status }) {
                 />
             )}
 
-            {/* Modal Mengetahui Kabalai */}
             {showPersetujuanModal && (
                 <PersetujuanModal
                     show={showPersetujuanModal}
@@ -1901,7 +1658,6 @@ export default function KegiatanContainer({ session, status }) {
                 />
             )}
 
-            {/* Modal Surat Tugas */}
             {showSuratTugasModal && (
                 <SuratTugasModal
                     show={showSuratTugasModal}

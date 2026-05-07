@@ -40,17 +40,60 @@ async function getAdminCliToken() {
 }
 
 /**
+ * Helper untuk mendapatkan NIP user secara konsisten
+ */
+function getUserNip(user) {
+    if (!user) return '';
+    
+    // Priority 1: langsung dari user.nip
+    if (user.nip) return user.nip;
+    
+    // Priority 2: dari preferred_username (jika berupa angka/NIP)
+    if (user.preferred_username && /^\d+$/.test(user.preferred_username)) {
+        return user.preferred_username;
+    }
+    
+    // Priority 3: dari attributes
+    if (user.attributes) {
+        if (user.attributes.nip) {
+            return Array.isArray(user.attributes.nip) ? user.attributes.nip[0] : user.attributes.nip;
+        }
+        if (user.attributes.NIP) {
+            return Array.isArray(user.attributes.NIP) ? user.attributes.NIP[0] : user.attributes.NIP;
+        }
+        if (user.attributes.employeeId) {
+            return Array.isArray(user.attributes.employeeId) ? user.attributes.employeeId[0] : user.attributes.employeeId;
+        }
+        if (user.attributes.nomor_induk) {
+            return Array.isArray(user.attributes.nomor_induk) ? user.attributes.nomor_induk[0] : user.attributes.nomor_induk;
+        }
+    }
+    
+    // Priority 4: dari user.id (jika berupa angka)
+    if (user.id && /^\d+$/.test(user.id)) {
+        return user.id;
+    }
+    
+    // Priority 5: dari user.sub (jika berupa angka)
+    if (user.sub && /^\d+$/.test(user.sub)) {
+        return user.sub;
+    }
+    
+    // Fallback ke username (tapi log warning)
+    console.warn(`⚠️ Tidak dapat menemukan NIP untuk user ${getUsername(user)}, menggunakan username sebagai fallback`);
+    return user.username || user.preferred_username || '';
+}
+
+/**
  * Mendapatkan daftar user dengan role PPK dari Keycloak menggunakan admin-cli
  */
 async function getPPKUsersFromKeycloak() {
     let adminToken;
     try {
-        // Dapatkan admin token menggunakan admin-cli
         adminToken = await getAdminCliToken();
         
         console.log('🔍 Getting PPK users from Keycloak...');
         
-        // 1. Cari role "ppk" di realm
         const rolesUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/roles`;
         
         const rolesResponse = await axios.get(rolesUrl, {
@@ -59,7 +102,6 @@ async function getPPKUsersFromKeycloak() {
             }
         });
         
-        // Cari role PPK (case insensitive)
         const ppkRole = rolesResponse.data.find(role => 
             role.name.toLowerCase() === 'ppk' || 
             role.name.toLowerCase().includes('ppk')
@@ -72,7 +114,6 @@ async function getPPKUsersFromKeycloak() {
         
         console.log(`✅ Found PPK role: ${ppkRole.name} (ID: ${ppkRole.id})`);
         
-        // 2. Ambil user yang memiliki role PPK
         const usersWithRoleUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/roles/${encodeURIComponent(ppkRole.name)}/users`;
         
         const usersResponse = await axios.get(usersWithRoleUrl, {
@@ -80,13 +121,12 @@ async function getPPKUsersFromKeycloak() {
                 'Authorization': `Bearer ${adminToken}`
             },
             params: {
-                max: 100 // Batasi jumlah user
+                max: 100
             }
         });
         
         console.log(`✅ Found ${usersResponse.data.length} users with PPK role`);
         
-        // 3. Ambil detail untuk setiap user
         const usersWithDetails = await Promise.all(
             usersResponse.data.map(async (user) => {
                 try {
@@ -100,38 +140,38 @@ async function getPPKUsersFromKeycloak() {
                     
                     const userData = userDetailResponse.data;
                     
-                    // Gunakan firstName dan lastName sebagai nama, fallback ke username
                     let nama = '';
                     
-                    // Prioritas 1: firstName + lastName
                     if (userData.firstName || userData.lastName) {
                         nama = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
                     }
-                    // Prioritas 2: attributes.nama_lengkap (jika ada di attributes)
                     else if (userData.attributes?.nama_lengkap?.[0]) {
                         nama = userData.attributes.nama_lengkap[0];
                     }
-                    // Prioritas 3: attributes.displayName (jika ada)
                     else if (userData.attributes?.displayName?.[0]) {
                         nama = userData.attributes.displayName[0];
                     }
-                    // Prioritas 4: attributes.name (jika ada)
                     else if (userData.attributes?.name?.[0]) {
                         nama = userData.attributes.name[0];
                     }
-                    // Fallback: username
                     else {
                         nama = userData.username || userData.email || 'N/A';
                     }
+                    
+                    // PERBAIKAN: Ambil NIP dari berbagai sumber
+                    let nip = '';
+                    if (userData.attributes?.nip?.[0]) nip = userData.attributes.nip[0];
+                    else if (userData.attributes?.NIP?.[0]) nip = userData.attributes.NIP[0];
+                    else if (userData.attributes?.employee_id?.[0]) nip = userData.attributes.employee_id[0];
+                    else if (userData.attributes?.nomor_induk?.[0]) nip = userData.attributes.nomor_induk[0];
+                    else if (userData.preferred_username && /^\d+$/.test(userData.preferred_username)) nip = userData.preferred_username;
                     
                     return {
                         user_id: userData.id,
                         username: userData.username,
                         email: userData.email,
                         nama: nama,
-                        nip: userData.attributes?.nip?.[0] || 
-                             userData.attributes?.employee_id?.[0] || 
-                             userData.attributes?.nomor_induk?.[0] || '',
+                        nip: nip,
                         jabatan: userData.attributes?.jabatan?.[0] || 
                                 userData.attributes?.position?.[0] || 
                                 userData.attributes?.title?.[0] || 'PPK',
@@ -140,7 +180,6 @@ async function getPPKUsersFromKeycloak() {
                                    userData.attributes?.organisasi?.[0] || '',
                         enabled: userData.enabled,
                         email_verified: userData.emailVerified,
-                        // Tambahan atribut untuk debugging
                         first_name: userData.firstName,
                         last_name: userData.lastName,
                         attributes: userData.attributes
@@ -153,7 +192,6 @@ async function getPPKUsersFromKeycloak() {
             })
         );
         
-        // Filter null results dan hanya user yang aktif
         const activeUsers = usersWithDetails
             .filter(user => user !== null && user.enabled)
             .sort((a, b) => a.nama.localeCompare(b.nama));
@@ -181,6 +219,140 @@ async function getPPKUsersFromKeycloak() {
 }
 
 /**
+ * Mendapatkan daftar user dengan role Bendahara dari Keycloak
+ */
+async function getBendaharaUsersFromKeycloak() {
+    let adminToken;
+    try {
+        adminToken = await getAdminCliToken();
+        
+        console.log('🔍 Getting Bendahara users from Keycloak...');
+        
+        const rolesUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/roles`;
+        
+        const rolesResponse = await axios.get(rolesUrl, {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+        
+        const bendaharaRole = rolesResponse.data.find(role => 
+            role.name.toLowerCase() === 'bendahara' || 
+            role.name.toLowerCase().includes('bendahara')
+        );
+        
+        if (!bendaharaRole) {
+            console.log('⚠️ Role "bendahara" tidak ditemukan di Keycloak');
+            return [];
+        }
+        
+        console.log(`✅ Found Bendahara role: ${bendaharaRole.name} (ID: ${bendaharaRole.id})`);
+        
+        const usersWithRoleUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/roles/${encodeURIComponent(bendaharaRole.name)}/users`;
+        
+        const usersResponse = await axios.get(usersWithRoleUrl, {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            },
+            params: {
+                max: 100
+            }
+        });
+        
+        console.log(`✅ Found ${usersResponse.data.length} users with Bendahara role`);
+        
+        const usersWithDetails = await Promise.all(
+            usersResponse.data.map(async (user) => {
+                try {
+                    const userDetailUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/users/${user.id}`;
+                    
+                    const userDetailResponse = await axios.get(userDetailUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${adminToken}`
+                        }
+                    });
+                    
+                    const userData = userDetailResponse.data;
+                    
+                    let nama = '';
+                    
+                    if (userData.firstName || userData.lastName) {
+                        nama = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+                    }
+                    else if (userData.attributes?.nama_lengkap?.[0]) {
+                        nama = userData.attributes.nama_lengkap[0];
+                    }
+                    else if (userData.attributes?.displayName?.[0]) {
+                        nama = userData.attributes.displayName[0];
+                    }
+                    else if (userData.attributes?.name?.[0]) {
+                        nama = userData.attributes.name[0];
+                    }
+                    else {
+                        nama = userData.username || userData.email || 'N/A';
+                    }
+                    
+                    // PERBAIKAN: Ambil NIP dari berbagai sumber
+                    let nip = '';
+                    if (userData.attributes?.nip?.[0]) nip = userData.attributes.nip[0];
+                    else if (userData.attributes?.NIP?.[0]) nip = userData.attributes.NIP[0];
+                    else if (userData.attributes?.employee_id?.[0]) nip = userData.attributes.employee_id[0];
+                    else if (userData.attributes?.nomor_induk?.[0]) nip = userData.attributes.nomor_induk[0];
+                    else if (userData.preferred_username && /^\d+$/.test(userData.preferred_username)) nip = userData.preferred_username;
+                    
+                    return {
+                        user_id: userData.id,
+                        username: userData.username,
+                        email: userData.email,
+                        nama: nama,
+                        nip: nip,
+                        jabatan: userData.attributes?.jabatan?.[0] || 
+                                userData.attributes?.position?.[0] || 
+                                userData.attributes?.title?.[0] || 'Bendahara',
+                        unit_kerja: userData.attributes?.unit_kerja?.[0] || 
+                                   userData.attributes?.department?.[0] || 
+                                   userData.attributes?.organisasi?.[0] || '',
+                        enabled: userData.enabled,
+                        email_verified: userData.emailVerified,
+                        first_name: userData.firstName,
+                        last_name: userData.lastName,
+                        attributes: userData.attributes
+                    };
+                    
+                } catch (userError) {
+                    console.error(`❌ Error fetching details for user ${user.id}:`, userError.message);
+                    return null;
+                }
+            })
+        );
+        
+        const activeUsers = usersWithDetails
+            .filter(user => user !== null && user.enabled)
+            .sort((a, b) => a.nama.localeCompare(b.nama));
+        
+        console.log(`✅ Returning ${activeUsers.length} active Bendahara users`);
+        
+        return activeUsers;
+        
+    } catch (error) {
+        console.error('❌ Error getting Bendahara users from Keycloak:', error.message);
+        
+        if (error.response) {
+            console.error('Keycloak API Error:', {
+                status: error.response.status,
+                data: error.response.data
+            });
+            
+            if (error.response.status === 401) {
+                throw new Error('Kredensial admin salah atau token expired');
+            }
+        }
+        
+        throw error;
+    }
+}
+
+/**
  * Fallback: Ambil semua user dan filter yang memiliki role PPK
  */
 async function getAllUsersAndFilterPPK() {
@@ -188,7 +360,6 @@ async function getAllUsersAndFilterPPK() {
     try {
         console.log('🔄 Fallback: Getting all users and filtering...');
         
-        // Dapatkan admin token menggunakan admin-cli
         adminToken = await getAdminCliToken();
         
         const usersUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/users`;
@@ -204,16 +375,13 @@ async function getAllUsersAndFilterPPK() {
         
         console.log(`✅ Found ${response.data.length} total users`);
         
-        // Filter user yang aktif
         const activeUsers = response.data.filter(user => user.enabled);
         console.log(`✅ ${activeUsers.length} users are active`);
         
-        // Cek role untuk setiap user
         const ppkUsers = [];
         
         for (const user of activeUsers) {
             try {
-                // Ambil realm roles untuk user ini
                 const rolesUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/users/${user.id}/role-mappings/realm`;
                 
                 const rolesResponse = await axios.get(rolesUrl, {
@@ -224,7 +392,6 @@ async function getAllUsersAndFilterPPK() {
                 
                 const userRoles = rolesResponse.data.map(role => role.name.toLowerCase());
                 
-                // Cek apakah user memiliki role PPK
                 if (userRoles.some(role => role === 'ppk' || role.includes('ppk'))) {
                     let nama = '';
                     
@@ -241,17 +408,19 @@ async function getAllUsersAndFilterPPK() {
                         nama = user.username || user.email || 'N/A';
                     }
                     
+                    let nip = '';
+                    if (user.attributes?.nip?.[0]) nip = user.attributes.nip[0];
+                    else if (user.attributes?.NIP?.[0]) nip = user.attributes.NIP[0];
+                    else if (user.attributes?.employee_id?.[0]) nip = user.attributes.employee_id[0];
+                    
                     ppkUsers.push({
                         user_id: user.id,
                         username: user.username,
                         email: user.email,
                         nama: nama,
-                        nip: user.attributes?.nip?.[0] || 
-                             user.attributes?.employee_id?.[0] || '',
-                        jabatan: user.attributes?.jabatan?.[0] || 
-                                user.attributes?.position?.[0] || 'PPK',
-                        unit_kerja: user.attributes?.unit_kerja?.[0] || 
-                                   user.attributes?.department?.[0] || '',
+                        nip: nip,
+                        jabatan: user.attributes?.jabatan?.[0] || 'PPK',
+                        unit_kerja: user.attributes?.unit_kerja?.[0] || '',
                         enabled: user.enabled,
                         first_name: user.firstName,
                         last_name: user.lastName
@@ -274,6 +443,96 @@ async function getAllUsersAndFilterPPK() {
 }
 
 /**
+ * Fallback: Ambil semua user dan filter yang memiliki role Bendahara
+ */
+async function getAllUsersAndFilterBendahara() {
+    let adminToken;
+    try {
+        console.log('🔄 Fallback: Getting all users and filtering for Bendahara...');
+        
+        adminToken = await getAdminCliToken();
+        
+        const usersUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/users`;
+        
+        const response = await axios.get(usersUrl, {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            },
+            params: {
+                max: 200
+            }
+        });
+        
+        console.log(`✅ Found ${response.data.length} total users`);
+        
+        const activeUsers = response.data.filter(user => user.enabled);
+        console.log(`✅ ${activeUsers.length} users are active`);
+        
+        const bendaharaUsers = [];
+        
+        for (const user of activeUsers) {
+            try {
+                const rolesUrl = `${KEYCLOAK_CONFIG.serverUrl}/admin/realms/${KEYCLOAK_CONFIG.realm}/users/${user.id}/role-mappings/realm`;
+                
+                const rolesResponse = await axios.get(rolesUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`
+                    }
+                });
+                
+                const userRoles = rolesResponse.data.map(role => role.name.toLowerCase());
+                
+                if (userRoles.some(role => role === 'bendahara' || role.includes('bendahara'))) {
+                    let nama = '';
+                    
+                    if (user.firstName || user.lastName) {
+                        nama = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                    }
+                    else if (user.attributes?.nama_lengkap?.[0]) {
+                        nama = user.attributes.nama_lengkap[0];
+                    }
+                    else if (user.attributes?.displayName?.[0]) {
+                        nama = user.attributes.displayName[0];
+                    }
+                    else {
+                        nama = user.username || user.email || 'N/A';
+                    }
+                    
+                    let nip = '';
+                    if (user.attributes?.nip?.[0]) nip = user.attributes.nip[0];
+                    else if (user.attributes?.NIP?.[0]) nip = user.attributes.NIP[0];
+                    else if (user.attributes?.employee_id?.[0]) nip = user.attributes.employee_id[0];
+                    
+                    bendaharaUsers.push({
+                        user_id: user.id,
+                        username: user.username,
+                        email: user.email,
+                        nama: nama,
+                        nip: nip,
+                        jabatan: user.attributes?.jabatan?.[0] || 'Bendahara',
+                        unit_kerja: user.attributes?.unit_kerja?.[0] || '',
+                        enabled: user.enabled,
+                        first_name: user.firstName,
+                        last_name: user.lastName
+                    });
+                }
+            } catch (userError) {
+                console.warn(`⚠️ Error checking roles for user ${user.id}:`, userError.message);
+                continue;
+            }
+        }
+        
+        console.log(`✅ Found ${bendaharaUsers.length} Bendahara users via fallback method`);
+        
+        return bendaharaUsers;
+        
+    } catch (error) {
+        console.error('❌ Error in fallback method for Bendahara:', error.message);
+        throw error;
+    }
+}
+
+/**
  * Helper untuk mengekstrak roles dari user object Keycloak
  */
 function extractUserRoles(user) {
@@ -281,21 +540,17 @@ function extractUserRoles(user) {
     
     let roles = [];
     
-    // 1. Dari user.role langsung
     if (user.role) {
         console.log('📌 Found roles in user.role:', user.role);
         roles = Array.isArray(user.role) ? user.role : [user.role];
     }
-    // 2. Dari user.roles
     else if (user.roles && Array.isArray(user.roles)) {
         console.log('📌 Found roles in user.roles:', user.roles);
         roles = user.roles;
     }
-    // 3. Dari resource_access (Keycloak standard)
     else if (user.resource_access) {
         console.log('📌 Found resource_access:', JSON.stringify(user.resource_access));
         
-        // Cari di semua client
         for (const clientId in user.resource_access) {
             const client = user.resource_access[clientId];
             if (client && client.roles && Array.isArray(client.roles)) {
@@ -304,13 +559,11 @@ function extractUserRoles(user) {
             }
         }
     }
-    // 4. Dari realm_access (Keycloak realm roles)
     else if (user.realm_access && user.realm_access.roles) {
         console.log('📌 Found roles in realm_access:', user.realm_access.roles);
         roles = roles.concat(user.realm_access.roles);
     }
     
-    // 5. Jika masih kosong, cari di semua properti
     if (roles.length === 0) {
         console.log('🔍 Searching for roles in all properties...');
         for (const key in user) {
@@ -318,7 +571,7 @@ function extractUserRoles(user) {
             if (Array.isArray(value)) {
                 const possibleRoles = value.filter(item => 
                     typeof item === 'string' && 
-                    ['admin', 'ppk', 'kabalai', 'user'].some(role => 
+                    ['admin', 'ppk', 'kabalai', 'bendahara', 'user'].some(role => 
                         item.toLowerCase().includes(role.toLowerCase())
                     )
                 );
@@ -356,10 +609,16 @@ function isUserKabalai(user) {
     return roleArray.some(role => role.toLowerCase().includes('kabalai'));
 }
 
+function isUserBendahara(user) {
+    const roles = user.extractedRoles || user.role || [];
+    const roleArray = Array.isArray(roles) ? roles : [roles];
+    return roleArray.some(role => role.toLowerCase() === 'bendahara');
+}
+
 function isRegularUser(user) {
     const roles = user.extractedRoles || user.role || [];
     const roleArray = Array.isArray(roles) ? roles : [roles];
-    return !isUserAdmin(user) && !isUserPPK(user) && !isUserKabalai(user);
+    return !isUserAdmin(user) && !isUserPPK(user) && !isUserKabalai(user) && !isUserBendahara(user);
 }
 
 /**
@@ -379,12 +638,16 @@ function getUsername(user) {
 module.exports = {
     getAdminCliToken,
     getPPKUsersFromKeycloak,
+    getBendaharaUsersFromKeycloak,
     getAllUsersAndFilterPPK,
+    getAllUsersAndFilterBendahara,
     extractUserRoles,
     isUserAdmin,
     isUserPPK,
     isUserKabalai,
+    isUserBendahara,
     isRegularUser,
     getUserId,
-    getUsername
+    getUsername,
+    getUserNip  // TAMBAHKAN fungsi getUserNip ke exports
 };

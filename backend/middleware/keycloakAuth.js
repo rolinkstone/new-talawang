@@ -9,6 +9,80 @@ const {
     getUsername 
 } = require('../utils/keycloakHelpers');
 
+// ========== HELPER FUNGSI UNTUK MENDAPATKAN NIP ==========
+const getUserNip = (user) => {
+    if (!user) return '';
+    
+    console.log('🔍 Extracting NIP from user:', {
+        hasNip: !!user.nip,
+        hasNipRaw: !!user.nip_raw,
+        hasPreferredUsername: !!user.preferred_username,
+        hasAttributes: !!user.attributes
+    });
+    
+    // Priority 1: langsung dari user.nip
+    if (user.nip && user.nip !== '') {
+        console.log('✅ Found NIP from user.nip:', user.nip);
+        return user.nip;
+    }
+    
+    // Priority 2: dari user.nip_raw
+    if (user.nip_raw && user.nip_raw !== '') {
+        console.log('✅ Found NIP from user.nip_raw:', user.nip_raw);
+        return user.nip_raw;
+    }
+    
+    // Priority 3: dari preferred_username (jika berupa angka/NIP)
+    if (user.preferred_username && /^\d+$/.test(String(user.preferred_username).replace(/\s/g, ''))) {
+        const nip = String(user.preferred_username).replace(/\s/g, '');
+        console.log('✅ Found NIP from preferred_username:', nip);
+        return nip;
+    }
+    
+    // Priority 4: dari attributes.nip
+    if (user.attributes) {
+        if (user.attributes.nip) {
+            const nip = Array.isArray(user.attributes.nip) ? user.attributes.nip[0] : user.attributes.nip;
+            if (nip) {
+                console.log('✅ Found NIP from attributes.nip:', nip);
+                return nip;
+            }
+        }
+        if (user.attributes.NIP) {
+            const nip = Array.isArray(user.attributes.NIP) ? user.attributes.NIP[0] : user.attributes.NIP;
+            if (nip) {
+                console.log('✅ Found NIP from attributes.NIP:', nip);
+                return nip;
+            }
+        }
+        if (user.attributes.employeeId) {
+            const nip = Array.isArray(user.attributes.employeeId) ? user.attributes.employeeId[0] : user.attributes.employeeId;
+            if (nip) {
+                console.log('✅ Found NIP from attributes.employeeId:', nip);
+                return nip;
+            }
+        }
+    }
+    
+    // Priority 5: dari user.username (jika berupa angka)
+    if (user.username && /^\d+$/.test(String(user.username).replace(/\s/g, ''))) {
+        const nip = String(user.username).replace(/\s/g, '');
+        console.log('✅ Found NIP from username:', nip);
+        return nip;
+    }
+    
+    // Priority 6: dari user.id (jika berupa angka)
+    if (user.id && /^\d+$/.test(String(user.id).replace(/\s/g, ''))) {
+        const nip = String(user.id).replace(/\s/g, '');
+        console.log('✅ Found NIP from user.id:', nip);
+        return nip;
+    }
+    
+    // Fallback: log warning
+    console.warn(`⚠️ User ${getUsername(user)} tidak memiliki NIP, akan menggunakan username sebagai fallback`);
+    return user.username || user.preferred_username || '';
+};
+
 // ========== KEYCLOAK AUTH MIDDLEWARE ==========
 const keycloakAuth = (req, res, next) => {
     if (!req.user) {
@@ -18,6 +92,19 @@ const keycloakAuth = (req, res, next) => {
             code: 'UNAUTHORIZED'
         });
     }
+    
+    // Log raw user object untuk debugging
+    console.log('📋 Raw user object received:', {
+        id: req.user.id,
+        sub: req.user.sub,
+        username: req.user.username,
+        preferred_username: req.user.preferred_username,
+        email: req.user.email,
+        nip: req.user.nip,
+        role: req.user.role,
+        roles: req.user.roles,
+        attributes: req.user.attributes
+    });
     
     // 1. Ekstrak roles dari berbagai kemungkinan lokasi di Keycloak
     req.user.extractedRoles = extractUserRoles(req.user);
@@ -35,10 +122,9 @@ const keycloakAuth = (req, res, next) => {
         req.user.user_id = req.user.sub;
     }
     
-    // 4. Tambahkan NIP dari preferred_username jika belum ada
-    if (!req.user.nip && req.user.preferred_username) {
-        req.user.nip = req.user.preferred_username;
-    }
+    // 4. PERBAIKAN: Ambil NIP dengan benar
+    const extractedNip = getUserNip(req.user);
+    req.user.nip = extractedNip;
     
     // 5. Identifikasi role khusus untuk akses data
     req.user.isAdmin = isUserAdmin(req.user);
@@ -46,22 +132,16 @@ const keycloakAuth = (req, res, next) => {
     req.user.isKabalai = isUserKabalai(req.user);
     req.user.isRegularUser = isRegularUser(req.user);
     
-    console.log(`🔐 User ${getUsername(req.user)} mengakses ${req.method} ${req.path}`, {
-        roles: req.user.extractedRoles,
-        user_id: req.user.user_id,
-        nip: req.user.nip,
-        isAdmin: req.user.isAdmin,
-        isPPK: req.user.isPPK,
-        isKabalai: req.user.isKabalai,
-        isRegularUser: req.user.isRegularUser
-    });
+    console.log(`🔐 User ${getUsername(req.user)} mengakses ${req.method} ${req.path}`);
+    console.log(`   Roles: ${JSON.stringify(req.user.extractedRoles)}`);
+    console.log(`   User ID: ${req.user.user_id}`);
+    console.log(`   NIP: ${req.user.nip || '-'}`);
+    console.log(`   isAdmin: ${req.user.isAdmin}, isPPK: ${req.user.isPPK}, isKabalai: ${req.user.isKabalai}, isRegularUser: ${req.user.isRegularUser}`);
     
     next();
 };
 
-// ========== FUNGSI UNTUK MEMBANGUN WHERE CLAUSE ==========
-// middleware/keycloakAuth.js
-
+// ========== FUNGSI UNTUK MEMBANGUN WHERE CLAUSE UNTUK SINGLE ITEM ==========
 const buildSingleItemWhereClause = (user, itemId, tableAlias = 'k') => {
     const isAdmin = user?.isAdmin || false;
     const isPPK = user?.isPPK || false;
@@ -108,14 +188,21 @@ const buildSingleItemWhereClause = (user, itemId, tableAlias = 'k') => {
         };
     }
     
-    // PERBAIKAN UNTUK REGULAR USER
-    // Cek apakah user terdaftar sebagai pegawai di kegiatan tersebut
+    // Regular User: cek apakah user terdaftar sebagai pegawai
     const normalizedNip = String(userNip || '').replace(/\s/g, '');
     console.log(`👤 Regular User: checking if user NIP ${normalizedNip} is registered in activity ${itemId}`);
     
+    if (!normalizedNip) {
+        console.warn(`⚠️ Regular user ${getUsername(user)} tidak memiliki NIP, akses ditolak`);
+        return {
+            where: `WHERE 1 = 0`,
+            params: []
+        };
+    }
+    
     return {
         where: `WHERE ${tableAlias}.id = ? AND EXISTS (
-            SELECT 1 FROM nominatif_pegawai p 
+            SELECT 1 FROM accounting.nominatif_pegawai p 
             WHERE p.kegiatan_id = ${tableAlias}.id 
             AND REPLACE(p.nip, ' ', '') = ?
         )`,
@@ -144,16 +231,25 @@ const buildListWhereClause = (user, tableAlias = 'k') => {
         };
     }
     
-    // Kabalai bisa lihat semua (atau sesuai kebutuhan)
+    // Kabalai bisa lihat semua
     if (isKabalai) {
         return { where: '', params: [] };
     }
     
     // Regular User: hanya lihat kegiatan yang dirinya terdaftar sebagai pegawai
     const normalizedNip = String(userNip || '').replace(/\s/g, '');
+    
+    if (!normalizedNip) {
+        console.warn(`⚠️ Regular user ${getUsername(user)} tidak memiliki NIP, tidak ada akses`);
+        return {
+            where: `WHERE 1 = 0`,
+            params: []
+        };
+    }
+    
     return {
         where: `WHERE EXISTS (
-            SELECT 1 FROM nominatif_pegawai p 
+            SELECT 1 FROM accounting.nominatif_pegawai p 
             WHERE p.kegiatan_id = ${tableAlias}.id 
             AND REPLACE(p.nip, ' ', '') = ?
         )`,
@@ -161,10 +257,48 @@ const buildListWhereClause = (user, tableAlias = 'k') => {
     };
 };
 
+// ========== FUNGSI UNTUK VALIDASI AKSES ==========
+const checkAccess = (user, kegiatan) => {
+    const isAdmin = user?.isAdmin || false;
+    const isPPK = user?.isPPK || false;
+    const isKabalai = user?.isKabalai || false;
+    const userId = user?.user_id || user?.id || user?.sub;
+    const userNip = user?.nip || '';
+    const normalizedUserNip = String(userNip || '').replace(/\s/g, '');
+    
+    // Admin: selalu punya akses
+    if (isAdmin) {
+        return true;
+    }
+    
+    // PPK: hanya punya akses jika ppk_id sesuai
+    if (isPPK && kegiatan.ppk_id === userId) {
+        return true;
+    }
+    
+    // Kabalai: selalu punya akses
+    if (isKabalai) {
+        return true;
+    }
+    
+    // Regular User: hanya punya akses jika terdaftar sebagai pegawai
+    if (kegiatan.pegawai) {
+        const isPegawai = kegiatan.pegawai.some(p => 
+            String(p.nip || '').replace(/\s/g, '') === normalizedUserNip
+        );
+        return isPegawai;
+    }
+    
+    return false;
+};
+
+// Juga export fungsi getUserNip
 module.exports = {
     keycloakAuth,
     buildSingleItemWhereClause,
     buildListWhereClause,
+    checkAccess,
     getUserId,
-    getUsername
+    getUsername,
+    getUserNip  // Pastikan ini diexport
 };

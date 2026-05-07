@@ -2,6 +2,26 @@
 import NextAuth from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 
+// Fungsi untuk memformat NIP dengan spasi
+function formatNipWithSpaces(nip) {
+    if (!nip) return '';
+    
+    // Hapus spasi yang ada
+    const cleanNip = String(nip).replace(/\s/g, '');
+    
+    // Jika panjang 18 digit, format jadi 8 6 1 3
+    if (cleanNip.length === 18 && /^\d+$/.test(cleanNip)) {
+        return `${cleanNip.substring(0, 8)} ${cleanNip.substring(8, 14)} ${cleanNip.substring(14, 15)} ${cleanNip.substring(15, 18)}`;
+    }
+    
+    // Jika sudah ada spasi, kembalikan asli
+    if (nip.includes(' ')) {
+        return nip;
+    }
+    
+    return cleanNip;
+}
+
 export const authOptions = {
   providers: [
     KeycloakProvider({
@@ -32,20 +52,29 @@ export const authOptions = {
           }
         }
         
-        // Extract NIP from preferred_username or other fields
-        // preferred_username biasanya berisi NIP tanpa spasi (contoh: 198701042009121003)
-        let nip = profile.preferred_username || '';
+        // Ambil NIP dari berbagai sumber
+        let nipRaw = '';
+        let nipClean = '';
         
-        // Jika NIP dari database ada spasi, Anda bisa menyimpannya dalam format asli
-        // Tapi untuk session, kita simpan tanpa spasi agar mudah dibandingkan
-        // Atau simpan keduanya: nip (tanpa spasi) dan nip_raw (dengan spasi)
+        // 1. Coba dari attributes
+        if (profile.attributes?.nip) {
+          nipRaw = Array.isArray(profile.attributes.nip) ? profile.attributes.nip[0] : profile.attributes.nip;
+          nipClean = nipRaw.replace(/\s/g, '');
+        }
+        // 2. Coba dari preferred_username
+        else if (profile.preferred_username) {
+          nipClean = profile.preferred_username;
+          nipRaw = formatNipWithSpaces(nipClean);
+        }
         
         console.log("📋 Profile data:", {
           sub: profile.sub,
           preferred_username: profile.preferred_username,
           email: profile.email,
           name: profile.name,
-          nip: nip
+          nip_raw: nipRaw,
+          nip_clean: nipClean,
+          role: role
         });
         
         return {
@@ -53,8 +82,9 @@ export const authOptions = {
           name: profile.name || profile.preferred_username,
           email: profile.email,
           role: role,
-          nip: nip,  // ← TAMBAHKAN NIP
-          username: profile.preferred_username,  // ← TAMBAHKAN username sebagai alternatif
+          nip: nipClean,           // NIP tanpa spasi (untuk filter)
+          nip_raw: nipRaw,         // NIP dengan spasi (untuk display & database)
+          username: profile.preferred_username,
         };
       },
     }),
@@ -63,35 +93,34 @@ export const authOptions = {
   callbacks: {
     async jwt({ token, user, account }) {
       if (account && user) {
-        console.log("🔄 JWT - Storing user in token");
-        
-        // Store user data directly on token (not in nested object)
+        console.log("🔄 JWT - Storing user, NIP_raw:", user.nip_raw);
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
         token.role = user.role;
-        token.nip = user.nip;  // ← TAMBAHKAN NIP ke token
-        token.username = user.username;  // ← TAMBAHKAN username ke token
+        token.nip = user.nip;         // NIP tanpa spasi
+        token.nip_raw = user.nip_raw; // NIP dengan spasi
+        token.username = user.username;
         token.accessToken = account.access_token;
         token.expiresAt = account.expires_at;
       }
       
-      console.log("🔄 JWT - Token has nip:", !!token.nip);
+      console.log("🔄 JWT - Token has nip_raw:", !!token.nip_raw);
       return token;
     },
 
     async session({ session, token }) {
       console.log("💼 SESSION - Building from token");
       
-      // Pass token data to session
       if (token) {
         session.user = {
           id: token.id,
           name: token.name,
           email: token.email,
           role: token.role,
-          nip: token.nip,  // ← TAMBAHKAN NIP ke session.user
-          username: token.username,  // ← TAMBAHKAN username ke session.user
+          nip: token.nip,           // NIP tanpa spasi
+          nip_raw: token.nip_raw,   // NIP dengan spasi
+          username: token.username,
         };
         
         session.accessToken = token.accessToken;
@@ -99,9 +128,7 @@ export const authOptions = {
           new Date(token.expiresAt * 1000).toISOString() : null;
       }
       
-      console.log("💼 SESSION - User:", session.user?.name, "Role:", session.user?.role, "Has NIP:", !!session.user?.nip);
-      console.log("💼 SESSION - NIP value:", session.user?.nip);
-      console.log("💼 SESSION - Size:", JSON.stringify(session).length);
+      console.log("💼 SESSION - NIP_raw value:", session.user?.nip_raw);
       
       return session;
     },
@@ -119,7 +146,7 @@ export const authOptions = {
 
   cookies: {
     sessionToken: {
-      name: 'next-auth.session-token', // Use default name for compatibility
+      name: 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',

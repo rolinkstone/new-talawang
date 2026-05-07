@@ -1,33 +1,60 @@
-// components/kwitansi/KwitansiPrint.js
 import React, { useState, useEffect } from 'react';
 import { formatDateFn } from '../../utils/formatters';
 
 export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
-    // State internal untuk menyimpan data yang bisa berubah
     const [statusTtd, setStatusTtd] = useState(item?.status_ttd || 'belum');
     const [tglTtd, setTglTtd] = useState(item?.tgl_ttd || null);
     const [catatanTtd, setCatatanTtd] = useState(item?.catatan_ttd || '');
     const [currentItem, setCurrentItem] = useState(item);
+    
+    // State untuk TTD images
+    const [ttdPegawaiUrl, setTtdPegawaiUrl] = useState(null);
+    const [ttdPpkUrl, setTtdPpkUrl] = useState(null);
+    const [ttdBendaharaUrl, setTtdBendaharaUrl] = useState(null);
+    const [loadingTtd, setLoadingTtd] = useState(true);
 
-    // Debug logging
     useEffect(() => {
         console.log('=== KWITANSI PRINT DEBUG ===');
         console.log('Item status_ttd:', item?.status_ttd);
         console.log('Item tgl_ttd:', item?.tgl_ttd);
-        console.log('Item catatan_ttd:', item?.catatan_ttd);
+        console.log('Kegiatan ppk_nama:', kegiatan?.ppk_nama);
+        console.log('Kegiatan diketahui_oleh:', kegiatan?.diketahui_oleh);
         console.log('Pegawai:', pegawai?.nama);
-        console.log('Is Approved:', item?.status_ttd === 'sudah');
-    }, [item, pegawai]);
+        console.log('Item TTD pegawai path:', item?.ttd_pegawai_path);
+        console.log('Item TTD ppk path:', item?.ttd_ppk_path);
+        console.log('Item TTD bendahara path:', item?.ttd_bendahara_path);
+    }, [item, kegiatan, pegawai]);
 
-    // Update state internal ketika props berubah
     useEffect(() => {
         if (item) {
             setCurrentItem(item);
             setStatusTtd(item.status_ttd || 'belum');
             setTglTtd(item.tgl_ttd || null);
             setCatatanTtd(item.catatan_ttd || '');
+            loadTtdImages();
         }
     }, [item]);
+
+    // Fungsi untuk memuat gambar TTD
+    const loadTtdImages = () => {
+        setLoadingTtd(true);
+        
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        
+        const getImageUrl = (path) => {
+            if (!path) return null;
+            let cleanPath = path;
+            if (cleanPath.startsWith('/api/')) cleanPath = cleanPath.replace('/api', '');
+            if (!cleanPath.startsWith('/uploads')) cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
+            return `${baseUrl}${cleanPath}`;
+        };
+        
+        setTtdPegawaiUrl(getImageUrl(item?.ttd_pegawai_path));
+        setTtdPpkUrl(getImageUrl(item?.ttd_ppk_path));
+        setTtdBendaharaUrl(getImageUrl(item?.ttd_bendahara_path));
+        
+        setLoadingTtd(false);
+    };
 
     const formatRupiah = (number) => {
         if (number === undefined || number === null) return '0';
@@ -85,14 +112,30 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     const uangHarianDetail = pegawai?.uang_harian_detail || [];
     const penginapanDetail = pegawai?.penginapan_detail || [];
 
-    // Gunakan state internal untuk status persetujuan
     const isApproved = statusTtd === 'sudah';
     const approvedDate = tglTtd ? formatDateFn(tglTtd) : null;
     const approvedBy = pegawai?.nama || 'Pegawai Bersangkutan';
     const catatanTtdText = catatanTtd;
 
+    const ppkNama = kegiatan?.ppk_nama || 'PPK';
+    const bendaharaNama = kegiatan?.bendahara_nama || 'Bendahara';
+
     const handlePrint = () => {
         const printWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        // Generate HTML untuk TTD images
+        const ttdPegawaiHtml = ttdPegawaiUrl ? 
+            `<img src="${ttdPegawaiUrl}" style="max-height: 50px; max-width: 150px; object-fit: contain;" />` : 
+            '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
+        
+        const ttdPpkHtml = ttdPpkUrl ? 
+            `<img src="${ttdPpkUrl}" style="max-height: 50px; max-width: 150px; object-fit: contain;" />` : 
+            '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
+        
+        const ttdBendaharaHtml = ttdBendaharaUrl ? 
+            `<img src="${ttdBendaharaUrl}" style="max-height: 50px; max-width: 150px; object-fit: contain;" />` : 
+            '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
+        
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
@@ -199,7 +242,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                         font-size: 11px;
                     }
                     .signature {
-                        margin-top: 80px;
+                        margin-top: 60px;
                         display: flex;
                         justify-content: space-between;
                         align-items: flex-end;
@@ -207,13 +250,26 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                     .signature-item {
                         text-align: center;
                         width: 30%;
+                        position: relative;
                     }
                     .signature-label {
                         font-size: 11px;
                         margin-bottom: 20px;
                     }
+                    .signature-image {
+                        margin: 10px 0;
+                        min-height: 60px;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .ttd-placeholder {
+                        font-size: 9px;
+                        color: #999;
+                        font-style: italic;
+                    }
                     .signature-line {
-                        margin-top: 50px;
+                        margin-top: 5px;
                         border-top: 1px solid black;
                         width: 100%;
                     }
@@ -329,7 +385,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                     
                     ${isApproved ? `
                     <div class="approval-info">
-                        <p class="approved-text">✓ KUITANSI INI TELAH DISETUJUI</p>
+                        <p class="approved-text">✓ KUITANSI INI TELAH DITANDATANGAN</p>
                         <p>Disetujui oleh : ${approvedBy}</p>
                         <p>Tanggal persetujuan : ${approvedDate || formatDateFn(today)}</p>
                         ${catatanTtdText ? `<p>Catatan : ${catatanTtdText}</p>` : ''}
@@ -346,21 +402,28 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                         <div class="signature-item">
                             <div class="signature-label">Palangka Raya, ${formatDateFn(today)}</div>
                             <div class="signature-label">Bendahara Pengeluaran,</div>
+                            <div class="signature-image">
+                                ${ttdBendaharaHtml}
+                            </div>
                             <div class="signature-line"></div>
-                            <div class="signature-name">Maharani Anindya Sari, S.Kom.</div>
-                            <div class="signature-nip">NIP. 19850104 200712 2 001</div>
+                            <div class="signature-name">${bendaharaNama}</div>
                         </div>
                         <div class="signature-item">
                             <div class="signature-label">Yang Menerima,</div>
+                            <div class="signature-image">
+                                ${ttdPegawaiHtml}
+                            </div>
                             <div class="signature-line"></div>
                             <div class="signature-name">${pegawai?.nama || ''}</div>
                             <div class="signature-nip">NIP. ${pegawai?.nip || '-'}</div>
                         </div>
                         <div class="signature-item">
-                            <div class="signature-label">Pembuat Komitmen,</div>
+                            <div class="signature-label">Pembuat Komitmen / PPK,</div>
+                            <div class="signature-image">
+                                ${ttdPpkHtml}
+                            </div>
                             <div class="signature-line"></div>
-                            <div class="signature-name">Ellen Naomi Nauli Sinaga, S.Farm., Apt.</div>
-                            <div class="signature-nip">NIP. 19910514 201502 2 003</div>
+                            <div class="signature-name">${ppkNama}</div>
                         </div>
                     </div>
                     
@@ -378,12 +441,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         `);
         printWindow.document.close();
     };
-
-    // Status persetujuan untuk tampilan di modal (menggunakan state internal)
-    const isApprovedPreview = statusTtd === 'sudah';
-    const approvedDatePreview = tglTtd ? formatDateFn(tglTtd) : null;
-    const approvedByName = pegawai?.nama || 'Pegawai Bersangkutan';
-    const catatanTtdPreview = catatanTtd;
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -405,8 +462,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                     </div>
                     
                     <div className="border rounded-lg p-6 bg-white relative" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
-                        {/* Stamp/Watermark untuk status sudah disetujui */}
-                        {isApprovedPreview && (
+                        {isApproved && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                                 <div className="transform -rotate-12 text-green-600 opacity-20 text-7xl font-bold border-8 border-green-600 px-8 py-4 rounded-lg">
                                     ✓ DISETUJUI
@@ -485,14 +541,13 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                             Terbilang : "{terbilang(totalBiaya)}"
                         </div>
                         
-                        {/* Status Persetujuan di preview - menggunakan state internal */}
-                        {isApprovedPreview ? (
+                        {isApproved ? (
                             <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-lg">
-                                <p className="text-green-700 font-semibold">✓ KUITANSI TELAH DISETUJUI</p>
+                                <p className="text-green-700 font-semibold">✓ KUITANSI TELAH DITANDATANGAN</p>
                                 <p className="text-xs text-green-600 mt-1">
-                                    Disetujui oleh: {approvedByName}<br/>
-                                    Tanggal persetujuan: {approvedDatePreview || formatDateFn(today)}
-                                    {catatanTtdPreview && <><br/>Catatan: {catatanTtdPreview}</>}
+                                    Disetujui oleh: {approvedBy}<br/>
+                                    Tanggal persetujuan: {approvedDate || formatDateFn(today)}
+                                    {catatanTtdText && <><br/>Catatan: {catatanTtdText}</>}
                                 </p>
                             </div>
                         ) : (
@@ -509,21 +564,67 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
                             <div className="text-center w-1/3">
                                 <div className="mb-4">Palangka Raya, {formatDateFn(today)}</div>
                                 <div className="mb-12">Bendahara Pengeluaran,</div>
+                                {loadingTtd ? (
+                                    <div className="text-gray-400 text-xs">Memuat TTD...</div>
+                                ) : (
+                                    <div className="signature-image my-2">
+                                        {ttdBendaharaUrl ? (
+                                            <img 
+                                                src={ttdBendaharaUrl} 
+                                                alt="TTD Bendahara" 
+                                                className="max-h-12 max-w-32 object-contain mx-auto"
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        ) : (
+                                            <div className="text-xs text-gray-400 italic">(TTD digital tidak tersedia)</div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="border-t border-black pt-2 mt-2"></div>
-                                <div className="font-bold mt-3">Maharani Anindya Sari, S.Kom.</div>
-                                <div className="text-xs mt-1">NIP. 19850104 200712 2 001</div>
+                                <div className="font-bold mt-3">{bendaharaNama}</div>
                             </div>
                             <div className="text-center w-1/3">
                                 <div className="mb-16">Yang Menerima,</div>
+                                {loadingTtd ? (
+                                    <div className="text-gray-400 text-xs">Memuat TTD...</div>
+                                ) : (
+                                    <div className="signature-image my-2">
+                                        {ttdPegawaiUrl ? (
+                                            <img 
+                                                src={ttdPegawaiUrl} 
+                                                alt="TTD Pegawai" 
+                                                className="max-h-12 max-w-32 object-contain mx-auto"
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        ) : (
+                                            <div className="text-xs text-gray-400 italic">(TTD digital tidak tersedia)</div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="border-t border-black pt-2 mt-2"></div>
                                 <div className="font-bold mt-3">{pegawai?.nama || ''}</div>
-                                <div className="text-xs mt-1">NIP. {pegawai?.nip || '-'}</div>
+                                <div className="signature-nip">NIP. {pegawai?.nip || '-'}</div>
                             </div>
                             <div className="text-center w-1/3">
-                                <div className="mb-16">Pembuat Komitmen,</div>
+                                <div className="mb-16">Pembuat Komitmen / PPK,</div>
+                                {loadingTtd ? (
+                                    <div className="text-gray-400 text-xs">Memuat TTD...</div>
+                                ) : (
+                                    <div className="signature-image my-2">
+                                        {ttdPpkUrl ? (
+                                            <img 
+                                                src={ttdPpkUrl} 
+                                                alt="TTD PPK" 
+                                                className="max-h-12 max-w-32 object-contain mx-auto"
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        ) : (
+                                            <div className="text-xs text-gray-400 italic">(TTD digital tidak tersedia)</div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="border-t border-black pt-2 mt-2"></div>
-                                <div className="font-bold mt-3">Ellen Naomi Nauli Sinaga, S.Farm., Apt.</div>
-                                <div className="text-xs mt-1">NIP. 19910514 201502 2 003</div>
+                                <div className="font-bold mt-3">{ppkNama}</div>
                             </div>
                         </div>
                         

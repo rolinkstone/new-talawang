@@ -158,9 +158,9 @@ export default function DashboardLayout({ children }) {
         // Menu Kwitansi - ditampilkan untuk SEMUA USER (karena setiap user perlu input kwitansi)
         { 
           href: '/kwitansi', 
-          label: 'Kwitansi Perjadin', 
+          label: 'Kuitansi Perjadin', 
           icon: <FaReceipt />,
-          description: 'Input kwitansi perjalanan dinas'
+          description: 'Input kuitansi perjalanan dinas'
         },
         // Menu Cari hanya ditampilkan jika user memiliki role PPK
         ...(hasPPKRole() ? [
@@ -176,8 +176,8 @@ export default function DashboardLayout({ children }) {
     {
       title: 'Pengaturan',
       items: [
-        { href: '/pegawai', label: 'Profile', icon: <FaCog /> },
-        { href: '/settings', label: 'Settings', icon: <FaCog /> }
+        { href: '/profile', label: 'Profile', icon: <FaCog /> },
+        { href: '/setting', label: 'Settings', icon: <FaCog /> }
       ]
     }
   ];

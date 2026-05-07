@@ -1,4 +1,3 @@
-// components/kegiatan/KegiatanForm.js
 import React, { useState, useEffect } from 'react';
 import PegawaiForm from './PegawaiForm';
 import { formatRupiah, formatDateForBackend } from '../../utils/formatters';
@@ -35,11 +34,18 @@ const KegiatanForm = ({
 
     // State untuk Jenis SPM
     const [jenisSPM, setJenisSPM] = useState(formData.jenis_spm || '');
+    
+    // State untuk Bendahara
+    const [bendaharaList, setBendaharaList] = useState([]);
+    const [selectedBendaharaId, setSelectedBendaharaId] = useState(formData.bendahara_id || '');
+    const [selectedBendaharaNama, setSelectedBendaharaNama] = useState(formData.bendahara_nama || '');
+    const [selectedBendaharaNip, setSelectedBendaharaNip] = useState(formData.bendahara_nip || '');
+    const [loadingBendahara, setLoadingBendahara] = useState(false);
+    const [bendaharaError, setBendaharaError] = useState('');
 
     // Set user_id dari session user saat komponen mount
     useEffect(() => {
         if (session?.user?.id && !isEditMode) {
-            // Hanya set user_id saat mode tambah baru (bukan edit)
             setFormData(prev => ({
                 ...prev,
                 user_id: session.user.id
@@ -51,11 +57,9 @@ const KegiatanForm = ({
     useEffect(() => {
         fetchProvinsi();
         
-        // Jika edit mode, jangan reset user_id
         if (isEditMode && formData.user_id) {
             // Biarkan user_id yang sudah ada
         } else if (session?.user?.id) {
-            // Set user_id untuk mode tambah baru
             setFormData(prev => ({
                 ...prev,
                 user_id: session.user.id
@@ -63,10 +67,23 @@ const KegiatanForm = ({
         }
     }, [session, isEditMode]);
 
-    // Fetch pegawai suggestions saat komponen mount
+    // Fetch pegawai suggestions dan bendahara list saat komponen mount
     useEffect(() => {
         fetchPegawaiSuggestions();
-    }, []); // Hanya sekali saat mount
+        fetchBendaharaList();
+    }, []);
+
+    // Load bendahara yang sudah tersimpan saat edit mode
+    useEffect(() => {
+        if (isEditMode && formData.bendahara_nama && bendaharaList.length > 0) {
+            const found = bendaharaList.find(b => b.nama === formData.bendahara_nama || b.user_id === formData.bendahara_id);
+            if (found) {
+                setSelectedBendaharaId(found.user_id || found.id);
+                setSelectedBendaharaNama(found.nama);
+                setSelectedBendaharaNip(found.nip || '');
+            }
+        }
+    }, [isEditMode, formData.bendahara_nama, formData.bendahara_id, bendaharaList]);
 
     // Handle perubahan jenis SPM
     const handleJenisSPMChange = (value) => {
@@ -138,58 +155,17 @@ const KegiatanForm = ({
             setLoadingPegawai(true);
             setFetchError('');
             
-            // Debug session
-            console.log('👤 Session data:', {
-                user: session?.user,
-                hasToken: !!session?.accessToken,
-                user_id: session?.user?.id
-            });
-            
-            // Gunakan endpoint dengan port yang benar (biasanya 3000 untuk React dev server)
-            // Coba beberapa kemungkinan URL
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-            const possibleUrls = [
-                `${API_BASE_URL}/keycloak/users/all-simple`
-            ];
-            
-            let response = null;
-            let lastError = null;
-            
-            // Coba semua URL sampai ada yang berhasil
-            for (const apiUrl of possibleUrls) {
-                try {
-                    console.log('🔄 Trying URL:', apiUrl);
-                    
-                    response = await fetch(apiUrl, {
-                        headers: {
-                            'Authorization': `Bearer ${session?.accessToken || ''}`,
-                            'Content-Type': 'application/json'
-                        },
-                        credentials: 'same-origin' // Gunakan same-origin untuk menghindari CORS
-                    });
-                    
-                    console.log('📡 Response for', apiUrl, 'status:', response?.status);
-                    
-                    if (response && response.ok) {
-                        console.log('✅ Success with URL:', apiUrl);
-                        break;
-                    }
-                } catch (err) {
-                    console.log('❌ Failed with URL:', apiUrl, 'error:', err.message);
-                    lastError = err;
-                    response = null;
-                    continue;
-                }
-            }
-            
-            if (!response) {
-                throw new Error(`Tidak dapat terhubung ke server. ${lastError?.message || ''}`);
-            }
+            const response = await fetch(`${API_BASE_URL}/keycloak/users/all-simple`, {
+                headers: {
+                    'Authorization': `Bearer ${session?.accessToken || ''}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ HTTP error response:', errorText);
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
@@ -198,14 +174,11 @@ const KegiatanForm = ({
             console.log('📊 Data count:', data.data?.length || 0);
             
             if (data.success) {
-                console.log(`📊 Successfully fetched ${data.data?.length || 0} pegawai suggestions`);
                 setPegawaiSuggestions(data.data || []);
-                
-                // Log sample data
                 if (data.data && data.data.length > 0) {
                     console.log('📋 Sample data (first 3):');
                     data.data.slice(0, 3).forEach((item, idx) => {
-                        console.log(`${idx + 1}. Nama: ${item.nama}, NIP: ${item.nip}, Jabatan: ${item.jabatan}`);
+                        console.log(`${idx + 1}. Nama: ${item.nama}, NIP: ${item.nip}`);
                     });
                 }
             } else {
@@ -215,57 +188,66 @@ const KegiatanForm = ({
             }
         } catch (error) {
             console.error('❌ Error fetching pegawai suggestions:', error);
-            console.error('Error stack:', error.stack);
-            
             setFetchError(`Gagal memuat data pegawai: ${error.message}`);
             setPegawaiSuggestions([]);
-            
-            // Fallback data untuk testing
-            console.log('🔄 Using fallback data for development');
-            setPegawaiSuggestions([
-                {
-                    nama: 'John Doe',
-                    nip: '198012345678910',
-                    jabatan: 'Staf Administrasi',
-                    username: 'johndoe',
-                    id: '1',
-                    email: 'john.doe@example.com'
-                },
-                {
-                    nama: 'Jane Smith',
-                    nip: '198512345678911',
-                    jabatan: 'Analis Data',
-                    username: 'janesmith',
-                    id: '2',
-                    email: 'jane.smith@example.com'
-                },
-                {
-                    nama: 'Robert Johnson',
-                    nip: '199012345678912',
-                    jabatan: 'Supervisor',
-                    username: 'robertj',
-                    id: '3',
-                    email: 'robert.j@example.com'
-                },
-                {
-                    nama: 'Sarah Williams',
-                    nip: '199212345678913',
-                    jabatan: 'Manager',
-                    username: 'sarahw',
-                    id: '4',
-                    email: 'sarah.w@example.com'
-                },
-                {
-                    nama: 'Michael Brown',
-                    nip: '198812345678914',
-                    jabatan: 'Koordinator',
-                    username: 'michaelb',
-                    id: '5',
-                    email: 'michael.b@example.com'
-                }
-            ]);
         } finally {
             setLoadingPegawai(false);
+        }
+    };
+
+    // Fungsi untuk mengambil daftar bendahara dari Keycloak
+    const fetchBendaharaList = async () => {
+        try {
+            console.log('🔍 Fetching bendahara list from Keycloak...');
+            setLoadingBendahara(true);
+            setBendaharaError('');
+            
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+            
+            const response = await fetch(`${API_BASE_URL}/keycloak/bendahara/list`, {
+                headers: {
+                    'Authorization': `Bearer ${session?.accessToken || ''}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (response.status === 403) {
+                console.warn('⚠️ User tidak memiliki akses ke daftar bendahara');
+                setBendaharaError('Hanya admin yang dapat memilih bendahara. Silakan hubungi administrator.');
+                setBendaharaList([]);
+                return;
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('📊 Bendahara list response:', data);
+            
+            if (data.success && data.data) {
+                // Normalisasi data bendahara
+                const normalizedData = data.data.map(item => ({
+                    id: item.user_id || item.id,
+                    user_id: item.user_id || item.id,
+                    nama: item.nama || item.name || '',
+                    nip: item.nip || '',
+                    jabatan: item.jabatan || 'Bendahara',
+                    email: item.email || ''
+                }));
+                setBendaharaList(normalizedData);
+                console.log(`✅ Successfully fetched ${normalizedData.length} bendahara users`);
+                console.log('Normalized bendahara data:', normalizedData);
+            } else {
+                throw new Error(data.message || 'Gagal mengambil daftar bendahara');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching bendahara list:', error);
+            setBendaharaError(`Gagal memuat daftar bendahara: ${error.message}`);
+            setBendaharaList([]);
+        } finally {
+            setLoadingBendahara(false);
         }
     };
 
@@ -321,10 +303,55 @@ const KegiatanForm = ({
         }));
     };
 
+    // Handler untuk memilih bendahara
+    const handleBendaharaChange = (e) => {
+        const selectedValue = e.target.value;
+        console.log('Selected value from dropdown:', selectedValue);
+        
+        if (!selectedValue) {
+            setSelectedBendaharaId('');
+            setSelectedBendaharaNama('');
+            setSelectedBendaharaNip('');
+            setFormData(prev => ({
+                ...prev,
+                bendahara_id: '',
+                bendahara_nama: '',
+                bendahara_nip: ''
+            }));
+            return;
+        }
+        
+        // Cari bendahara berdasarkan id yang dipilih
+        const selected = bendaharaList.find(b => b.id === selectedValue || b.user_id === selectedValue);
+        
+        console.log('Found bendahara:', selected);
+        console.log('Available bendahara list:', bendaharaList);
+        
+        if (selected) {
+            setSelectedBendaharaId(selected.id);
+            setSelectedBendaharaNama(selected.nama);
+            setSelectedBendaharaNip(selected.nip || '');
+            
+            setFormData(prev => ({
+                ...prev,
+                bendahara_id: selected.id,
+                bendahara_nama: selected.nama,
+                bendahara_nip: selected.nip || ''
+            }));
+            
+            console.log('Selected Bendahara saved:', {
+                id: selected.id,
+                nama: selected.nama,
+                nip: selected.nip
+            });
+        } else {
+            console.warn('Bendahara not found with id:', selectedValue);
+        }
+    };
+
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         
-        // Jika field user_id diubah secara manual, kita tetap izinkan
         if (name === 'user_id') {
             setFormData(prev => ({
                 ...prev,
@@ -350,37 +377,32 @@ const KegiatanForm = ({
     const handleSubmitForm = async (e) => {
         e.preventDefault();
         
-        // Validasi jenis SPM harus dipilih
         if (!formData.jenis_spm) {
             setFormError('Jenis SPM harus dipilih');
             return;
         }
         
-        // Validasi user_id harus diisi
         if (!formData.user_id) {
             setFormError('User ID harus diisi');
             return;
         }
         
-        // Validasi minimal satu pegawai
         if (pegawaiList.length === 0) {
             setFormError('Minimal harus ada satu pegawai');
             return;
         }
         
-        // Validasi data pegawai
         const invalidPegawai = pegawaiList.find(p => !p.nama || p.nama.trim() === '');
         if (invalidPegawai) {
             setFormError('Nama pegawai harus diisi untuk semua pegawai');
             return;
         }
         
-        onSubmit(e); // Panggil fungsi onSubmit dari parent
+        onSubmit(e);
     };
 
     const [isOtherActivity, setIsOtherActivity] = useState(false);
 
-    // Helper untuk mendapatkan display value dropdown
     const getDropdownValue = (value, isOther = false) => {
         if (isOther) return "lainnya";
         if (!value) return "";
@@ -401,7 +423,6 @@ const KegiatanForm = ({
 
     const extractNumber = (value) => {
         if (!value) return "";
-        // Cari angka dalam string (tanpa tanda kurung)
         const match = value.match(/(\d+)\s*(sampel|sarana|iklan)/);
         return match ? match[1] : "";
     };
@@ -443,7 +464,7 @@ const KegiatanForm = ({
                 </div>
             )}
 
-            {/* Jenis SPM Section - Paling Atas */}
+            {/* Jenis SPM Section */}
             <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
                 <div className="mb-2">
                     <h4 className="text-lg font-semibold text-gray-800 flex items-center">
@@ -453,20 +474,16 @@ const KegiatanForm = ({
                         Jenis SPM *
                     </h4>
                     <p className="text-sm text-gray-600">Pilih jenis Surat Permintaan Pembayaran untuk kegiatan ini</p>
-                    
                 </div>
                 
                 <div className="flex flex-wrap gap-4">
-                    {/* Radio Button LS */}
                     <div 
                         className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'LS' ? 'bg-white border-2 border-blue-500 shadow-md' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
                         onClick={() => handleJenisSPMChange('LS')}
                     >
                         <div className="flex items-center justify-center w-6 h-6 mr-3">
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'LS' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`}>
-                                {jenisSPM === 'LS' && (
-                                    <div className="w-2 h-2 rounded-full bg-white"></div>
-                                )}
+                                {jenisSPM === 'LS' && <div className="w-2 h-2 rounded-full bg-white"></div>}
                             </div>
                         </div>
                         <div>
@@ -475,26 +492,22 @@ const KegiatanForm = ({
                         </div>
                     </div>
                     
-                    {/* Radio Button KKP */}
                     <div 
                         className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'KKP' ? 'bg-white border-2 border-blue-500 shadow-md' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
                         onClick={() => handleJenisSPMChange('KKP')}
                     >
                         <div className="flex items-center justify-center w-6 h-6 mr-3">
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'KKP' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`}>
-                                {jenisSPM === 'KKP' && (
-                                    <div className="w-2 h-2 rounded-full bg-white"></div>
-                                )}
+                                {jenisSPM === 'KKP' && <div className="w-2 h-2 rounded-full bg-white"></div>}
                             </div>
                         </div>
                         <div>
                             <div className="font-medium text-gray-800">KKP (Kartu Kredit Pemerintah)</div>
-                            <div className="text-sm text-gray-600 mt-1">Digunakan untuk pembayaran Transport saja (Uang Harian & Penginapan dihilangkan)</div>
+                            <div className="text-sm text-gray-600 mt-1">Digunakan untuk pembayaran Transport saja</div>
                         </div>
                     </div>
                 </div>
                 
-                {/* Selected Value Display */}
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
                     <div className="flex items-center">
                         <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -557,7 +570,6 @@ const KegiatanForm = ({
                                     Format: XXXX.XXX.XXX.XXX.XXXXXX.X
                                 </span>
                             </label>
-                            
                             <div className="relative">
                                 <input
                                     type="text"
@@ -569,13 +581,11 @@ const KegiatanForm = ({
                                     required
                                     maxLength={29}
                                 />
-                                
                                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                                     <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </div>
-                                
                                 {formData.mak && (
                                     <button
                                         type="button"
@@ -587,7 +597,6 @@ const KegiatanForm = ({
                                         </svg>
                                     </button>
                                 )}
-                                
                                 {formData.mak && (
                                     <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
                                         {validateMakFormat(formData.mak) ? (
@@ -602,7 +611,6 @@ const KegiatanForm = ({
                                     </div>
                                 )}
                             </div>
-                            
                             <div className="mt-2">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-xs text-gray-500">
@@ -612,7 +620,6 @@ const KegiatanForm = ({
                                         {formData.mak ? formData.mak : 'XXXX.XXX.XXX.XXX.XXXXXX.X'}
                                     </div>
                                 </div>
-                                
                                 {formData.mak && !validateMakFormat(formData.mak) && (
                                     <div className="mt-2 text-xs text-red-600">
                                         Format tidak valid. Pastikan sesuai pola: <span className="font-mono">XXXX.XXX.XXX.XXX.XXXXXX.X</span>
@@ -668,7 +675,6 @@ const KegiatanForm = ({
                                 Target Output Dicapai
                             </label>
                             
-                            {/* Pilihan utama */}
                             <select
                                 name="target_output_yg_akan_dicapai"
                                 value={getDropdownValue(formData.target_output_yg_akan_dicapai, isOtherActivity)}
@@ -676,15 +682,12 @@ const KegiatanForm = ({
                                     const selectedValue = e.target.value;
                                     
                                     if (selectedValue === "lainnya") {
-                                        // Set flag bahwa user memilih lainnya
                                         setIsOtherActivity(true);
-                                        // Kosongkan value untuk input manual
                                         setFormData(prev => ({
                                             ...prev,
                                             target_output_yg_akan_dicapai: ""
                                         }));
                                     } else {
-                                        // Reset flag
                                         setIsOtherActivity(false);
                                         
                                         let newValue = "";
@@ -720,13 +723,11 @@ const KegiatanForm = ({
                                 <option value="lainnya">Kegiatan lainnya</option>
                             </select>
                             
-                            {/* Input untuk kegiatan lainnya */}
                             {isOtherActivity && (
                                 <input
                                     type="text"
                                     value={formData.target_output_yg_akan_dicapai || ""}
                                     onChange={(e) => {
-                                        // Simpan langsung teks yang diketik, TANPA kata "lainnya"
                                         setFormData(prev => ({
                                             ...prev,
                                             target_output_yg_akan_dicapai: e.target.value
@@ -738,7 +739,6 @@ const KegiatanForm = ({
                                 />
                             )}
                             
-                            {/* Input tambahan untuk sampling */}
                             {formData.target_output_yg_akan_dicapai?.toLowerCase().includes("sampling") && !isOtherActivity && (
                                 <div className="flex items-center gap-2 mt-2">
                                     <input
@@ -762,151 +762,10 @@ const KegiatanForm = ({
                                                 target_output_yg_akan_dicapai: newValue
                                             }));
                                         }}
-                                        onBlur={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? 0 : parseInt(inputValue) || 0;
-                                            
-                                            if (count <= 0) {
-                                                const newValue = "Sampling 1 sampel";
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    target_output_yg_akan_dicapai: newValue
-                                                }));
-                                            }
-                                        }}
                                         className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         placeholder="Jumlah"
                                     />
                                     <span className="text-gray-600">sampel</span>
-                                </div>
-                            )}
-                            
-                            {/* Input tambahan untuk sarana produksi */}
-                            {formData.target_output_yg_akan_dicapai?.toLowerCase().includes("pemeriksaan sarana produksi") && !isOtherActivity && (
-                                <div className="flex items-center gap-2 mt-2">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={extractNumber(formData.target_output_yg_akan_dicapai) || ""}
-                                        onChange={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? "" : parseInt(inputValue) || "";
-                                            
-                                            let newValue;
-                                            if (!count || count <= 0) {
-                                                newValue = "Pemeriksaan Sarana Produksi";
-                                            } else {
-                                                newValue = `Pemeriksaan Sarana Produksi ${count} sarana`;
-                                            }
-                                            
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                target_output_yg_akan_dicapai: newValue
-                                            }));
-                                        }}
-                                        onBlur={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? 0 : parseInt(inputValue) || 0;
-                                            
-                                            if (count <= 0) {
-                                                const newValue = "Pemeriksaan Sarana Produksi 1 sarana";
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    target_output_yg_akan_dicapai: newValue
-                                                }));
-                                            }
-                                        }}
-                                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="Jumlah"
-                                    />
-                                    <span className="text-gray-600">sarana</span>
-                                </div>
-                            )}
-                            
-                            {/* Input tambahan untuk sarana distribusi */}
-                            {formData.target_output_yg_akan_dicapai?.toLowerCase().includes("pemeriksaan sarana distribusi") && !isOtherActivity && (
-                                <div className="flex items-center gap-2 mt-2">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={extractNumber(formData.target_output_yg_akan_dicapai) || ""}
-                                        onChange={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? "" : parseInt(inputValue) || "";
-                                            
-                                            let newValue;
-                                            if (!count || count <= 0) {
-                                                newValue = "Pemeriksaan Sarana Distribusi";
-                                            } else {
-                                                newValue = `Pemeriksaan Sarana Distribusi ${count} sarana`;
-                                            }
-                                            
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                target_output_yg_akan_dicapai: newValue
-                                            }));
-                                        }}
-                                        onBlur={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? 0 : parseInt(inputValue) || 0;
-                                            
-                                            if (count <= 0) {
-                                                const newValue = "Pemeriksaan Sarana Distribusi 1 sarana";
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    target_output_yg_akan_dicapai: newValue
-                                                }));
-                                            }
-                                        }}
-                                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="Jumlah"
-                                    />
-                                    <span className="text-gray-600">sarana</span>
-                                </div>
-                            )}
-                            
-                            {/* Input tambahan untuk pengawasan iklan */}
-                            {formData.target_output_yg_akan_dicapai?.toLowerCase().includes("pengawasan iklan") && !isOtherActivity && (
-                                <div className="flex items-center gap-2 mt-2">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={extractNumber(formData.target_output_yg_akan_dicapai) || ""}
-                                        onChange={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? "" : parseInt(inputValue) || "";
-                                            
-                                            let newValue;
-                                            if (!count || count <= 0) {
-                                                newValue = "Pengawasan Iklan";
-                                            } else {
-                                                newValue = `Pengawasan Iklan ${count} iklan`;
-                                            }
-                                            
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                target_output_yg_akan_dicapai: newValue
-                                            }));
-                                        }}
-                                        onBlur={(e) => {
-                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
-                                            const count = inputValue === "" ? 0 : parseInt(inputValue) || 0;
-                                            
-                                            if (count <= 0) {
-                                                const newValue = "Pengawasan Iklan 1 Iklan";
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    target_output_yg_akan_dicapai: newValue
-                                                }));
-                                            }
-                                        }}
-                                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="Jumlah"
-                                    />
-                                    <span className="text-gray-600">iklan</span>
                                 </div>
                             )}
                         </div>
@@ -918,7 +777,6 @@ const KegiatanForm = ({
                             </label>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Kolom 1: Dropdowns */}
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -979,7 +837,6 @@ const KegiatanForm = ({
                                     </div>
                                 </div>
 
-                                {/* Kolom 2: Preview */}
                                 <div>
                                     <div className="h-full flex flex-col">
                                         <div className="flex-1 p-4 bg-gray-50 border border-gray-200 rounded-md">
@@ -1032,21 +889,14 @@ const KegiatanForm = ({
                                     name="rencana_tanggal_pelaksanaan_akhir"
                                     value={formData.rencana_tanggal_pelaksanaan_akhir}
                                     onChange={handleFormChange}
-                                    min={formData.rencana_tanggal_pelaksanaan} // Validasi: tanggal akhir tidak boleh sebelum tanggal awal
+                                    min={formData.rencana_tanggal_pelaksanaan}
                                     className="w-5/12 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     title="Tanggal Akhir"
                                 />
                             </div>
-                            {formData.rencana_tanggal_pelaksanaan_akhir && 
-                             formData.rencana_tanggal_pelaksanaan && 
-                             new Date(formData.rencana_tanggal_pelaksanaan_akhir) < new Date(formData.rencana_tanggal_pelaksanaan) && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    Tanggal akhir tidak boleh sebelum tanggal awal
-                                </p>
-                            )}
                         </div>
                         
-                        {/* User ID Field - Readonly atau Hidden */}
+                        {/* User ID Field */}
                         <div className="md:col-span-2">
                             <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
                                 <div className="flex items-center justify-between">
@@ -1080,18 +930,11 @@ const KegiatanForm = ({
                                         <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                         </svg>
-                                        User ID tidak dapat diubah saat edit. Data ini tetap milik pembuat asli.
+                                        User ID tidak dapat diubah saat edit.
                                     </div>
                                 )}
                             </div>
-                            
-                            {/* Input hidden untuk user_id */}
-                            <input
-                                type="hidden"
-                                name="user_id"
-                                value={formData.user_id || ''}
-                                onChange={handleFormChange}
-                            />
+                            <input type="hidden" name="user_id" value={formData.user_id || ''} onChange={handleFormChange} />
                         </div>
                     </div>
                 </div>
@@ -1116,7 +959,6 @@ const KegiatanForm = ({
                         </div>
                     </div>
                     
-                    {/* Pass jenisSPM ke PegawaiForm */}
                     <PegawaiForm 
                         pegawaiList={pegawaiList}
                         setPegawaiList={setPegawaiList}
@@ -1125,6 +967,111 @@ const KegiatanForm = ({
                         loadingPegawai={loadingPegawai}
                         jenisSPM={jenisSPM} 
                     />
+                </div>
+
+                {/* SECTION: DATA BENDAHARA - DARI KEYCLOAK */}
+                <div className="space-y-4">
+                    <div className="border-t pt-4">
+                        <h4 className="text-lg font-medium text-gray-800 border-b pb-2 mb-4 flex items-center">
+                            <svg className="w-5 h-5 mr-2 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 7a1 1 0 100-2 1 1 0 000 2zm3 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            Data Bendahara
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Pilih bendahara yang akan menandatangani kwitansi (data diambil dari Keycloak dengan role bendahara)
+                        </p>
+                        
+                        {bendaharaError && (
+                            <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md border border-yellow-200">
+                                <div className="flex items-center">
+                                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    {bendaharaError}
+                                    <button 
+                                        onClick={fetchBendaharaList}
+                                        className="ml-3 text-sm underline hover:text-yellow-800"
+                                    >
+                                        Coba lagi
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Pilih Bendahara *
+                                </label>
+                                {loadingBendahara ? (
+                                    <div className="flex items-center py-2">
+                                        <svg className="animate-spin h-5 w-5 mr-2 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span className="text-gray-600">Memuat daftar bendahara...</span>
+                                    </div>
+                                ) : bendaharaList.length === 0 ? (
+                                    <div className="p-3 bg-gray-100 border border-gray-300 rounded-md text-center text-gray-500">
+                                        Tidak ada data bendahara. Pastikan ada user dengan role "bendahara" di Keycloak.
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedBendaharaId}
+                                        onChange={handleBendaharaChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        required
+                                    >
+                                        <option value="">-- Pilih Bendahara --</option>
+                                        {bendaharaList.map(bendahara => {
+                                            const optionValue = bendahara.id || bendahara.user_id;
+                                            const optionLabel = `${bendahara.nama}${bendahara.nip ? ` - NIP: ${bendahara.nip}` : ''}${bendahara.jabatan ? ` (${bendahara.jabatan})` : ''}`;
+                                            return (
+                                                <option key={optionValue} value={optionValue}>
+                                                    {optionLabel}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Data bendahara diambil dari Keycloak dengan role "bendahara"
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Bendahara yang Dipilih
+                                </label>
+                                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md min-h-[80px]">
+                                    {selectedBendaharaNama ? (
+                                        <div>
+                                            <div className="font-medium text-gray-900">{selectedBendaharaNama}</div>
+                                            {selectedBendaharaNip && (
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    <span className="font-medium">NIP:</span> {selectedBendaharaNip}
+                                                </div>
+                                            )}
+                                            <div className="text-xs text-green-600 mt-2 flex items-center">
+                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                                Bendahara akan ditampilkan di kwitansi
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-gray-500 italic">Belum memilih bendahara</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Hidden inputs untuk bendahara */}
+                        <input type="hidden" name="bendahara_id" value={selectedBendaharaId} />
+                        <input type="hidden" name="bendahara_nama" value={selectedBendaharaNama} />
+                        <input type="hidden" name="bendahara_nip" value={selectedBendaharaNip} />
+                    </div>
                 </div>
                 
                 <div className="flex justify-end space-x-3 pt-4 border-t">

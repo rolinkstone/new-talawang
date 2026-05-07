@@ -141,6 +141,7 @@ const sptjmRoutes = require('./routes/sptjm');
 const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
 const keycloakRoutes = require('./routes/keycloak');
+const profileRoutes = require('./routes/profile');
 
 // ========== MOUNT ROUTES ==========
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -148,6 +149,7 @@ app.use('/api/sptjm', sptjmRoutes);
 app.use('/api/kwitansi', kwitansiRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/keycloak', keycloakRoutes);
+app.use('/api/profile', profileRoutes);
 
 // ========== AUTH ENDPOINTS ==========
 app.post('/api/login', async (req, res) => {

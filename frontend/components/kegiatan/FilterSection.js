@@ -63,6 +63,7 @@ const FilterSection = ({
                 </div>
                 
                 {/* Filter Status 2 (Status Sakti) */}
+            
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Status Sakti (Status 2)
@@ -75,7 +76,7 @@ const FilterSection = ({
                         <option value="">Semua Status Sakti</option>
                         <option value="SELESAI">SELESAI</option>
                         <option value="DIPROSES">DIPROSES</option>
-                        <option value="Belum diisi">Belum diisi</option>
+                        <option value="Belum diisi">Belum Diisi</option>
                     </select>
                 </div>
                 

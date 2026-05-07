@@ -8,15 +8,13 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [kembalikanLoading, setKembalikanLoading] = useState(false);
     const [error, setError] = useState('');
-    const [action, setAction] = useState('menyetujui'); // 'mengetahui' atau 'kembalikan'
+    const [action, setAction] = useState('menyetujui');
     
-    // State form sesuai backend
     const [formData, setFormData] = useState({
         catatan_kabalai: '',
         tanggal_mengetahui: new Date().toISOString().split('T')[0]
     });
 
-    // Reset form saat modal dibuka
     useEffect(() => {
         if (show && session?.user) {
             setFormData({
@@ -24,7 +22,12 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 tanggal_mengetahui: new Date().toISOString().split('T')[0]
             });
             setError('');
-            setAction('menyetujui'); // Reset ke default action
+            setAction('menyetujui');
+            
+            // Debug log
+            console.log("📋 Session user:", session.user);
+            console.log("📋 NIP (tanpa spasi):", session.user?.nip);
+            console.log("📋 NIP RAW (dengan spasi):", session.user?.nip_raw);
         }
     }, [show, session]);
 
@@ -41,6 +44,18 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
         setLoading(true);
         setError('');
 
+        // Ambil NIP dengan spasi (format asli)
+        const userNipRaw = session?.user?.nip_raw || session?.user?.nip || '';
+        
+        console.log('📤 Mengirim data ke backend:', {
+            kegiatan_id: kegiatan.id,
+            diketahui_oleh: session?.user?.name || session?.user?.username || '',
+            diketahui_oleh_nip: userNipRaw,
+            diketahui_oleh_id: session?.user?.id,
+            tanggal_mengetahui: formData.tanggal_mengetahui,
+            catatan_kabalai: formData.catatan_kabalai
+        });
+
         try {
             const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${kegiatan.id}/menyetujui`,
@@ -49,7 +64,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     catatan_kabalai: formData.catatan_kabalai.trim() || null,
                     tanggal_mengetahui: formData.tanggal_mengetahui || new Date().toISOString().split('T')[0],
                     diketahui_oleh: session?.user?.name || session?.user?.username || '',
-                    diketahui_oleh_id: session?.user?.id || session?.user?.userId || ''
+                    diketahui_oleh_nip: userNipRaw,  // Kirim NIP dengan spasi
+                    diketahui_oleh_id: session?.user?.id || ''
                 },
                 {
                     headers: {
@@ -78,10 +94,6 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 errorMessage = error.message;
             }
             
-            if (error.response?.data?.suggestion) {
-                errorMessage += `\nSaran: ${error.response.data.suggestion}`;
-            }
-            
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -96,6 +108,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
         setKembalikanLoading(true);
         setError('');
 
+        const userNipRaw = session?.user?.nip_raw || session?.user?.nip || '';
+
         try {
             const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${kegiatan.id}/reject-kabalai`,
@@ -103,7 +117,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     catatan_kabalai: formData.catatan_kabalai.trim() || null,
                     tanggal_kembalikan: new Date().toISOString().split('T')[0],
                     dikembalikan_oleh: session?.user?.name || session?.user?.username || '',
-                    dikembalikan_oleh_id: session?.user?.id || session?.user?.userId || ''
+                    dikembalikan_oleh_nip: userNipRaw,
+                    dikembalikan_oleh_id: session?.user?.id || ''
                 },
                 {
                     headers: {
@@ -130,10 +145,6 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 errorMessage = error.response.data.message;
             } else if (error.message) {
                 errorMessage = error.message;
-            }
-            
-            if (error.response?.data?.suggestion) {
-                errorMessage += `\nSaran: ${error.response.data.suggestion}`;
             }
             
             setError(errorMessage);
@@ -164,6 +175,33 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     <p className="text-sm text-gray-600 mt-1">
                                         Pilih aksi yang akan dilakukan untuk kegiatan ini
                                     </p>
+                                </div>
+                            </div>
+                            
+                            {/* Info Session dengan NIP */}
+                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-blue-800">Info Pengguna (Session)</p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            <span className="font-semibold">Nama:</span> {session?.user?.name || session?.user?.username || '-'}
+                                        </p>
+                                        <p className="text-xs text-blue-600">
+                                            <span className="font-semibold">NIP (dengan spasi):</span> 
+                                            <span className="font-mono ml-1 font-bold text-blue-800">
+                                                {session?.user?.nip_raw || session?.user?.nip || 'TIDAK ADA NIP!'}
+                                            </span>
+                                        </p>
+                                        <p className="text-xs text-blue-600">
+                                            <span className="font-semibold">Role:</span> {session?.user?.role || '-'}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs text-blue-500">Data yang akan dikirim:</div>
+                                        <div className="text-xs font-mono bg-blue-100 p-1 rounded mt-1">
+                                            nip: {session?.user?.nip_raw || session?.user?.nip || 'null'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -268,12 +306,9 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             </div>
                         )}
 
-                        {/* Info berdasarkan action */}
+                        {/* Form untuk action menyetujui */}
                         {action === 'menyetujui' ? (
                             <>
-                               
-
-                                {/* Tanggal Mengetahui */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Tanggal Persetujuan
@@ -290,7 +325,6 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     </p>
                                 </div>
 
-                                {/* Catatan Kabalai */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Catatan Tambahan (Opsional)
@@ -310,7 +344,6 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             </>
                         ) : (
                             <>
-                                {/* Info Penting untuk Kembalikan */}
                                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
                                     <div className="flex">
                                         <svg className="h-5 w-5 text-orange-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -325,7 +358,6 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     </div>
                                 </div>
 
-                                {/* Catatan Pengembalian */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Alasan Pengembalian *
@@ -343,13 +375,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                         Alasan wajib diisi untuk membantu user memahami apa yang perlu diperbaiki
                                     </p>
                                 </div>
-
-                                
                             </>
                         )}
-
-                        {/* Preview Data */}
-                        
                     </div>
                     
                     {/* Footer */}
@@ -358,6 +385,9 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             <div className="text-sm">
                                 <p className="text-gray-600">
                                     <span className="font-medium">Kabalai:</span> {session?.user?.name || session?.user?.username || 'Unknown'}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    NIP: {session?.user?.nip_raw || session?.user?.nip || '-'}
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
                                     {new Date().toLocaleDateString('id-ID', { 

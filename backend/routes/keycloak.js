@@ -3,7 +3,9 @@ const router = express.Router();
 const { keycloakAuth, getUsername } = require('../middleware/keycloakAuth');
 const { 
     getPPKUsersFromKeycloak, 
-    getAllUsersAndFilterPPK 
+    getAllUsersAndFilterPPK,
+    getBendaharaUsersFromKeycloak,
+    getAllUsersAndFilterBendahara
 } = require('../utils/keycloakHelpers');
 
 // ========== PPK MANAGEMENT ROUTES ==========
@@ -15,17 +17,14 @@ router.get('/ppk/list', keycloakAuth, async (req, res) => {
     console.log(`📋 ${username} mengakses daftar PPK`);
     
     try {
-        // Coba ambil dari Keycloak menggunakan admin-cli
-        console.log('🔐 Attempting to get PPK list from Keycloak using admin-cli...');
+        console.log('🔐 Attempting to get PPK list from Keycloak...');
         
         let ppkUsers;
         try {
-            // Coba metode utama
             ppkUsers = await getPPKUsersFromKeycloak();
         } catch (primaryError) {
             console.warn('⚠️ Primary method failed:', primaryError.message);
             
-            // Coba metode fallback
             try {
                 console.log('🔄 Trying fallback method...');
                 ppkUsers = await getAllUsersAndFilterPPK();
@@ -35,10 +34,10 @@ router.get('/ppk/list', keycloakAuth, async (req, res) => {
             }
         }
         
-        if (ppkUsers.length === 0) {
+        if (!ppkUsers || ppkUsers.length === 0) {
             console.log('⚠️ Tidak ada user PPK ditemukan di Keycloak');
-            return res.status(404).json({
-                success: false,
+            return res.status(200).json({
+                success: true,
                 message: 'Tidak ada user dengan role PPK ditemukan di sistem',
                 data: [],
                 count: 0,
@@ -46,23 +45,16 @@ router.get('/ppk/list', keycloakAuth, async (req, res) => {
             });
         }
         
-        console.log(`✅ Successfully retrieved ${ppkUsers.length} PPK users from Keycloak`);
+        console.log(`✅ Successfully retrieved ${ppkUsers.length} PPK users`);
         
-        // Log beberapa contoh untuk debugging
-        console.log('📊 Contoh data PPK yang dikirim:');
-        ppkUsers.slice(0, 3).forEach((user, index) => {
-            console.log(`${index + 1}. ${user.nama} (${user.username}) - NIP: ${user.nip}`);
-        });
-        
-        // Hanya kirim field yang diperlukan, hapus debugging fields
         const formattedUsers = ppkUsers.map(user => ({
             user_id: user.user_id,
             username: user.username,
             email: user.email,
             nama: user.nama,
             nip: user.nip,
-            jabatan: user.jabatan,
-            unit_kerja: user.unit_kerja,
+            jabatan: user.jabatan || 'PPK',
+            unit_kerja: user.unit_kerja || '',
             enabled: user.enabled,
             email_verified: user.email_verified
         }));
@@ -72,15 +64,7 @@ router.get('/ppk/list', keycloakAuth, async (req, res) => {
             message: 'Daftar PPK berhasil diambil dari Keycloak',
             data: formattedUsers,
             count: formattedUsers.length,
-            source: 'keycloak',
-            debug_info: {
-                nama_source: 'firstName + lastName (fallback ke username)',
-                sample_data: formattedUsers.slice(0, 2).map(u => ({
-                    nama: u.nama,
-                    username: u.username,
-                    nip: u.nip
-                }))
-            }
+            source: 'keycloak'
         });
         
     } catch (error) {
@@ -89,12 +73,10 @@ router.get('/ppk/list', keycloakAuth, async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Gagal mengambil daftar PPK dari Keycloak',
-            error: error.message,
-            suggestion: 'Periksa kredensial admin dan pastikan Keycloak dapat diakses'
+            error: error.message
         });
     }
 });
-
 
 // GET - Search PPK berdasarkan nama atau NIP
 router.get('/ppk/search', keycloakAuth, async (req, res) => {
@@ -119,9 +101,9 @@ router.get('/ppk/search', keycloakAuth, async (req, res) => {
             ppkUsers = await getAllUsersAndFilterPPK();
         }
         
-        if (ppkUsers.length === 0) {
-            return res.status(404).json({
-                success: false,
+        if (!ppkUsers || ppkUsers.length === 0) {
+            return res.status(200).json({
+                success: true,
                 message: 'Tidak ada data PPK ditemukan',
                 data: [],
                 count: 0
@@ -131,8 +113,8 @@ router.get('/ppk/search', keycloakAuth, async (req, res) => {
         const searchTerm = query.toLowerCase();
         const filteredPPK = ppkUsers.filter(ppk => 
             ppk.nama.toLowerCase().includes(searchTerm) ||
-            ppk.nip.toLowerCase().includes(searchTerm) ||
-            ppk.email.toLowerCase().includes(searchTerm) ||
+            (ppk.nip && ppk.nip.toLowerCase().includes(searchTerm)) ||
+            (ppk.email && ppk.email.toLowerCase().includes(searchTerm)) ||
             (ppk.jabatan && ppk.jabatan.toLowerCase().includes(searchTerm))
         );
         
@@ -208,13 +190,209 @@ router.get('/ppk/:id', keycloakAuth, async (req, res) => {
     }
 });
 
+// ========== BENDAHARA MANAGEMENT ROUTES ==========
+
+// GET - Daftar Bendahara dari Keycloak
+router.get('/bendahara/list', keycloakAuth, async (req, res) => {
+    const username = getUsername(req.user);
+    
+    console.log(`📋 ${username} mengakses daftar Bendahara`);
+    
+    try {
+        console.log('🔐 Attempting to get Bendahara list from Keycloak...');
+        
+        let bendaharaUsers;
+        try {
+            // Coba metode utama
+            bendaharaUsers = await getBendaharaUsersFromKeycloak();
+        } catch (primaryError) {
+            console.warn('⚠️ Primary method failed:', primaryError.message);
+            
+            // Coba metode fallback
+            try {
+                console.log('🔄 Trying fallback method...');
+                bendaharaUsers = await getAllUsersAndFilterBendahara();
+            } catch (fallbackError) {
+                console.error('❌ Fallback method also failed:', fallbackError.message);
+                // Return empty array instead of error
+                bendaharaUsers = [];
+            }
+        }
+        
+        if (!bendaharaUsers || bendaharaUsers.length === 0) {
+            console.log('⚠️ Tidak ada user Bendahara ditemukan di Keycloak');
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada user dengan role Bendahara ditemukan di sistem',
+                data: [],
+                count: 0,
+                source: 'keycloak',
+                suggestion: 'Pastikan ada user yang diberikan role "bendahara" di Keycloak'
+            });
+        }
+        
+        console.log(`✅ Successfully retrieved ${bendaharaUsers.length} Bendahara users`);
+        
+        // Log contoh data
+        bendaharaUsers.slice(0, 3).forEach((user, idx) => {
+            console.log(`${idx + 1}. ${user.nama} (${user.username}) - NIP: ${user.nip || '-'}`);
+        });
+        
+        const formattedUsers = bendaharaUsers.map(user => ({
+            user_id: user.user_id,
+            username: user.username,
+            email: user.email,
+            nama: user.nama,
+            nip: user.nip || '',
+            jabatan: user.jabatan || 'Bendahara',
+            unit_kerja: user.unit_kerja || '',
+            enabled: user.enabled,
+            email_verified: user.email_verified
+        }));
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Daftar Bendahara berhasil diambil dari Keycloak',
+            data: formattedUsers,
+            count: formattedUsers.length,
+            source: 'keycloak'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Bendahara list:', error.message);
+        
+        // Return empty array instead of error to prevent frontend crash
+        return res.status(200).json({
+            success: true,
+            message: 'Gagal mengambil daftar Bendahara, menggunakan data kosong',
+            data: [],
+            count: 0,
+            error: error.message
+        });
+    }
+});
+
+// GET - Search Bendahara berdasarkan nama atau NIP
+router.get('/bendahara/search', keycloakAuth, async (req, res) => {
+    const { query } = req.query;
+    const username = getUsername(req.user);
+    
+    console.log(`🔍 ${username} mencari Bendahara dengan query: ${query}`);
+    
+    if (!query || query.trim().length < 2) {
+        return res.status(400).json({
+            success: false,
+            message: 'Query pencarian minimal 2 karakter'
+        });
+    }
+    
+    try {
+        let bendaharaUsers;
+        try {
+            bendaharaUsers = await getBendaharaUsersFromKeycloak();
+        } catch (error) {
+            console.warn('⚠️ Primary method failed, trying fallback:', error.message);
+            bendaharaUsers = await getAllUsersAndFilterBendahara();
+        }
+        
+        if (!bendaharaUsers || bendaharaUsers.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada data Bendahara ditemukan',
+                data: [],
+                count: 0
+            });
+        }
+        
+        const searchTerm = query.toLowerCase();
+        const filteredBendahara = bendaharaUsers.filter(bendahara => 
+            bendahara.nama.toLowerCase().includes(searchTerm) ||
+            (bendahara.nip && bendahara.nip.toLowerCase().includes(searchTerm)) ||
+            (bendahara.email && bendahara.email.toLowerCase().includes(searchTerm))
+        );
+        
+        console.log(`✅ Found ${filteredBendahara.length} Bendahara matching search`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Pencarian Bendahara berhasil',
+            data: filteredBendahara,
+            count: filteredBendahara.length,
+            search_query: query
+        });
+        
+    } catch (error) {
+        console.error('❌ Error searching Bendahara:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            message: 'Gagal melakukan pencarian Bendahara',
+            error: error.message
+        });
+    }
+});
+
+// GET - Detail Bendahara berdasarkan ID
+router.get('/bendahara/:id', keycloakAuth, async (req, res) => {
+    const { id } = req.params;
+    const username = getUsername(req.user);
+    
+    console.log(`👤 ${username} mengakses detail Bendahara ID: ${id}`);
+    
+    if (!id) {
+        return res.status(400).json({
+            success: false,
+            message: 'ID Bendahara tidak valid'
+        });
+    }
+    
+    try {
+        let bendaharaUsers;
+        try {
+            bendaharaUsers = await getBendaharaUsersFromKeycloak();
+        } catch (error) {
+            console.warn('⚠️ Primary method failed, trying fallback:', error.message);
+            bendaharaUsers = await getAllUsersAndFilterBendahara();
+        }
+        
+        const foundBendahara = bendaharaUsers.find(bendahara => 
+            bendahara.user_id === id || bendahara.id === id
+        );
+        
+        if (!foundBendahara) {
+            return res.status(404).json({
+                success: false,
+                message: 'Bendahara tidak ditemukan'
+            });
+        }
+        
+        console.log(`✅ Found Bendahara: ${foundBendahara.nama}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Detail Bendahara berhasil diambil',
+            data: foundBendahara
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Bendahara detail:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengambil detail Bendahara',
+            error: error.message
+        });
+    }
+});
+
+// ========== USER MANAGEMENT ROUTES ==========
+
 // GET - Daftar semua user dari Keycloak (hanya admin)
 router.get('/users', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
     console.log(`👥 ${username} mengakses daftar semua user`);
     
-    // Hanya admin yang bisa mengakses semua user
     if (!req.user.isAdmin) {
         return res.status(403).json({
             success: false,
@@ -266,10 +444,7 @@ router.get('/users', keycloakAuth, async (req, res) => {
     }
 });
 
-
-
-// VERSI ALTERNATIF YANG LEBIH SIMPLE
-// GET - Daftar semua user simple (tidak perlu admin)
+// GET - Daftar semua user simple (untuk autocomplete pegawai)
 router.get('/users/all-simple', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
@@ -279,14 +454,7 @@ router.get('/users/all-simple', keycloakAuth, async (req, res) => {
         const axios = require('axios');
         const { getAdminCliToken } = require('../utils/keycloakHelpers');
         
-        // Log environment untuk debugging
-        console.log('🔧 Environment variables check:');
-        console.log('- KEYCLOAK_SERVER_URL:', process.env.KEYCLOAK_SERVER_URL);
-        console.log('- KEYCLOAK_REALM:', process.env.KEYCLOAK_REALM);
-        console.log('- KEYCLOAK_CLIENT_ID:', process.env.KEYCLOAK_CLIENT_ID);
-        
         const adminToken = await getAdminCliToken();
-        console.log('✅ Admin token obtained');
         
         const usersUrl = `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/users`;
         console.log('🌐 Fetching users from:', usersUrl);
@@ -303,117 +471,56 @@ router.get('/users/all-simple', keycloakAuth, async (req, res) => {
         const allUsers = response.data;
         console.log(`📊 Total users found: ${allUsers.length}`);
         
-        // Log beberapa user untuk debugging
-        if (allUsers.length > 0) {
-            console.log('📋 Sample of first 3 users:');
-            allUsers.slice(0, 3).forEach((user, idx) => {
-                console.log(`${idx + 1}. Username: ${user.username}`);
-                console.log(`   First Name: ${user.firstName || 'N/A'}`);
-                console.log(`   Last Name: ${user.lastName || 'N/A'}`);
-                console.log(`   Email: ${user.email || 'N/A'}`);
-                console.log(`   Enabled: ${user.enabled}`);
-                console.log(`   Attributes:`, user.attributes || 'None');
-            });
-        }
-        
-        // Fungsi helper untuk mengambil atribut dengan benar
         const getAttribute = (user, attributeName) => {
-            if (!user.attributes || !user.attributes[attributeName]) {
-                return '';
-            }
-            
+            if (!user.attributes || !user.attributes[attributeName]) return '';
             const value = user.attributes[attributeName];
-            
-            if (Array.isArray(value)) {
-                return value[0] || '';
-            }
-            
-            if (typeof value === 'string') {
-                return value;
-            }
-            
-            return String(value) || '';
+            return Array.isArray(value) ? (value[0] || '') : (String(value) || '');
         };
         
         const formattedUsers = allUsers
-            .filter(user => user.enabled !== false) // Hanya user aktif
+            .filter(user => user.enabled !== false)
             .map(user => {
                 let nama = '';
                 
-                // Priority 1: firstName + lastName
                 if (user.firstName || user.lastName) {
                     nama = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
-                } 
-                // Priority 2: attributes.nama
-                else if (getAttribute(user, 'nama')) {
+                } else if (getAttribute(user, 'nama')) {
                     nama = getAttribute(user, 'nama');
-                }
-                // Priority 3: attributes.displayName
-                else if (getAttribute(user, 'displayName')) {
-                    nama = getAttribute(user, 'displayName');
-                }
-                // Priority 4: attributes.name
-                else if (getAttribute(user, 'name')) {
-                    nama = getAttribute(user, 'name');
-                }
-                // Fallback: username
-                else {
+                } else {
                     nama = user.username || '';
                 }
                 
-                const nip = getAttribute(user, 'nip') || getAttribute(user, 'NIP') || getAttribute(user, 'employeeId');
-                const jabatan = getAttribute(user, 'jabatan') || getAttribute(user, 'Jabatan') || getAttribute(user, 'position') || getAttribute(user, 'title');
-                
                 return {
+                    id: user.id,
+                    user_id: user.id,
                     nama: nama,
-                    nip: nip,
-                    jabatan: jabatan,
+                    nip: getAttribute(user, 'nip') || '',
+                    jabatan: getAttribute(user, 'jabatan') || 'Staf',
                     username: user.username || '',
                     email: user.email || '',
-                    enabled: user.enabled,
-                    id: user.id
+                    enabled: user.enabled
                 };
             })
             .filter(user => user.nama && user.nama !== '')
             .sort((a, b) => a.nama.localeCompare(b.nama));
         
-        console.log(`✅ ${formattedUsers.length} enabled users formatted for ${username}`);
+        console.log(`✅ ${formattedUsers.length} users formatted`);
         
         return res.status(200).json({
             success: true,
             message: 'Daftar semua user berhasil diambil',
             data: formattedUsers,
-            count: formattedUsers.length,
-            debug_info: {
-                total_users: allUsers.length,
-                enabled_users: formattedUsers.length,
-                sample_data: formattedUsers.slice(0, 3).map(u => ({
-                    nama: u.nama,
-                    nip: u.nip,
-                    jabatan: u.jabatan,
-                    username: u.username
-                }))
-            }
+            count: formattedUsers.length
         });
         
     } catch (error) {
         console.error('❌ Error in /users/all-simple:', error.message);
         
-        // Detailed error logging
-        if (error.response) {
-            console.error('HTTP Response Error:');
-            console.error('- Status:', error.response.status);
-            console.error('- Headers:', error.response.headers);
-            console.error('- Data:', error.response.data);
-        } else if (error.request) {
-            console.error('No response received:', error.request);
-        }
-        
-        return res.status(500).json({
+        return res.status(200).json({
             success: false,
-            message: 'Gagal mengambil daftar user',
-            error: error.message,
-            suggestion: 'Periksa koneksi ke Keycloak dan kredensial admin'
+            message: 'Gagal mengambil daftar user: ' + error.message,
+            data: [],
+            count: 0
         });
     }
 });

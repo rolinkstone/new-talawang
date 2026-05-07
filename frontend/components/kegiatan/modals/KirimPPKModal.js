@@ -1,4 +1,3 @@
-// components/kegiatan/KirimPPKModal.js
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
@@ -8,7 +7,7 @@ const KirimPPKModal = ({
     kegiatanId, 
     onClose, 
     onSuccess,
-    kegiatanData // data kegiatan untuk ditampilkan
+    kegiatanData 
 }) => {
     const { data: session } = useSession();
     const [loading, setLoading] = useState(false);
@@ -17,6 +16,7 @@ const KirimPPKModal = ({
     const [ppkList, setPpkList] = useState([]);
     const [selectedPpkId, setSelectedPpkId] = useState('');
     const [selectedPpkNama, setSelectedPpkNama] = useState('');
+    const [selectedPpkNip, setSelectedPpkNip] = useState('');
     const [catatan, setCatatan] = useState('');
     
     // Fetch daftar PPK saat modal dibuka
@@ -32,7 +32,7 @@ const KirimPPKModal = ({
             setLoadingPpkList(true);
             setError('');
 
-            // Menggunakan route baru di keycloak.js
+            // Menggunakan route dari keycloak.js
             const response = await axios.get(
                 `${process.env.NEXT_PUBLIC_API_URL}/keycloak/ppk/list`,
                 {
@@ -40,7 +40,7 @@ const KirimPPKModal = ({
                         Authorization: `Bearer ${session.accessToken}`,
                         'Content-Type': 'application/json'
                     },
-                    timeout: 10000 // 10 detik timeout
+                    timeout: 10000
                 }
             );
             
@@ -52,7 +52,7 @@ const KirimPPKModal = ({
         } catch (error) {
             console.error('Error fetching PPK list:', error);
             
-            // Fallback: coba ambil dari route lama jika ada
+            // Fallback: coba ambil dari route alternatif
             if (error.response?.status === 404 || error.response?.status === 500) {
                 try {
                     console.log('Mencoba route alternatif...');
@@ -85,6 +85,7 @@ const KirimPPKModal = ({
     const resetForm = () => {
         setSelectedPpkId('');
         setSelectedPpkNama('');
+        setSelectedPpkNip('');
         setCatatan('');
         setError('');
     };
@@ -95,10 +96,17 @@ const KirimPPKModal = ({
         
         if (selected) {
             setSelectedPpkId(ppkId);
-            setSelectedPpkNama(selected.nama);
+            setSelectedPpkNama(selected.nama || selected.full_name || selected.username || '');
+            setSelectedPpkNip(selected.nip || selected.user_nip || '');
+            console.log('Selected PPK:', {
+                id: ppkId,
+                nama: selected.nama,
+                nip: selected.nip
+            });
         } else {
             setSelectedPpkId('');
             setSelectedPpkNama('');
+            setSelectedPpkNip('');
         }
     };
 
@@ -119,6 +127,7 @@ const KirimPPKModal = ({
                 {
                     ppk_id: selectedPpkId,
                     ppk_nama: selectedPpkNama,
+                    ppk_nip: selectedPpkNip || null,
                     catatan: catatan.trim() || null,
                     tanggal_kirim: new Date().toISOString()
                 },
@@ -132,11 +141,11 @@ const KirimPPKModal = ({
             );
 
             if (response.data.success) {
-                // Panggil callback onSuccess
                 if (onSuccess) {
                     onSuccess({
                         message: response.data.message || 'Kegiatan berhasil dikirim ke PPK',
                         ppk_nama: selectedPpkNama,
+                        ppk_nip: selectedPpkNip,
                         kegiatan_id: kegiatanId,
                         data: response.data.data
                     });
@@ -251,31 +260,34 @@ const KirimPPKModal = ({
                                     <option value="">-- Pilih PPK --</option>
                                     {ppkList.map(ppk => (
                                         <option key={ppk.user_id} value={ppk.user_id}>
-                                            {ppk.nama} - {ppk.jabatan || 'PPK'}
+                                            {ppk.nama || ppk.full_name || ppk.username || 'Unknown'} 
+                                            {ppk.nip && ` - NIP: ${ppk.nip}`}
+                                            {!ppk.nip && ppk.user_nip && ` - NIP: ${ppk.user_nip}`}
                                         </option>
                                     ))}
                                 </select>
                             )}
                         </div>
                         
-                        {/* PPK yang dipilih */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                PPK yang dipilih
-                            </label>
-                            <div className="p-3 bg-gray-50 rounded-md border border-gray-200 min-h-[40px]">
-                                {selectedPpkNama ? (
-                                    <div>
-                                        <div className="font-medium text-gray-900">{selectedPpkNama}</div>
-                                        <div className="text-xs text-gray-600 mt-1">
-                                            PPK yang dipilih akan menerima notifikasi
+                        {/* PPK yang dipilih dengan NIP */}
+                        {selectedPpkNama && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    PPK yang dipilih
+                                </label>
+                                <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+                                    <div className="font-medium text-gray-900">{selectedPpkNama}</div>
+                                    {selectedPpkNip && (
+                                        <div className="text-sm text-gray-600 mt-1">
+                                            <span className="font-medium">NIP:</span> {selectedPpkNip}
                                         </div>
+                                    )}
+                                    <div className="text-xs text-gray-500 mt-2">
+                                        PPK akan menerima notifikasi via sistem
                                     </div>
-                                ) : (
-                                    <div className="text-gray-500 italic">Belum memilih PPK</div>
-                                )}
+                                </div>
                             </div>
-                        </div>
+                        )}
                         
                         {/* Catatan */}
                         <div>
@@ -292,6 +304,31 @@ const KirimPPKModal = ({
                             <p className="mt-1 text-xs text-gray-500">
                                 Catatan akan ditampilkan kepada PPK sebagai informasi tambahan
                             </p>
+                        </div>
+                        
+                        {/* Summary yang akan dikirim */}
+                        <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
+                            <div className="text-xs font-medium text-gray-700 mb-2">Data yang akan dikirim:</div>
+                            <div className="space-y-1 text-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">PPK:</span>
+                                    <span className="font-medium">{selectedPpkNama || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">NIP PPK:</span>
+                                    <span className="font-medium">{selectedPpkNip || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Kegiatan ID:</span>
+                                    <span className="font-medium">{kegiatanId || '-'}</span>
+                                </div>
+                                {catatan && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Catatan:</span>
+                                        <span className="font-medium truncate max-w-[200px]">{catatan}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         
                         {/* Warning */}
