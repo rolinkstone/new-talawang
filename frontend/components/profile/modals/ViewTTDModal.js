@@ -9,42 +9,22 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
     // Proses URL TTD seperti pola kwitansi
   useEffect(() => {
     if (ttdUrl) {
-        // Base URL dari environment (sudah benar, tidak perlu ditambah /api lagi)
+        // Base URL yang benar dari environment
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api-talawang.bbpompky.id';
         
-        let fullUrl = ttdUrl;
+        // Ekstrak nama file dari path yang corrupt
+        const fileName = ttdUrl.split('/').pop();
         
-        // PERBAIKI: Jika domain-nya corrupt (kehilangan "api" di awal)
-        // Contoh: https:/-talawang.bbpompky.id/uploads/... 
-        // menjadi: https://api-talawang.bbpompky.id/uploads/...
-        if (fullUrl.includes('https:/-talawang') || fullUrl.includes('http:/-talawang')) {
-            // Ganti pattern yang salah dengan domain yang benar
-            fullUrl = fullUrl.replace(/https?:\/-\w+\.bbpompky\.id/, baseUrl);
-            fullUrl = fullUrl.replace(/-\w+\.bbpompky\.id/, 'api-talawang.bbpompky.id');
-        }
+        // Buat URL baru dengan baseUrl yang benar
+        const fixedUrl = `${baseUrl}/uploads/ttd/${fileName}`;
         
-        // Jika masih ada domain yang corrupt tanpa "api"
-        if (fullUrl.includes('-talawang.bbpompky.id') && !fullUrl.includes('api-talawang')) {
-            fullUrl = fullUrl.replace('-talawang.bbpompky.id', 'api-talawang.bbpompky.id');
-        }
-        
-        // Perbaiki format URL: https:/ menjadi https://
-        if (fullUrl.includes('https:/') && !fullUrl.includes('https://')) {
-            fullUrl = fullUrl.replace('https:/', 'https://');
-        }
-        if (fullUrl.includes('http:/') && !fullUrl.includes('http://')) {
-            fullUrl = fullUrl.replace('http:/', 'http://');
-        }
-        
-        // Pastikan tidak ada double slash setelah domain
-        fullUrl = fullUrl.replace(/([^:]\/)\//g, '$1');
-        
-        console.log('ViewTTDModal - URL Fix:', {
+        console.log('URL Fix:', {
             original: ttdUrl,
-            fixed: fullUrl
+            fileName: fileName,
+            fixed: fixedUrl
         });
         
-        setFullImageUrl(fullUrl);
+        setFullImageUrl(fixedUrl);
     }
 }, [ttdUrl]);
 
