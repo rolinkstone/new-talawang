@@ -7,56 +7,41 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
     const [fullImageUrl, setFullImageUrl] = useState(null);
 
     // Proses URL TTD seperti pola kwitansi
-    useEffect(() => {
+  useEffect(() => {
     if (ttdUrl) {
-        // Base URL API yang benar
+        // Base URL dari environment (sudah benar, tidak perlu ditambah /api lagi)
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api-talawang.bbpompky.id';
         
-        let fullUrl = '';
+        let fullUrl = ttdUrl;
         
-        // Case 1: Jika ttdUrl sudah berupa URL lengkap
-        if (ttdUrl.startsWith('http://') || ttdUrl.startsWith('https://')) {
-            // Perbaiki URL yang corrupt (https:/-talawang...)
-            if (ttdUrl.includes(':/') && !ttdUrl.includes('://')) {
-                // Perbaiki format yang salah: https:/-domain -> https://domain
-                fullUrl = ttdUrl.replace(':/', '://');
-            } else {
-                fullUrl = ttdUrl;
-            }
-        } 
-        // Case 2: Jika ttdUrl adalah path relatif
-        else {
-            // Hapus /api jika ada di awal
-            let cleanPath = ttdUrl;
-            if (cleanPath.startsWith('/api/')) {
-                cleanPath = cleanPath.replace('/api', '');
-            }
-            
-            // Hapus /api jika ada di tengah
-            if (cleanPath.includes('/api/')) {
-                cleanPath = cleanPath.replace('/api', '');
-            }
-            
-            // Pastikan path dimulai dengan /uploads
-            if (!cleanPath.startsWith('/uploads')) {
-                // Jika path sudah mengandung uploads/ttd/, ambil nama filenya
-                if (cleanPath.includes('uploads/ttd/')) {
-                    cleanPath = '/' + cleanPath.split('uploads/ttd/').pop();
-                    cleanPath = '/uploads/ttd/' + cleanPath;
-                } else {
-                    // Ambil nama file dari path
-                    const fileName = cleanPath.split('/').pop();
-                    cleanPath = `/uploads/ttd/${fileName}`;
-                }
-            }
-            
-            // Gabungkan dengan baseUrl
-            fullUrl = `${baseUrl}${cleanPath}`;
+        // PERBAIKI: Jika domain-nya corrupt (kehilangan "api" di awal)
+        // Contoh: https:/-talawang.bbpompky.id/uploads/... 
+        // menjadi: https://api-talawang.bbpompky.id/uploads/...
+        if (fullUrl.includes('https:/-talawang') || fullUrl.includes('http:/-talawang')) {
+            // Ganti pattern yang salah dengan domain yang benar
+            fullUrl = fullUrl.replace(/https?:\/-\w+\.bbpompky\.id/, baseUrl);
+            fullUrl = fullUrl.replace(/-\w+\.bbpompky\.id/, 'api-talawang.bbpompky.id');
         }
         
-        console.log('ViewTTDModal - URL:', {
+        // Jika masih ada domain yang corrupt tanpa "api"
+        if (fullUrl.includes('-talawang.bbpompky.id') && !fullUrl.includes('api-talawang')) {
+            fullUrl = fullUrl.replace('-talawang.bbpompky.id', 'api-talawang.bbpompky.id');
+        }
+        
+        // Perbaiki format URL: https:/ menjadi https://
+        if (fullUrl.includes('https:/') && !fullUrl.includes('https://')) {
+            fullUrl = fullUrl.replace('https:/', 'https://');
+        }
+        if (fullUrl.includes('http:/') && !fullUrl.includes('http://')) {
+            fullUrl = fullUrl.replace('http:/', 'http://');
+        }
+        
+        // Pastikan tidak ada double slash setelah domain
+        fullUrl = fullUrl.replace(/([^:]\/)\//g, '$1');
+        
+        console.log('ViewTTDModal - URL Fix:', {
             original: ttdUrl,
-            fullUrl: fullUrl
+            fixed: fullUrl
         });
         
         setFullImageUrl(fullUrl);
