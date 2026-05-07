@@ -8,11 +8,26 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
 
     // Proses URL TTD seperti pola kwitansi
     useEffect(() => {
-        if (ttdUrl) {
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
-            let cleanPath = ttdUrl;
-            
+    if (ttdUrl) {
+        // Base URL API yang benar
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api-talawang.bbpompky.id';
+        
+        let fullUrl = '';
+        
+        // Case 1: Jika ttdUrl sudah berupa URL lengkap
+        if (ttdUrl.startsWith('http://') || ttdUrl.startsWith('https://')) {
+            // Perbaiki URL yang corrupt (https:/-talawang...)
+            if (ttdUrl.includes(':/') && !ttdUrl.includes('://')) {
+                // Perbaiki format yang salah: https:/-domain -> https://domain
+                fullUrl = ttdUrl.replace(':/', '://');
+            } else {
+                fullUrl = ttdUrl;
+            }
+        } 
+        // Case 2: Jika ttdUrl adalah path relatif
+        else {
             // Hapus /api jika ada di awal
+            let cleanPath = ttdUrl;
             if (cleanPath.startsWith('/api/')) {
                 cleanPath = cleanPath.replace('/api', '');
             }
@@ -22,21 +37,31 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
                 cleanPath = cleanPath.replace('/api', '');
             }
             
-            // Jika tidak dimulai dengan /uploads, tambahkan
+            // Pastikan path dimulai dengan /uploads
             if (!cleanPath.startsWith('/uploads')) {
-                cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
+                // Jika path sudah mengandung uploads/ttd/, ambil nama filenya
+                if (cleanPath.includes('uploads/ttd/')) {
+                    cleanPath = '/' + cleanPath.split('uploads/ttd/').pop();
+                    cleanPath = '/uploads/ttd/' + cleanPath;
+                } else {
+                    // Ambil nama file dari path
+                    const fileName = cleanPath.split('/').pop();
+                    cleanPath = `/uploads/ttd/${fileName}`;
+                }
             }
             
-            const url = `${baseUrl}${cleanPath}`;
-            console.log('ViewTTDModal - URL:', {
-                original: ttdUrl,
-                cleanPath: cleanPath,
-                fullUrl: url
-            });
-            
-            setFullImageUrl(url);
+            // Gabungkan dengan baseUrl
+            fullUrl = `${baseUrl}${cleanPath}`;
         }
-    }, [ttdUrl]);
+        
+        console.log('ViewTTDModal - URL:', {
+            original: ttdUrl,
+            fullUrl: fullUrl
+        });
+        
+        setFullImageUrl(fullUrl);
+    }
+}, [ttdUrl]);
 
     const handleImageLoad = () => {
         setLoading(false);
