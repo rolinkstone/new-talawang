@@ -7,24 +7,27 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
     const [fullImageUrl, setFullImageUrl] = useState(null);
 
     // Proses URL TTD seperti pola kwitansi
-  useEffect(() => {
+useEffect(() => {
     if (ttdUrl) {
-        // Base URL yang benar dari environment
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api-talawang.bbpompky.id';
+        // Base URL yang benar
+        const baseUrl = 'https://api-talawang.bbpompky.id';
         
-        // Ekstrak nama file dari path yang corrupt
-        const fileName = ttdUrl.split('/').pop();
+        // Ambil nama file dari path (ambil semua setelah /ttd/)
+        const ttdMatch = ttdUrl.match(/\/ttd\/([^?]+)/);
         
-        // Buat URL baru dengan baseUrl yang benar
-        const fixedUrl = `${baseUrl}/uploads/ttd/${fileName}`;
-        
-        console.log('URL Fix:', {
-            original: ttdUrl,
-            fileName: fileName,
-            fixed: fixedUrl
-        });
-        
-        setFullImageUrl(fixedUrl);
+        if (ttdMatch && ttdMatch[1]) {
+            const fileName = ttdMatch[1];
+            const fixedUrl = `${baseUrl}/uploads/ttd/${fileName}`;
+            console.log('Fixed URL:', fixedUrl);
+            setFullImageUrl(fixedUrl);
+        } else {
+            // Fallback: perbaikan manual
+            let fixedUrl = ttdUrl
+                .replace(/^https?:\//, 'https://')  // Fix protocol
+                .replace(/-talawang/, 'api-talawang')  // Fix domain
+                .replace('/api/', '/');  // Remove /api
+            setFullImageUrl(fixedUrl);
+        }
     }
 }, [ttdUrl]);
 
