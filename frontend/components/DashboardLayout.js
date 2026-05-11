@@ -146,41 +146,42 @@ export default function DashboardLayout({ children }) {
 
   const menuGroups = [
     {
-      title: 'Home',
-      items: [
-        { href: '/', label: 'Beranda', icon: <FaHome /> }
-      ]
+        title: 'Home',
+        items: [
+            { href: '/', label: 'Beranda', icon: <FaHome /> }
+        ]
     },
     {
-      title: 'Transaksi',
-      items: [
-        { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
-        // Menu Kwitansi - ditampilkan untuk SEMUA USER (karena setiap user perlu input kwitansi)
-        { 
-          href: '/kwitansi', 
-          label: 'Kuitansi Perjadin', 
-          icon: <FaReceipt />,
-          description: 'Input kuitansi perjalanan dinas'
-        },
-        // Menu Cari hanya ditampilkan jika user memiliki role PPK
-        ...(hasPPKRole() ? [
-          { 
-            href: '/search', 
-            label: 'Batalkan Nominatif', 
-            icon: <FaTimesCircle />,
-            description: 'Hanya untuk PPK' 
-          }
-        ] : [])
-      ]
+        title: 'Transaksi',
+        items: [
+            { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
+            // Menu Kwitansi - ditampilkan untuk SEMUA USER
+            { 
+                href: '/kwitansi', 
+                label: 'Kuitansi Perjadin', 
+                icon: <FaReceipt />,
+                description: 'Input kuitansi perjalanan dinas'
+            },
+            // Menu Cari/Batalkan - ditampilkan untuk role PPK dan ADMIN
+            ...(hasPPKRole() || hasAdminRole() ? [
+                { 
+                    href: '/search', 
+                    label: 'Batalkan Nominatif', 
+                    icon: <FaTimesCircle />,
+                    description: 'Membatalkan kegiatan (PPK & Admin)',
+                    badge: hasAdminRole() ? 'Admin' : 'PPK'
+                }
+            ] : [])
+        ]
     },
     {
-      title: 'Pengaturan',
-      items: [
-        { href: '/profile', label: 'Profile', icon: <FaCog /> },
-        { href: '/setting', label: 'Settings', icon: <FaCog /> }
-      ]
+        title: 'Pengaturan',
+        items: [
+            { href: '/profile', label: 'Profile', icon: <FaCog /> },
+            { href: '/setting', label: 'Settings', icon: <FaCog /> }
+        ]
     }
-  ];
+];
 
   const debugInfo = {
     hasPPK: hasPPKRole(),

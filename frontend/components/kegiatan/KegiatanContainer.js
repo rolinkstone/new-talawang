@@ -450,26 +450,23 @@ export default function KegiatanContainer({ session, status }) {
         }
     }, [session]);
 
-    // Auth check dan fetch data kegiatan
+    // Fetch data kegiatan - hanya dijalankan sekali saat mount
     useEffect(() => {
-        const checkAuthAndFetch = async () => {
+        const fetchData = async () => {
             if (status === 'loading') {
                 return;
             }
             
             if (!session) {
                 router.push('/login');
-            } else {
-                await fetchKegiatan();
+                return;
             }
+            
+            await fetchKegiatan();
         };
 
-        checkAuthAndFetch();
-        
-        return () => {
-            console.log('Component unmounting, cleaning up...');
-        };
-    }, [session, status, router]);
+        fetchData();
+    }, [session, status]);
 
     // Fetch data kegiatan
     const fetchKegiatan = async (showLoading = false) => {
@@ -861,65 +858,68 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-  useEffect(() => {
-    const filtered = kegiatanList.filter(item => {
-        const matchesSearch = 
-            item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (item.no_st && item.no_st.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        const matchesStatus = !filterStatus || item.status === filterStatus;
-        const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
-        const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
-        const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
-        
-        // PERBAIKAN: Filter status2 yang menangani null value
-        let matchesStatus2 = true;
-        if (filterStatus2) {
-            if (filterStatus2 === 'Belum diisi') {
-                // Filter untuk data yang null, undefined, atau string kosong
-                matchesStatus2 = !item.status_2 || 
-                                 item.status_2 === null || 
-                                 item.status_2 === undefined || 
-                                 String(item.status_2).trim() === '';
-            } else {
-                // Filter untuk nilai spesifik seperti 'SELESAI' atau 'DIPROSES'
-                matchesStatus2 = item.status_2 && 
-                                 String(item.status_2).toUpperCase() === filterStatus2.toUpperCase();
-            }
-        }
-        
-        const matchesCatatanStatus2 = !filterCatatanStatus2 || 
-            (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
-        
-        let matchesDate = true;
-        if (filterDateFrom || filterDateTo) {
-            const itemDate = new Date(item.rencana_tanggal_pelaksanaan || item.created_at);
-            const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
-            const toDate = filterDateTo ? new Date(filterDateTo) : null;
+    // Filter effect
+    useEffect(() => {
+        const filtered = kegiatanList.filter(item => {
+            const matchesSearch = 
+                item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.no_st && item.no_st.toLowerCase().includes(searchTerm.toLowerCase()));
             
-            if (fromDate && toDate) {
-                matchesDate = itemDate >= fromDate && itemDate <= toDate;
-            } else if (fromDate) {
-                matchesDate = itemDate >= fromDate;
-            } else if (toDate) {
-                matchesDate = itemDate <= toDate;
+            const matchesStatus = !filterStatus || item.status === filterStatus;
+            const matchesJenisSpm = !filterJenisSpm || item.jenis_spm === filterJenisSpm;
+            const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
+            const matchesLokasi = !filterLokasi || item.kota_kab_kecamatan?.toLowerCase().includes(filterLokasi.toLowerCase());
+            
+            let matchesStatus2 = true;
+            if (filterStatus2) {
+                if (filterStatus2 === 'Belum diisi') {
+                    matchesStatus2 = !item.status_2 || 
+                                     item.status_2 === null || 
+                                     item.status_2 === undefined || 
+                                     String(item.status_2).trim() === '';
+                } else {
+                    matchesStatus2 = item.status_2 && 
+                                     String(item.status_2).toUpperCase() === filterStatus2.toUpperCase();
+                }
             }
+            
+            const matchesCatatanStatus2 = !filterCatatanStatus2 || 
+                (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
+            
+            let matchesDate = true;
+            if (filterDateFrom || filterDateTo) {
+                const itemDate = new Date(item.rencana_tanggal_pelaksanaan || item.created_at);
+                const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
+                const toDate = filterDateTo ? new Date(filterDateTo) : null;
+                
+                if (fromDate && toDate) {
+                    matchesDate = itemDate >= fromDate && itemDate <= toDate;
+                } else if (fromDate) {
+                    matchesDate = itemDate >= fromDate;
+                } else if (toDate) {
+                    matchesDate = itemDate <= toDate;
+                }
+            }
+            
+            return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate && matchesStatus2 && matchesCatatanStatus2;
+        });
+        
+        setFilteredKegiatan(filtered);
+        
+        // Reset ke halaman 1 hanya jika filter berubah
+        const currentFilterString = JSON.stringify({
+            searchTerm, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo,
+            filterMak, filterLokasi, filterStatus2, filterCatatanStatus2
+        });
+        
+        if (previousFilterString.current !== currentFilterString) {
+            setCurrentPage(1);
+            previousFilterString.current = currentFilterString;
         }
         
-        return matchesSearch && matchesStatus && matchesJenisSpm && matchesMak && matchesLokasi && matchesDate && matchesStatus2 && matchesCatatanStatus2;
-    });
-    
-    setFilteredKegiatan(filtered);
-    
-    if (previousFilterString.current !== JSON.stringify({
-        searchTerm, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo,
-        filterMak, filterLokasi, filterStatus2, filterCatatanStatus2
-    })) {
-        setCurrentPage(1);
-    }
-    
-}, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi, filterStatus2, filterCatatanStatus2]);
+    }, [searchTerm, kegiatanList, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo, filterMak, filterLokasi, filterStatus2, filterCatatanStatus2]);
+
     const resetFilter = () => {
         setFilterStatus('');
         setFilterJenisSpm('');
@@ -1155,7 +1155,7 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Table */}
+            {/* Table - Lanjutan di bawah karena panjang */}
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">

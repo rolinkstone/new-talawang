@@ -20,6 +20,24 @@ export default function SearchKegiatanPage() {
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, completed: 0 });
     const [cancelingId, setCancelingId] = useState(null);
+    const [userRole, setUserRole] = useState('');
+
+    // Get user role
+    useEffect(() => {
+        if (session?.user) {
+            const roles = session.user.roles || session.user.role || [];
+            const roleArray = Array.isArray(roles) ? roles : [roles];
+            if (roleArray.some(r => r.toLowerCase() === 'admin')) {
+                setUserRole('admin');
+            } else if (roleArray.some(r => r.toLowerCase() === 'ppk')) {
+                setUserRole('ppk');
+            } else if (roleArray.some(r => r.toLowerCase().includes('kabalai'))) {
+                setUserRole('kabalai');
+            } else {
+                setUserRole('user');
+            }
+        }
+    }, [session]);
 
     // Helper functions
     const formatDate = (dateString) => {
@@ -131,46 +149,43 @@ export default function SearchKegiatanPage() {
         setIsSearching(true);
         
         try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl) {
-        throw new Error('API URL tidak ditemukan. Periksa konfigurasi environment.');
-    }
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+            if (!apiUrl) {
+                throw new Error('API URL tidak ditemukan. Periksa konfigurasi environment.');
+            }
 
-    const res = await axios.get(`${apiUrl}/search/search`, {
-        headers: { Authorization: `Bearer ${session.accessToken}` },
-        params: { q: searchTerm.trim(), limit: 100 }
-    });
-    
-    if (res.data.success) {
-        const results = res.data.data || [];
-        
-        // Sort results
-        const sortedResults = sortResults(results, sortBy);
-        setSearchResults(sortedResults);
-        
-        // Calculate stats
-        calculateStats(sortedResults);
-        
-        if (sortedResults.length === 0) {
-            showNotification(`Tidak ditemukan data untuk "${searchTerm}"`, 'info');
+            const res = await axios.get(`${apiUrl}/search/search`, {
+                headers: { Authorization: `Bearer ${session.accessToken}` },
+                params: { q: searchTerm.trim(), limit: 100 }
+            });
+            
+            if (res.data.success) {
+                const results = res.data.data || [];
+                
+                const sortedResults = sortResults(results, sortBy);
+                setSearchResults(sortedResults);
+                
+                calculateStats(sortedResults);
+                
+                if (sortedResults.length === 0) {
+                    showNotification(`Tidak ditemukan data untuk "${searchTerm}"`, 'info');
+                }
+            } else {
+                showNotification(res.data.message || 'Gagal melakukan pencarian', 'error');
+                setSearchResults([]);
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            
+            if (error.message.includes('API URL tidak ditemukan')) {
+                showNotification('Konfigurasi aplikasi belum lengkap. Hubungi administrator.', 'error');
+            } else {
+                showNotification('Gagal melakukan pencarian. Silakan coba lagi.', 'error');
+            }
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
         }
-    } else {
-        showNotification(res.data.message || 'Gagal melakukan pencarian', 'error');
-        setSearchResults([]);
-    }
-    } catch (error) {
-        console.error('Search error:', error);
-        
-        // Handle specific error cases
-        if (error.message.includes('API URL tidak ditemukan')) {
-            showNotification('Konfigurasi aplikasi belum lengkap. Hubungi administrator.', 'error');
-        } else {
-            showNotification('Gagal melakukan pencarian. Silakan coba lagi.', 'error');
-        }
-        setSearchResults([]);
-    } finally {
-        setIsSearching(false);
-    }
     };
 
     // Sort results
@@ -188,7 +203,7 @@ export default function SearchKegiatanPage() {
                 return sorted.sort((a, b) => (b.total_biaya || 0) - (a.total_biaya || 0));
             case 'budget_low':
                 return sorted.sort((a, b) => (a.total_biaya || 0) - (b.total_biaya || 0));
-            default: // 'updated'
+            default:
                 return sorted.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         }
     };
@@ -206,18 +221,45 @@ export default function SearchKegiatanPage() {
         setStats(stats);
     };
 
-    // Handle cancel kegiatan
-    const handleCancelKegiatan = async (id, kegiatanName) => {
-        if (!confirm(`Apakah Anda yakin ingin membatalkan kegiatan "${kegiatanName}"?`)) {
+    // Handle cancel kegiatan - ADMIN dan PPK bisa membatalkan
+    const handleCancelKegiatan = async (id, kegiatanName, alasan = null) => {
+        // Debug log
+        console.log('Cancel attempt - User Role:', userRole);
+        console.log('Cancel attempt - Kegiatan ID:', id);
+        
+        // Tentukan pesan konfirmasi berdasarkan role
+        let confirmMessage = '';
+        if (userRole === 'admin') {
+            confirmMessage = `Apakah Anda yakin ingin membatalkan kegiatan "${kegiatanName}"? Sebagai Admin, Anda memiliki wewenang penuh untuk membatalkan kegiatan ini.`;
+        } else if (userRole === 'ppk') {
+            confirmMessage = `Apakah Anda yakin ingin membatalkan kegiatan "${kegiatanName}"? Sebagai PPK yang bertanggung jawab, Anda dapat membatalkan kegiatan ini.`;
+        } else {
+            confirmMessage = `Anda tidak memiliki wewenang untuk membatalkan kegiatan ini. Hanya Admin dan PPK yang bersangkutan yang dapat membatalkan.`;
+            showNotification(confirmMessage, 'error');
+            return;
+        }
+        
+        // Minta konfirmasi dengan alasan (opsional)
+        const userReason = prompt(`${confirmMessage}\n\nMasukkan alasan pembatalan (opsional):`, 'Dibatalkan melalui sistem pencarian');
+        
+        if (!confirm(confirmMessage)) {
             return;
         }
 
         setCancelingId(id);
         
         try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+            const payload = {};
+            if (userReason && userReason.trim()) {
+                payload.alasan_pembatalan = userReason;
+            }
+            
+            console.log(`Sending cancel request to: ${apiUrl}/search/${id}/cancel`);
+            
             const res = await axios.put(
-                `http://localhost:5000/api/search/${id}/cancel`,
-                {},
+                `${apiUrl}/search/${id}/cancel`,
+                payload,
                 {
                     headers: { 
                         Authorization: `Bearer ${session.accessToken}`,
@@ -225,6 +267,8 @@ export default function SearchKegiatanPage() {
                     }
                 }
             );
+
+            console.log('Cancel response:', res.data);
 
             if (res.data.success) {
                 // Update local state
@@ -242,13 +286,26 @@ export default function SearchKegiatanPage() {
                 );
                 calculateStats(updatedResults);
                 
-                showNotification(`Kegiatan "${kegiatanName}" berhasil dibatalkan`, 'success');
+                const successMessage = res.data.data?.alasan_pembatalan 
+                    ? `Kegiatan "${kegiatanName}" berhasil dibatalkan. Alasan: ${res.data.data.alasan_pembatalan}`
+                    : `Kegiatan "${kegiatanName}" berhasil dibatalkan oleh ${userRole.toUpperCase()}`;
+                
+                showNotification(successMessage, 'success');
             } else {
                 showNotification(res.data.message || 'Gagal membatalkan kegiatan', 'error');
             }
         } catch (error) {
             console.error('Cancel error:', error);
-            showNotification('Gagal membatalkan kegiatan. Silakan coba lagi.', 'error');
+            
+            // Handle error response
+            if (error.response) {
+                console.error('Error response:', error.response.data);
+                showNotification(error.response.data?.message || 'Gagal membatalkan kegiatan. Silakan coba lagi.', 'error');
+            } else if (error.request) {
+                showNotification('Tidak dapat terhubung ke server. Periksa koneksi Anda.', 'error');
+            } else {
+                showNotification('Gagal membatalkan kegiatan. Silakan coba lagi.', 'error');
+            }
         } finally {
             setCancelingId(null);
         }
@@ -307,6 +364,9 @@ export default function SearchKegiatanPage() {
         );
     }
 
+    // Cek apakah user berhak membatalkan (Admin atau PPK)
+    const canCancel = userRole === 'admin' || userRole === 'ppk';
+
     return (
         <DashboardLayout onLogout={handleLogout}>
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -350,6 +410,18 @@ export default function SearchKegiatanPage() {
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Cari Data Kegiatan</h2>
                                     <p className="text-gray-600">Gunakan kata kunci untuk mencari data kegiatan yang spesifik</p>
+                                    {/* Role Info */}
+                                    <div className="mt-2">
+                                        <span className={`text-xs px-2 py-1 rounded-full ${
+                                            userRole === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                            userRole === 'ppk' ? 'bg-blue-100 text-blue-700' :
+                                            'bg-gray-100 text-gray-600'
+                                        }`}>
+                                            Role: {userRole === 'admin' ? 'Administrator' : userRole === 'ppk' ? 'PPK' : 'User'}
+                                            {userRole === 'admin' && ' - Dapat membatalkan semua kegiatan'}
+                                            {userRole === 'ppk' && ' - Dapat membatalkan kegiatan yang menjadi tanggung jawab'}
+                                        </span>
+                                    </div>
                                 </div>
                                 
                                 {/* Stats Overview */}
@@ -463,7 +535,7 @@ export default function SearchKegiatanPage() {
                                         </div>
                                     </div>
 
-                                    {/* Results Table - RAPIH */}
+                                    {/* Results Table */}
                                     <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
@@ -536,36 +608,42 @@ export default function SearchKegiatanPage() {
                                                             <td className="px-4 py-3">
                                                                 <div className="flex justify-center">
                                                                     {item.status !== 'dibatalkan' ? (
-                                                                        <button
-                                                                            onClick={() => handleCancelKegiatan(item.id, item.kegiatan)}
-                                                                            disabled={cancelingId === item.id}
-                                                                            className="px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 text-sm font-medium rounded-lg hover:from-gray-200 hover:to-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center shadow-sm border border-gray-300"
-                                                                        >
-                                                                            {cancelingId === item.id ? (
-                                                                                <>
-                                                                                    <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
-                                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                                                    </svg>
-                                                                                    Memproses...
-                                                                                </>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                                    </svg>
-                                                                                    Batal Proses
-                                                                                </>
-                                                                            )}
-                                                                        </button>
+                                                                        canCancel ? (
+                                                                            <button
+                                                                                onClick={() => handleCancelKegiatan(item.id, item.kegiatan)}
+                                                                                disabled={cancelingId === item.id}
+                                                                                className="px-4 py-2 bg-gradient-to-r from-red-50 to-red-100 text-red-700 text-sm font-medium rounded-lg hover:from-red-100 hover:to-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center shadow-sm border border-red-200"
+                                                                            >
+                                                                                {cancelingId === item.id ? (
+                                                                                    <>
+                                                                                        <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                                        </svg>
+                                                                                        Memproses...
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                                        </svg>
+                                                                                        Batalkan
+                                                                                    </>
+                                                                                )}
+                                                                            </button>
+                                                                        ) : (
+                                                                            <div className="text-xs text-gray-400 italic px-4 py-2">
+                                                                                (Tidak ada akses)
+                                                                            </div>
+                                                                        )
                                                                     ) : (
                                                                         <div className="text-sm text-gray-500 italic px-4 py-2">
                                                                             Sudah dibatalkan
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                            </td>
-                                                        </tr>
+                                                             </td>
+                                                         </tr>
                                                     ))}
                                                 </tbody>
                                             </table>
@@ -623,6 +701,9 @@ export default function SearchKegiatanPage() {
                             <div className="flex gap-4 mt-2 md:mt-0">
                                 <div className="text-xs text-gray-500">
                                     Server: <span className="font-medium text-green-600">Online</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    Role: <span className="font-medium text-blue-600">{userRole.toUpperCase()}</span>
                                 </div>
                             </div>
                         </div>

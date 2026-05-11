@@ -12,77 +12,25 @@ const getUserRole = (user) => {
     return 'regular';
 };
 
-// Helper function untuk build search query
-const buildSearchQuery = (searchTerm, userId, userRole, limit) => {
-    const searchQuery = `%${searchTerm}%`;
-    let query = '';
-    let params = [];
-
-    // Base query dengan semua field yang dibutuhkan
-    const baseQuery = `
-        SELECT 
-            k.id,
-            k.kegiatan,
-            k.mak,
-            k.no_st,
-            DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st,
-            k.status,
-            k.kota_kab_kecamatan,
-            DATE_FORMAT(k.rencana_tanggal_pelaksanaan, '%Y-%m-%d') as rencana_tanggal_pelaksanaan,
-            k.ppk_nama,
-            DATE_FORMAT(k.tanggal_disetujui, '%Y-%m-%d %H:%i:%s') as tanggal_disetujui,
-            k.diketahui_oleh,
-            DATE_FORMAT(k.tanggal_diketahui, '%Y-%m-%d %H:%i:%s') as tanggal_diketahui,
-            DATE_FORMAT(k.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
-            DATE_FORMAT(k.updated_at, '%Y-%m-%d %H:%i:%s') as updated_at,
-            (SELECT COUNT(*) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = k.id) as jumlah_pegawai,
-            (SELECT COALESCE(SUM(total_biaya), 0) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = k.id) as total_biaya
-        FROM accounting.nominatif_kegiatan k
-        WHERE 
-    `;
-
-    // Filter berdasarkan role
-    if (userRole === 'regular') {
-        query = baseQuery + `
-            k.user_id = ? AND (
-                k.kegiatan LIKE ? OR
-                k.mak LIKE ? OR
-                k.no_st LIKE ? OR
-                k.kota_kab_kecamatan LIKE ? OR
-                k.ppk_nama LIKE ? OR
-                k.diketahui_oleh LIKE ?
-            )
-        `;
-        params = [userId, searchQuery, searchQuery, searchQuery, searchQuery, searchQuery, searchQuery];
-    } else {
-        // Admin, PPK, Kabalai bisa melihat semua
-        query = baseQuery + `
-            k.kegiatan LIKE ? OR
-            k.mak LIKE ? OR
-            k.no_st LIKE ? OR
-            k.kota_kab_kecamatan LIKE ? OR
-            k.ppk_nama LIKE ? OR
-            k.diketahui_oleh LIKE ?
-        `;
-        params = [searchQuery, searchQuery, searchQuery, searchQuery, searchQuery, searchQuery];
-    }
-
-    // Add order and limit
-    query += ` ORDER BY k.updated_at DESC LIMIT ?`;
-    params.push(limit);
-
-    return { query, params };
+// Helper function untuk mendapatkan informasi user lengkap
+const getUserInfo = (user) => {
+    const userId = getUserId(user);
+    const username = getUsername(user);
+    const userNip = user?.nip || user?.preferred_username || username;
+    const userRole = getUserRole(user);
+    
+    return { userId, username, userNip, userRole };
 };
 
-// GET - Simple search endpoint
+// GET - Search endpoint dengan filter berdasarkan role
 router.get('/search', keycloakAuth, async (req, res) => {
     try {
-        const { q: searchTerm, limit = 50 } = req.query;
-        const userId = getUserId(req.user); // Keycloak user ID
+        const { q: searchTerm, limit = 100 } = req.query;
+        const userId = getUserId(req.user);
         const username = getUsername(req.user);
         const userRole = getUserRole(req.user);
 
-        console.log(`🔍 User ${username} (ppk_id: ${userId}, Role: ${userRole}) searching for: "${searchTerm}"`);
+        console.log(`🔍 User ${username} (user_id: ${userId}, Role: ${userRole}) searching for: "${searchTerm}"`);
 
         if (!searchTerm || searchTerm.trim() === '') {
             return res.status(400).json({
@@ -92,65 +40,112 @@ router.get('/search', keycloakAuth, async (req, res) => {
         }
 
         const searchPattern = `%${searchTerm.trim()}%`;
-        
-        // Query yang hanya menampilkan data untuk PPK dengan ppk_id yang sesuai
-        // DAN status != 'diajukan' (tidak menampilkan data dengan status diajukan)
-        const query = `
-            SELECT 
-                nk.id,
-                nk.kegiatan,
-                nk.mak,
-                nk.no_st,
-                nk.tgl_st,
-                nk.status,
-                nk.kota_kab_kecamatan,
-                nk.rencana_tanggal_pelaksanaan,
-                nk.ppk_nama,
-                nk.ppk_id,
-                nk.tanggal_disetujui,
-                nk.diketahui_oleh,
-                nk.tanggal_diketahui,
-                nk.created_at,
-                nk.updated_at
-              
-               
-            FROM accounting.nominatif_kegiatan nk
-            WHERE nk.ppk_id = ?  -- Filter berdasarkan ppk_id
-            AND nk.status != 'diajukan' AND nk.status != 'selesai' AND nk.status != 'dikembalikan' 
-            AND (
-                nk.kegiatan LIKE ? OR
-                nk.mak LIKE ? OR
-                nk.no_st LIKE ? OR
-                nk.status LIKE ? OR
-                nk.kota_kab_kecamatan LIKE ? OR
-                nk.ppk_nama LIKE ? OR
-                nk.diketahui_oleh LIKE ?
-            )
-            ORDER BY nk.updated_at DESC
-            LIMIT ?
-        `;
+        let query = '';
+        let params = [];
 
-        const params = [
-            userId,           // nk.ppk_id = ? (Keycloak user ID)
-            searchPattern,    // nk.kegiatan LIKE ?
-            searchPattern,    // nk.mak LIKE ?
-            searchPattern,    // nk.no_st LIKE ?
-            searchPattern,    // nk.status LIKE ?
-            searchPattern,    // nk.kota_kab_kecamatan LIKE ?
-            searchPattern,    // nk.ppk_nama LIKE ?
-            searchPattern,    // nk.diketahui_oleh LIKE ?
-            parseInt(limit)   // LIMIT ?
-        ];
+        if (userRole === 'admin') {
+            // ADMIN: Bisa melihat SEMUA kegiatan (tanpa filter ppk_id)
+            query = `
+                SELECT 
+                    nk.id,
+                    nk.kegiatan,
+                    nk.mak,
+                    nk.no_st,
+                    nk.tgl_st,
+                    nk.status,
+                    nk.kota_kab_kecamatan,
+                    nk.rencana_tanggal_pelaksanaan,
+                    nk.ppk_nama,
+                    nk.ppk_id,
+                    nk.tanggal_disetujui,
+                    nk.diketahui_oleh,
+                    nk.tanggal_diketahui,
+                    nk.created_at,
+                    nk.updated_at,
+                    (SELECT COUNT(*) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as jumlah_pegawai,
+                    (SELECT COALESCE(SUM(total_biaya), 0) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as total_biaya
+                FROM accounting.nominatif_kegiatan nk
+                WHERE nk.status != 'diajukan' 
+                AND nk.status != 'selesai' 
+                AND nk.status != 'dikembalikan'
+                AND (
+                    nk.kegiatan LIKE ? OR
+                    nk.mak LIKE ? OR
+                    nk.no_st LIKE ? OR
+                    nk.status LIKE ? OR
+                    nk.kota_kab_kecamatan LIKE ? OR
+                    nk.ppk_nama LIKE ? OR
+                    nk.diketahui_oleh LIKE ?
+                )
+                ORDER BY nk.updated_at DESC
+                LIMIT ?
+            `;
+            params = [
+                searchPattern, searchPattern, searchPattern, searchPattern,
+                searchPattern, searchPattern, searchPattern,
+                parseInt(limit)
+            ];
+            console.log('👑 Admin mode: mencari semua kegiatan');
+        } else if (userRole === 'ppk') {
+            // PPK: Hanya bisa melihat kegiatan yang menjadi tanggung jawabnya
+            query = `
+                SELECT 
+                    nk.id,
+                    nk.kegiatan,
+                    nk.mak,
+                    nk.no_st,
+                    nk.tgl_st,
+                    nk.status,
+                    nk.kota_kab_kecamatan,
+                    nk.rencana_tanggal_pelaksanaan,
+                    nk.ppk_nama,
+                    nk.ppk_id,
+                    nk.tanggal_disetujui,
+                    nk.diketahui_oleh,
+                    nk.tanggal_diketahui,
+                    nk.created_at,
+                    nk.updated_at,
+                    (SELECT COUNT(*) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as jumlah_pegawai,
+                    (SELECT COALESCE(SUM(total_biaya), 0) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as total_biaya
+                FROM accounting.nominatif_kegiatan nk
+                WHERE (nk.ppk_id = ? OR nk.ppk_nama = ? OR nk.ppk_nip = ?)
+                AND nk.status != 'diajukan' 
+                AND nk.status != 'selesai' 
+                AND nk.status != 'dikembalikan'
+                AND (
+                    nk.kegiatan LIKE ? OR
+                    nk.mak LIKE ? OR
+                    nk.no_st LIKE ? OR
+                    nk.status LIKE ? OR
+                    nk.kota_kab_kecamatan LIKE ? OR
+                    nk.ppk_nama LIKE ? OR
+                    nk.diketahui_oleh LIKE ?
+                )
+                ORDER BY nk.updated_at DESC
+                LIMIT ?
+            `;
+            params = [
+                userId, username, userId,  // ppk_id, ppk_nama, ppk_nip
+                searchPattern, searchPattern, searchPattern, searchPattern,
+                searchPattern, searchPattern, searchPattern,
+                parseInt(limit)
+            ];
+            console.log(`📋 PPK mode: mencari kegiatan untuk PPK ID: ${userId}, Nama: ${username}`);
+        } else {
+            // Role lain tidak diizinkan
+            return res.status(403).json({
+                success: false,
+                message: 'Anda tidak memiliki akses ke fitur ini. Hanya Admin dan PPK yang dapat mengakses.'
+            });
+        }
 
-        console.log('📝 Query with ppk_id filter (excluding status=diajukan):', query);
+        console.log('📝 Query:', query);
         console.log('📝 Query params:', params);
 
-        // Execute query
         const [rows] = await db.query(query, params);
 
-        console.log(`✅ Found ${rows.length} results for ppk_id: ${userId} (excluding 'diajukan' status)`);
+        console.log(`✅ Found ${rows.length} results for ${userRole}`);
 
-        // Format response
         const results = rows.map(row => ({
             id: row.id,
             kegiatan: row.kegiatan,
@@ -171,94 +166,6 @@ router.get('/search', keycloakAuth, async (req, res) => {
             total_biaya: row.total_biaya
         }));
 
-        // Jika tidak ada hasil dengan ppk_id, coba dengan ppk_nama sebagai fallback (tapi tetap exclude diajukan)
-        if (results.length === 0) {
-            console.log(`⚠️ No data found with ppk_id: ${userId}. Trying fallback with ppk_nama (excluding diajukan)...`);
-            
-            const fallbackQuery = `
-                SELECT 
-                    nk.id,
-                    nk.kegiatan,
-                    nk.mak,
-                    nk.no_st,
-                    nk.tgl_st,
-                    nk.status,
-                    nk.kota_kab_kecamatan,
-                    nk.rencana_tanggal_pelaksanaan,
-                    nk.ppk_nama,
-                    nk.ppk_id,
-                    nk.tanggal_disetujui,
-                    nk.diketahui_oleh,
-                    nk.tanggal_diketahui,
-                    nk.created_at,
-                    nk.updated_at
-                    
-                FROM accounting.nominatif_kegiatan nk
-                WHERE nk.ppk_nama = ?
-                AND nk.status != 'diajukan'  -- Juga exclude diajukan di fallback
-                AND (
-                    nk.kegiatan LIKE ? OR
-                    nk.mak LIKE ? OR
-                    nk.no_st LIKE ? OR
-                    nk.status LIKE ? OR
-                    nk.kota_kab_kecamatan LIKE ? OR
-                    nk.ppk_nama LIKE ? OR
-                    nk.diketahui_oleh LIKE ?
-                )
-                ORDER BY nk.updated_at DESC
-                LIMIT ?
-            `;
-            
-            const fallbackParams = [
-                username,
-                searchPattern, searchPattern, searchPattern, searchPattern,
-                searchPattern, searchPattern, searchPattern,
-                parseInt(limit)
-            ];
-            
-            const [fallbackRows] = await db.query(fallbackQuery, fallbackParams);
-            
-            if (fallbackRows.length > 0) {
-                console.log(`✅ Found ${fallbackRows.length} results with ppk_nama fallback for: ${username} (excluding diajukan)`);
-                
-                const fallbackResults = fallbackRows.map(row => ({
-                    id: row.id,
-                    kegiatan: row.kegiatan,
-                    mak: row.mak,
-                    no_st: row.no_st,
-                    tgl_st: row.tgl_st,
-                    status: row.status,
-                    kota_kab_kecamatan: row.kota_kab_kecamatan,
-                    rencana_tanggal_pelaksanaan: row.rencana_tanggal_pelaksanaan,
-                    ppk_nama: row.ppk_nama,
-                    ppk_id: row.ppk_id,
-                    tanggal_disetujui: row.tanggal_disetujui,
-                    diketahui_oleh: row.diketahui_oleh,
-                    tanggal_diketahui: row.tanggal_diketahui,
-                    createdAt: row.created_at,
-                    updatedAt: row.updated_at,
-                    jumlah_pegawai: row.jumlah_pegawai,
-                    total_biaya: row.total_biaya
-                }));
-                
-                return res.json({
-                    success: true,
-                    data: fallbackResults,
-                    meta: {
-                        count: fallbackResults.length,
-                        limit: parseInt(limit),
-                        searchTerm: searchTerm.trim(),
-                        ppk_nama: username,
-                        ppk_id: userId,
-                        userRole,
-                        filter_type: 'ppk_nama_fallback',
-                        status_filter: 'excluding_diajukan',
-                        message: `Data ditemukan berdasarkan nama PPK: ${username} (kecuali status diajukan)`
-                    }
-                });
-            }
-        }
-
         res.json({
             success: true,
             data: results,
@@ -266,14 +173,12 @@ router.get('/search', keycloakAuth, async (req, res) => {
                 count: results.length,
                 limit: parseInt(limit),
                 searchTerm: searchTerm.trim(),
-                ppk_nama: username,
-                ppk_id: userId,
-                userRole,
-                filter_type: 'ppk_id',
-                status_filter: 'excluding_diajukan',
+                userRole: userRole,
+                filter_type: userRole === 'admin' ? 'admin_all' : 'ppk_filtered',
+                status_filter: 'excluding_diajukan_selesai_dikembalikan',
                 message: results.length > 0 
-                    ? `Data ditemukan untuk PPK: ${username} (kecuali status diajukan)` 
-                    : `Tidak ada data yang ditemukan untuk PPK: ${username} (kecuali status diajukan)`
+                    ? `Ditemukan ${results.length} data untuk ${userRole === 'admin' ? 'Admin' : `PPK: ${username}`}`
+                    : `Tidak ada data yang ditemukan`
             }
         });
 
@@ -291,44 +196,73 @@ router.get('/search', keycloakAuth, async (req, res) => {
     }
 });
 
-
 // GET - Search stats (untuk dashboard)
 router.get('/search/stats', keycloakAuth, async (req, res) => {
     try {
         const userId = getUserId(req.user);
+        const username = getUsername(req.user);
         const userRole = getUserRole(req.user);
 
         let query = '';
         let params = [];
 
-        if (userRole === 'regular') {
+        if (userRole === 'admin') {
+            // Admin: statistik semua kegiatan
             query = `
                 SELECT 
                     COUNT(*) as total_kegiatan,
-                    SUM(CASE WHEN no_st IS NOT NULL AND tgl_st IS NOT NULL THEN 1 ELSE 0 END) as total_selesai,
-                    COUNT(DISTINCT status) as status_count
-                FROM accounting.nominatif_kegiatan 
-                WHERE user_id = ?
-            `;
-            params = [userId];
-        } else {
-            query = `
-                SELECT 
-                    COUNT(*) as total_kegiatan,
-                    SUM(CASE WHEN no_st IS NOT NULL AND tgl_st IS NOT NULL THEN 1 ELSE 0 END) as total_selesai,
-                    COUNT(DISTINCT status) as status_count
+                    SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as total_draft,
+                    SUM(CASE WHEN status = 'diajukan' THEN 1 ELSE 0 END) as total_diajukan,
+                    SUM(CASE WHEN status = 'disetujui' THEN 1 ELSE 0 END) as total_disetujui,
+                    SUM(CASE WHEN status = 'diketahui' THEN 1 ELSE 0 END) as total_diketahui,
+                    SUM(CASE WHEN status = 'selesai' THEN 1 ELSE 0 END) as total_selesai,
+                    SUM(CASE WHEN status = 'dibatalkan' THEN 1 ELSE 0 END) as total_dibatalkan,
+                    SUM(CASE WHEN no_st IS NOT NULL AND tgl_st IS NOT NULL THEN 1 ELSE 0 END) as total_selesai_st,
+                    COUNT(DISTINCT status) as status_count,
+                    COALESCE(SUM(total_biaya), 0) as total_anggaran
                 FROM accounting.nominatif_kegiatan
             `;
+        } else if (userRole === 'ppk') {
+            // PPK: statistik hanya untuk kegiatannya
+            query = `
+                SELECT 
+                    COUNT(*) as total_kegiatan,
+                    SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as total_draft,
+                    SUM(CASE WHEN status = 'diajukan' THEN 1 ELSE 0 END) as total_diajukan,
+                    SUM(CASE WHEN status = 'disetujui' THEN 1 ELSE 0 END) as total_disetujui,
+                    SUM(CASE WHEN status = 'diketahui' THEN 1 ELSE 0 END) as total_diketahui,
+                    SUM(CASE WHEN status = 'selesai' THEN 1 ELSE 0 END) as total_selesai,
+                    SUM(CASE WHEN status = 'dibatalkan' THEN 1 ELSE 0 END) as total_dibatalkan,
+                    SUM(CASE WHEN no_st IS NOT NULL AND tgl_st IS NOT NULL THEN 1 ELSE 0 END) as total_selesai_st,
+                    COUNT(DISTINCT status) as status_count,
+                    COALESCE(SUM(total_biaya), 0) as total_anggaran
+                FROM accounting.nominatif_kegiatan
+                WHERE ppk_id = ? OR ppk_nama = ? OR ppk_nip = ?
+            `;
+            params = [userId, username, userId];
+        } else {
+            return res.status(403).json({
+                success: false,
+                message: 'Hanya Admin dan PPK yang dapat mengakses statistik'
+            });
         }
 
-        const [[stats]] = await db.query(query, params);
+        const [rows] = await db.query(query, params);
+        const stats = rows[0] || {};
 
         res.json({
             success: true,
             data: {
-                total_kegiatan: stats.total_kegiatan,
-                total_selesai: stats.total_selesai,
-                status_count: stats.status_count
+                total_kegiatan: stats.total_kegiatan || 0,
+                total_draft: stats.total_draft || 0,
+                total_diajukan: stats.total_diajukan || 0,
+                total_disetujui: stats.total_disetujui || 0,
+                total_diketahui: stats.total_diketahui || 0,
+                total_selesai: stats.total_selesai || 0,
+                total_dibatalkan: stats.total_dibatalkan || 0,
+                total_selesai_st: stats.total_selesai_st || 0,
+                status_count: stats.status_count || 0,
+                total_anggaran: stats.total_anggaran || 0
             }
         });
 
@@ -341,15 +275,14 @@ router.get('/search/stats', keycloakAuth, async (req, res) => {
     }
 });
 
-// Cancel kegiatan dari search - SEDERHANA
+// Cancel kegiatan - Admin bisa semua, PPK hanya kegiatannya sendiri
 router.put('/:id/cancel', keycloakAuth, async (req, res) => {
     const { id } = req.params;
+    const { alasan_pembatalan } = req.body;
     
-    // Ambil user info dari token Keycloak
-    const userId = getUserId(req.user);
-    const username = req.user?.preferred_username || req.user?.name || req.user?.username || 'User';
+    const { userId, username, userNip, userRole } = getUserInfo(req.user);
     
-    console.log(`❌ User ${username} membatalkan kegiatan ID ${id}`);
+    console.log(`❌ User ${username} (Role: ${userRole}, ID: ${userId}) mencoba membatalkan kegiatan ID ${id}`);
     
     if (!id || isNaN(id)) {
         return res.status(400).json({
@@ -359,19 +292,21 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
     }
     
     try {
-        // Cek apakah kegiatan ada
         const checkQuery = `
             SELECT 
                 id,
                 kegiatan,
                 status,
                 no_st,
-                tgl_st
+                tgl_st,
+                ppk_id,
+                ppk_nama,
+                ppk_nip,
+                user_id
             FROM accounting.nominatif_kegiatan 
             WHERE id = ?
         `;
         
-        console.log('🔍 Mengecek kegiatan dengan query:', checkQuery, [id]);
         const [checkRows] = await db.query(checkQuery, [id]);
         
         if (checkRows.length === 0) {
@@ -382,11 +317,39 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
         }
         
         const kegiatan = checkRows[0];
-        console.log('📊 Data kegiatan ditemukan:', {
-            id: kegiatan.id,
-            kegiatan: kegiatan.kegiatan,
-            status: kegiatan.status
-        });
+        
+        // Cek otorisasi berdasarkan role
+        let isAuthorized = false;
+        let authorizedReason = '';
+        
+        if (userRole === 'admin') {
+            // ADMIN: Bisa membatalkan SEMUA kegiatan tanpa pengecualian
+            isAuthorized = true;
+            authorizedReason = 'Admin memiliki wewenang penuh';
+            console.log(`✅ Admin ${username} authorized to cancel any kegiatan`);
+        } else if (userRole === 'ppk') {
+            // PPK: Hanya bisa membatalkan kegiatan yang menjadi tanggung jawabnya
+            const isMatchById = kegiatan.ppk_id === userId;
+            const isMatchByNip = kegiatan.ppk_nip === userNip;
+            const isMatchByName = kegiatan.ppk_nama === username;
+            
+            if (isMatchById || isMatchByNip || isMatchByName) {
+                isAuthorized = true;
+                authorizedReason = `PPK match (id:${isMatchById}, nip:${isMatchByNip}, name:${isMatchByName})`;
+                console.log(`✅ PPK ${username} authorized to cancel kegiatan ${id}`);
+            } else {
+                console.log(`❌ PPK ${username} NOT authorized. Kegiatan ppk_id: ${kegiatan.ppk_id}, ppk_nama: ${kegiatan.ppk_nama}`);
+            }
+        } else {
+            console.log(`❌ User role ${userRole} not authorized to cancel`);
+        }
+        
+        if (!isAuthorized) {
+            return res.status(403).json({
+                success: false,
+                message: 'Anda tidak memiliki wewenang untuk membatalkan kegiatan ini. Hanya Admin atau PPK yang bersangkutan yang dapat membatalkan.'
+            });
+        }
         
         // Cek apakah sudah dibatalkan
         if (kegiatan.status === 'dibatalkan') {
@@ -396,29 +359,26 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Cek apakah sudah ada No. ST (tidak bisa dibatalkan jika sudah selesai)
-        if (kegiatan.no_st && kegiatan.tgl_st) {
-            return res.status(400).json({
-                success: false,
-                message: 'Kegiatan yang sudah memiliki No. ST tidak dapat dibatalkan'
-            });
-        }
+        const previousStatus = kegiatan.status;
+        const hasNoST = !kegiatan.no_st || !kegiatan.tgl_st;
+        const cancelReason = alasan_pembatalan || `Dibatalkan oleh ${userRole === 'admin' ? 'Administrator' : 'PPK'} (${username})`;
         
-        // Update status menjadi 'dibatalkan' dan tanggal_dikembalikan
+        // Update status menjadi 'dibatalkan'
         const updateQuery = `
             UPDATE accounting.nominatif_kegiatan 
             SET 
                 status = 'dibatalkan',
                 tanggal_dikembalikan = NOW(),
-                updated_at = NOW()
+                updated_at = NOW(),
+                catatan = CONCAT(
+                    IFNULL(catatan, ''),
+                    '\n[${new Date().toISOString()}] DIBATALKAN oleh ${username} (${userRole})',
+                    '\nAlasan: ${cancelReason.replace(/'/g, "''")}'
+                )
             WHERE id = ?
         `;
         
-        console.log('📝 Update query:', updateQuery, [id]);
-        
         const [updateResult] = await db.query(updateQuery, [id]);
-        
-        console.log('✅ Update result:', updateResult);
         
         if (updateResult.affectedRows === 0) {
             return res.status(500).json({
@@ -427,14 +387,27 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
             });
         }
         
-        console.log(`✅ Status berhasil diupdate menjadi "dibatalkan" untuk kegiatan ID: ${id}`);
-        console.log(`📤 Kegiatan "${kegiatan.kegiatan}" berhasil dibatalkan oleh ${username}`);
+        // Catat ke history status
+        const historyQuery = `
+            INSERT INTO accounting.nominatif_status_history 
+            (kegiatan_id, status, catatan, user_id, user_nama, user_role, tanggal_status)
+            VALUES (?, 'dibatalkan', ?, ?, ?, ?, NOW())
+        `;
+        
+        const historyNote = `Dibatalkan oleh ${username} (${userRole}). Status sebelumnya: ${previousStatus}. Alasan: ${cancelReason}`;
+        
+        await db.query(historyQuery, [id, historyNote, userId, username, userRole]);
+        
+        console.log(`✅ Kegiatan ID ${id} berhasil dibatalkan oleh ${username} (${userRole})`);
+        console.log(`   Status sebelumnya: ${previousStatus}`);
+        console.log(`   Alasan: ${cancelReason}`);
         
         // Ambil data terbaru
         const getUpdatedQuery = `
             SELECT 
                 *,
-                DATE_FORMAT(tanggal_dikembalikan, '%Y-%m-%d %H:%i:%s') as tanggal_dikembalikan_format
+                DATE_FORMAT(tanggal_dikembalikan, '%Y-%m-%d %H:%i:%s') as tanggal_dibatalakan_format,
+                DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updated_at_format
             FROM accounting.nominatif_kegiatan 
             WHERE id = ?
         `;
@@ -442,7 +415,6 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
         const [updatedRows] = await db.query(getUpdatedQuery, [id]);
         const updatedKegiatan = updatedRows[0];
         
-        // Response sederhana
         res.status(200).json({
             success: true,
             message: 'Kegiatan berhasil dibatalkan',
@@ -450,16 +422,23 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
                 id: updatedKegiatan.id,
                 kegiatan: updatedKegiatan.kegiatan,
                 status: updatedKegiatan.status,
-                tanggal_dikembalikan: updatedKegiatan.tanggal_dikembalikan_format,
-                cancelled_by: username,
-                cancelled_at: new Date().toISOString()
+                status_sebelumnya: previousStatus,
+                tanggal_dibatalkan: updatedKegiatan.tanggal_dibatalakan_format,
+                dibatalkan_oleh: {
+                    username: username,
+                    user_id: userId,
+                    role: userRole,
+                    nip: userNip
+                },
+                alasan_pembatalan: cancelReason,
+                memiliki_no_st: hasNoST ? 'Tidak' : `Ya (${kegiatan.no_st})`,
+                dibatalkan_pada: new Date().toISOString()
             }
         });
         
     } catch (error) {
         console.error('❌ Error cancel kegiatan:', error);
         
-        // Berikan pesan error yang lebih spesifik
         let errorMessage = 'Gagal membatalkan kegiatan';
         let statusCode = 500;
         
@@ -480,6 +459,5 @@ router.put('/:id/cancel', keycloakAuth, async (req, res) => {
         });
     }
 });
-
 
 module.exports = router;
