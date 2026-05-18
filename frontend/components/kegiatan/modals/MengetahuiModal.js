@@ -50,16 +50,16 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 };
                 successMessage = 'Kegiatan berhasil diketahui';
             } else {
-                endpoint = `${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${kegiatan.id}/reject`;
+                // PERBAIKAN: Gunakan endpoint reject-ppk
+                endpoint = `${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${kegiatan.id}/reject-ppk`;
                 payload = { 
-                    catatan: catatan.trim(),
-                    rejected_by: session?.user?.name || 'PPK',
-                    rejected_by_id: session?.user?.id || 'ppk'
+                    catatan: catatan.trim()
                 };
                 successMessage = 'Kegiatan berhasil dikembalikan';
             }
 
-            console.log('Mengirim payload:', payload);
+            console.log('📤 Mengirim request ke:', endpoint);
+            console.log('📦 Payload:', payload);
 
             const response = await axios.post(endpoint, payload, {
                 headers: {
@@ -68,21 +68,30 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 }
             });
 
+            console.log('✅ Response:', response.data);
+
             if (response.data.success) {
-                // Panggil onSuccess dengan pesan yang sesuai
                 onSuccess(successMessage, action, response.data.data);
                 handleCloseModal();
             } else {
                 throw new Error(response.data.message || 'Gagal memproses persetujuan');
             }
         } catch (error) {
-            console.error('Error processing approval:', error);
-            setError(
-                error.response?.data?.message || 
-                error.response?.data?.error || 
-                error.message || 
-                'Terjadi kesalahan saat memproses'
-            );
+            console.error('❌ Error detail:', error);
+            console.error('Response error:', error.response?.data);
+            
+            let errorMessage = 'Terjadi kesalahan saat memproses';
+            if (error.response?.status === 404) {
+                errorMessage = 'Endpoint tidak ditemukan. Silakan hubungi administrator.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -118,7 +127,9 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-semibold text-white">Ketahui Kegiatan</h3>
+                                    <h3 className="text-lg font-semibold text-white">
+                                        {kegiatan.status === 'diajukan' ? 'Tinjau Pengajuan' : 'Ketahui Kegiatan'}
+                                    </h3>
                                     <p className="text-sm text-blue-100">Tinjau dan berikan keputusan</p>
                                 </div>
                             </div>
@@ -187,8 +198,12 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     <svg className="h-8 w-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span className="font-semibold">Diketahui</span>
-                                    <span className="text-xs mt-1">Status: Diketahui</span>
+                                    <span className="font-semibold">
+                                        {kegiatan.status === 'diajukan' ? 'Setujui' : 'Diketahui'}
+                                    </span>
+                                    <span className="text-xs mt-1">
+                                        Status: {kegiatan.status === 'diajukan' ? 'Diketahui' : 'Diketahui'}
+                                    </span>
                                 </button>
                                 
                                 <button
@@ -219,7 +234,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                         {/* Catatan Input */}
                         <div className="mb-6">
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Catatan {action === 'kembalikan' ? 'Pengembalian' : 'Diketahui'}
+                                Catatan {action === 'kembalikan' ? 'Pengembalian' : 'Persetujuan'}
                                 {action === 'kembalikan' && <span className="ml-1 text-red-500">*</span>}
                             </label>
                             <textarea
@@ -251,8 +266,17 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 <div className="ml-3">
                                     <h4 className="text-sm font-medium text-blue-800">Informasi Penting</h4>
                                     <div className="mt-1 text-sm text-blue-700 space-y-1">
-                                        <p>• <span className="font-semibold">Diketahui:</span> Status menjadi "Diketahui" dan tidak dapat diubah lagi</p>
-                                        <p>• <span className="font-semibold">Kembalikan:</span> Status menjadi "Dikembalikan" dan dapat diperbaiki user</p>
+                                        {kegiatan.status === 'diajukan' ? (
+                                            <>
+                                                <p>• <span className="font-semibold">Setujui:</span> Status menjadi "Diketahui" dan diteruskan ke Kabalai</p>
+                                                <p>• <span className="font-semibold">Kembalikan:</span> Status menjadi "Dikembalikan" dan dapat diperbaiki user</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p>• <span className="font-semibold">Diketahui:</span> Status menjadi "Diketahui" dan tidak dapat diubah lagi</p>
+                                                <p>• <span className="font-semibold">Kembalikan:</span> Status menjadi "Dikembalikan" dan dapat diperbaiki user</p>
+                                            </>
+                                        )}
                                         <p>• User dapat mengedit data setelah dikembalikan</p>
                                         <p>• User harus mengirim ulang ke PPK setelah diperbaiki</p>
                                     </div>
@@ -297,7 +321,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                             <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
-                                            Ketahui Kegiatan
+                                            {kegiatan.status === 'diajukan' ? 'Setujui Pengajuan' : 'Ketahui Kegiatan'}
                                         </>
                                     ) : (
                                         <>

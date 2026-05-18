@@ -30,12 +30,11 @@ const normalizeNip = (nip) => {
     return String(nip).replace(/\s/g, '');
 };
 
-// Perbaiki helper getUserRoleInfo
+// Helper untuk mengecek role user
 function getUserRoleInfo(user) {
     const roles = user.extractedRoles || user.role || [];
     const roleArray = Array.isArray(roles) ? roles : [roles];
     
-    // Normalisasi role name (lowercase)
     const normalizedRoles = roleArray.map(r => String(r).toLowerCase());
     
     console.log('🔍 Normalized roles:', normalizedRoles);
@@ -48,110 +47,6 @@ function getUserRoleInfo(user) {
         isRegularUser: !normalizedRoles.includes('admin') && !normalizedRoles.includes('ppk') && !normalizedRoles.includes('bendahara')
     };
 }
-
-// Perbaiki endpoint need-kwitansi - tambahkan data ppk_nip dan bendahara_nip
-router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
-    try {
-        const user = req.user;
-        const userNip = user?.nip || '';
-        const roleInfo = getUserRoleInfo(user);
-        const normalizedUserNip = normalizeNip(userNip);
-        
-        console.log('👤 User info for need-kwitansi:', {
-            nip: normalizedUserNip,
-            isAdmin: roleInfo.isAdmin,
-            isPPK: roleInfo.isPPK,
-            isBendahara: roleInfo.isBendahara
-        });
-        
-        let kegiatanQuery = `
-            SELECT DISTINCT 
-                n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
-                n.status, 
-                n.ppk_nama, n.ppk_id, n.ppk_nip,
-                n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
-                n.diketahui_oleh, n.diketahui_oleh_id, n.created_at
-            FROM nominatif_kegiatan n
-            JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-            WHERE n.status = 'selesai'
-        `;
-        
-        let queryParams = [];
-        
-        // Filter berdasarkan role
-        if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara && normalizedUserNip) {
-            kegiatanQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
-            queryParams.push(normalizedUserNip);
-        }
-        // Jika PPK, tampilkan semua kegiatan (tidak difilter)
-        // Jika Bendahara, tampilkan semua kegiatan (tidak difilter)
-        
-        kegiatanQuery += ` ORDER BY n.created_at DESC`;
-        
-        const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
-        const result = [];
-
-        for (const kegiatan of kegiatanList) {
-            let pegawaiQuery = `
-                SELECT 
-                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
-                    k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.upload_kwitansi,
-                    COALESCE(k.status_pegawai, 'belum') as status_pegawai,
-                    COALESCE(k.status_bendahara, 'belum') as status_bendahara,
-                    COALESCE(k.status_ppk, 'belum') as status_ppk,
-                    k.tgl_ttd_pegawai, k.tgl_ttd_bendahara, k.tgl_ttd_ppk,
-                    k.catatan_pegawai, k.catatan_bendahara, k.catatan_ppk,
-                    CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
-                FROM nominatif_pegawai p
-                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
-                WHERE p.kegiatan_id = ?
-            `;
-            
-            const pegawaiParams = [kegiatan.id];
-            
-            if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara && normalizedUserNip) {
-                pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
-                pegawaiParams.push(normalizedUserNip);
-            }
-            
-            pegawaiQuery += ` ORDER BY p.id ASC`;
-            
-            const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
-            
-            if (pegawaiList.length === 0) continue;
-            
-            // Hitung progress approval
-            let semuaPegawaiApprove = true;
-            let semuaBendaharaApprove = true;
-            let semuaPpkApprove = true;
-            
-            pegawaiList.forEach(p => {
-                if (p.kwitansi_status === 'belum') semuaPegawaiApprove = false;
-                if (p.status_pegawai !== 'sudah') semuaPegawaiApprove = false;
-                if (p.status_bendahara !== 'sudah') semuaBendaharaApprove = false;
-                if (p.status_ppk !== 'sudah') semuaPpkApprove = false;
-            });
-            
-            result.push({
-                ...kegiatan,
-                total_pegawai: pegawaiList.length,
-                sudah_input: pegawaiList.filter(p => p.kwitansi_status === 'sudah').length,
-                semua_pegawai_approve: semuaPegawaiApprove,
-                semua_bendahara_approve: semuaBendaharaApprove,
-                semua_ppk_approve: semuaPpkApprove,
-                pegawai: pegawaiList,
-                tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-'
-            });
-        }
-        
-        console.log(`✅ Sending ${result.length} kegiatan to frontend`);
-        
-        res.status(200).json({ success: true, data: result });
-    } catch (error) {
-        console.error('❌ Error in need-kwitansi:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
 
 // Ambil TTD dari profile berdasarkan user_id
 async function getTtdByUserId(userId) {
@@ -202,6 +97,8 @@ const upload = multer({
     }
 });
 
+// routes/kwitansi.js - Perbaikan untuk Role Regular User
+
 // ============ GET kegiatan dengan pegawai ============
 router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     try {
@@ -210,27 +107,102 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         const roleInfo = getUserRoleInfo(user);
         const normalizedUserNip = normalizeNip(userNip);
         
-        let kegiatanQuery = `
-            SELECT DISTINCT 
-                n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
-                n.status, n.ppk_nama, n.ppk_id, n.ppk_nip,
-                n.bendahara_nama, n.bendahara_nip,
-                n.diketahui_oleh, n.diketahui_oleh_id, n.created_at
-            FROM nominatif_kegiatan n
-            JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-            WHERE n.status = 'selesai'
-        `;
+        console.log('👤 User info for need-kwitansi:', {
+            nip: normalizedUserNip,
+            isAdmin: roleInfo.isAdmin,
+            isPPK: roleInfo.isPPK,
+            isBendahara: roleInfo.isBendahara
+        });
         
+        let kegiatanQuery = '';
         let queryParams = [];
         
-        if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara && normalizedUserNip) {
-            kegiatanQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
-            queryParams.push(normalizedUserNip);
+        if (roleInfo.isRegularUser) {
+            // REGULAR USER: menggunakan LEFT JOIN agar bisa melihat kegiatan yang belum input kwitansi
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND REPLACE(p.nip, ' ', '') = ?
+                AND (UPPER(n.status_2) = 'SELESAI' OR n.status_2 IS NULL OR n.status_2 = '')
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [normalizedUserNip];
+            console.log('👤 Regular user mode: melihat data sendiri (termasuk yang belum input kwitansi)');
+        } else if (roleInfo.isAdmin) {
+            // ADMIN: menggunakan INNER JOIN untuk semua data
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [];
+            console.log('👑 Admin mode: melihat semua data kwitansi');
+        } else if (roleInfo.isPPK) {
+            // PPK: menggunakan INNER JOIN
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
+                AND k.status_pegawai = 'sudah'
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
+            console.log('📋 PPK mode: melihat data yang sudah di-approve pegawai');
+        } else if (roleInfo.isBendahara) {
+            // Bendahara: menggunakan INNER JOIN
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND (n.bendahara_id = ? OR n.bendahara_nip = ? OR n.bendahara_nama = ?)
+                AND k.status_pegawai = 'sudah'
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
+            console.log('💰 Bendahara mode: melihat data yang sudah di-approve pegawai');
         }
         
-        kegiatanQuery += ` ORDER BY n.created_at DESC`;
+        console.log('📝 Query:', kegiatanQuery);
+        console.log('📝 Params:', queryParams);
         
         const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
+        
         const result = [];
 
         for (const kegiatan of kegiatanList) {
@@ -238,13 +210,12 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 SELECT 
                     p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
                     k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.upload_kwitansi,
-                    k.status_pegawai, k.status_bendahara, k.status_ppk,
-                    k.tgl_ttd_pegawai, k.tgl_ttd_bendahara, k.tgl_ttd_ppk,
-                    k.catatan_pegawai, k.catatan_bendahara, k.catatan_ppk,
-                    CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status,
                     COALESCE(k.status_pegawai, 'belum') as status_pegawai,
                     COALESCE(k.status_bendahara, 'belum') as status_bendahara,
-                    COALESCE(k.status_ppk, 'belum') as status_ppk
+                    COALESCE(k.status_ppk, 'belum') as status_ppk,
+                    k.tgl_ttd_pegawai, k.tgl_ttd_bendahara, k.tgl_ttd_ppk,
+                    k.catatan_pegawai, k.catatan_bendahara, k.catatan_ppk,
+                    CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
                 FROM nominatif_pegawai p
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
                 WHERE p.kegiatan_id = ?
@@ -252,12 +223,26 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             
             const pegawaiParams = [kegiatan.id];
             
-            if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara && normalizedUserNip) {
+            // Filter pegawai berdasarkan role
+            if (roleInfo.isPPK || roleInfo.isBendahara) {
+                // PPK dan Bendahara: lihat semua pegawai dalam kegiatan yang sudah terfilter
+            } else if (!roleInfo.isAdmin && normalizedUserNip) {
+                // Regular user: hanya data diri sendiri
                 pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
                 pegawaiParams.push(normalizedUserNip);
             }
             
+            // Tambahan filter untuk status approval berdasarkan role
+            if (roleInfo.isPPK) {
+                pegawaiQuery += ` AND k.status_pegawai = 'sudah'`;
+            } else if (roleInfo.isBendahara) {
+                pegawaiQuery += ` AND k.status_pegawai = 'sudah'`;
+            }
+            
             pegawaiQuery += ` ORDER BY p.id ASC`;
+            
+            console.log(`📝 Pegawai Query for kegiatan ${kegiatan.id}:`, pegawaiQuery);
+            console.log(`📝 Pegawai Params:`, pegawaiParams);
             
             const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
             
@@ -286,6 +271,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-'
             });
         }
+        
+        console.log(`✅ Sending ${result.length} kegiatan to frontend`);
         
         res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -383,7 +370,6 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
         
         // Tentukan role user dan field yang akan diupdate
         let role = null;
-        let currentStatus = null;
         
         if (roleInfo.isAdmin) {
             role = 'admin';
@@ -574,9 +560,6 @@ router.get('/status/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
     }
 });
 
-
-// routes/kwitansi.js - Tambahkan endpoint UPDATE
-
 // PUT untuk update kwitansi (ketika ditolak)
 router.put('/:id', keycloakAuth, (req, res) => {
     upload.single('upload_kwitansi')(req, res, async (err) => {
@@ -707,12 +690,6 @@ router.put('/:id', keycloakAuth, (req, res) => {
     });
 });
 
-// routes/kwitansi.js - Tambahkan endpoint untuk mengambil detail biaya pegawai
-
-// GET detail pegawai dengan semua biayanya
-// GET detail pegawai dengan semua biayanya dari tabel terpisah
-// routes/kwitansi.js - Tambahkan endpoint untuk mengambil detail biaya pegawai
-
 // GET detail pegawai dengan semua biayanya
 router.get('/pegawai/:pegawaiId/biaya', keycloakAuth, async (req, res) => {
     try {
@@ -795,6 +772,301 @@ router.get('/pegawai/:pegawaiId/biaya', keycloakAuth, async (req, res) => {
         
     } catch (error) {
         console.error('❌ Error fetching pegawai biaya:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// ============ SPTJM TRANSPORT ENDPOINTS ============
+
+// GET data SPTJM Transport berdasarkan kwitansi_id
+router.get('/sptjm-transport/:kwitansiId', keycloakAuth, async (req, res) => {
+    try {
+        const { kwitansiId } = req.params;
+        
+        // Cek apakah tabel ada
+        const [tableCheck] = await db.query(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'sptjm_transport'
+        `);
+        
+        if (tableCheck[0].count === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'Tabel SPTJM Transport belum tersedia'
+            });
+        }
+        
+        const [sptjmList] = await db.query(`
+            SELECT 
+                id,
+                kwitansi_id,
+                kegiatan_id,
+                pegawai_id,
+                jenis_transport,
+                nama_maskapai,
+                kode_penerbangan,
+                nomor_kursi,
+                created_at,
+                updated_at
+            FROM sptjm_transport
+            WHERE kwitansi_id = ?
+            ORDER BY id ASC
+        `, [kwitansiId]);
+        
+        res.status(200).json({
+            success: true,
+            data: sptjmList
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching SPTJM transport:', error);
+        // Jika tabel belum ada, return data kosong
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'Tabel SPTJM Transport belum tersedia'
+            });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST create/update SPTJM Transport
+router.post('/sptjm-transport/:kwitansiId', keycloakAuth, async (req, res) => {
+    try {
+        const { kwitansiId } = req.params;
+        const { sptjm_list, kegiatan_id, pegawai_id } = req.body;
+        
+        console.log(`📝 Saving SPTJM Transport for kwitansi ID: ${kwitansiId}`);
+        console.log(`📝 Data received:`, { sptjm_list, kegiatan_id, pegawai_id });
+        
+        if (!sptjm_list || !Array.isArray(sptjm_list)) {
+            return res.status(400).json({ success: false, message: 'Data SPTJM transport tidak valid' });
+        }
+        
+        // Cek apakah tabel ada, jika tidak buat
+        const [tableCheck] = await db.query(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'sptjm_transport'
+        `);
+        
+        if (tableCheck[0].count === 0) {
+            // Buat tabel jika belum ada
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS sptjm_transport (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    kwitansi_id INT NOT NULL,
+                    kegiatan_id INT NOT NULL,
+                    pegawai_id INT NOT NULL,
+                    jenis_transport VARCHAR(50) DEFAULT NULL,
+                    nama_maskapai VARCHAR(100) DEFAULT NULL,
+                    kode_penerbangan VARCHAR(50) DEFAULT NULL,
+                    nomor_kursi VARCHAR(20) DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_kwitansi_id (kwitansi_id),
+                    INDEX idx_kegiatan_id (kegiatan_id),
+                    INDEX idx_pegawai_id (pegawai_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            `);
+            console.log('✅ Created sptjm_transport table');
+        }
+        
+        // Mulai transaction
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        try {
+            // Hapus data lama berdasarkan kwitansi_id
+            await connection.query(
+                'DELETE FROM sptjm_transport WHERE kwitansi_id = ?',
+                [kwitansiId]
+            );
+            console.log(`🗑️ Deleted old records for kwitansi_id: ${kwitansiId}`);
+            
+            // Insert data baru
+            if (sptjm_list.length > 0) {
+                const insertQuery = `
+                    INSERT INTO sptjm_transport 
+                    (kwitansi_id, kegiatan_id, pegawai_id, jenis_transport, nama_maskapai, kode_penerbangan, nomor_kursi)
+                    VALUES ?
+                `;
+                
+                const values = sptjm_list.map(item => [
+                    parseInt(kwitansiId),
+                    parseInt(kegiatan_id),
+                    parseInt(pegawai_id),
+                    item.jenis_transport || null,
+                    item.nama_maskapai || null,
+                    item.kode_penerbangan || null,
+                    item.nomor_kursi || null
+                ]);
+                
+                console.log(`📝 Inserting ${values.length} records:`, values);
+                
+                await connection.query(insertQuery, [values]);
+            }
+            
+            await connection.commit();
+            
+            console.log(`✅ SPTJM Transport saved for kwitansi ID: ${kwitansiId}, total: ${sptjm_list.length} items`);
+            
+            res.status(200).json({
+                success: true,
+                message: 'Data SPTJM Transport berhasil disimpan',
+                data: { total_saved: sptjm_list.length }
+            });
+            
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error saving SPTJM transport:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message,
+            code: error.code,
+            sqlMessage: error.sqlMessage
+        });
+    }
+});
+
+// DELETE SPTJM Transport item
+router.delete('/sptjm-transport/:id', keycloakAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Cek apakah tabel ada
+        const [tableCheck] = await db.query(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'sptjm_transport'
+        `);
+        
+        if (tableCheck[0].count === 0) {
+            return res.status(404).json({ success: false, message: 'Tabel SPTJM Transport belum tersedia' });
+        }
+        
+        const [result] = await db.query(
+            'DELETE FROM sptjm_transport WHERE id = ?',
+            [id]
+        );
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Data SPTJM Transport tidak ditemukan' });
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: 'Data SPTJM Transport berhasil dihapus'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error deleting SPTJM transport:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST create/update SPTJM Transport
+router.post('/sptjm-transport/:kwitansiId', keycloakAuth, async (req, res) => {
+    try {
+        const { kwitansiId } = req.params;
+        const { sptjm_list, kegiatan_id, pegawai_id } = req.body;
+        
+        console.log(`📝 Saving SPTJM Transport for kwitansi ID: ${kwitansiId}`);
+        
+        if (!sptjm_list || !Array.isArray(sptjm_list)) {
+            return res.status(400).json({ success: false, message: 'Data SPTJM transport tidak valid' });
+        }
+        
+        // Mulai transaction
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        try {
+            // Hapus data lama
+            await connection.query(
+                'DELETE FROM sptjm_transport WHERE kwitansi_id = ?',
+                [kwitansiId]
+            );
+            
+            // Insert data baru
+            if (sptjm_list.length > 0) {
+                const insertQuery = `
+                    INSERT INTO sptjm_transport 
+                    (kwitansi_id, kegiatan_id, pegawai_id, jenis_transport, nama_maskapai, kode_penerbangan, nomor_kursi)
+                    VALUES ?
+                `;
+                
+                const values = sptjm_list.map(item => [
+                    kwitansiId,
+                    kegiatan_id,
+                    pegawai_id,
+                    item.jenis_transport || null,
+                    item.nama_maskapai || null,
+                    item.kode_penerbangan || null,
+                    item.nomor_kursi || null
+                ]);
+                
+                await connection.query(insertQuery, [values]);
+            }
+            
+            await connection.commit();
+            
+            console.log(`✅ SPTJM Transport saved for kwitansi ID: ${kwitansiId}, total: ${sptjm_list.length} items`);
+            
+            res.status(200).json({
+                success: true,
+                message: 'Data SPTJM Transport berhasil disimpan',
+                data: { total_saved: sptjm_list.length }
+            });
+            
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error saving SPTJM transport:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE SPTJM Transport item
+router.delete('/sptjm-transport/:id', keycloakAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const [result] = await db.query(
+            'DELETE FROM sptjm_transport WHERE id = ?',
+            [id]
+        );
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Data SPTJM Transport tidak ditemukan' });
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: 'Data SPTJM Transport berhasil dihapus'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error deleting SPTJM transport:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

@@ -1357,6 +1357,121 @@ router.post('/:id/approve', keycloakAuth, async (req, res) => {
     }
 });
 
+
+// POST - PPK menolak/mengembalikan pengajuan (REJECT PPK)
+router.post('/:id/reject-ppk', keycloakAuth, async (req, res) => {
+    const { id } = req.params;
+    const username = getUsername(req.user);
+    const userId = getUserId(req.user);
+    const { catatan } = req.body;
+    
+    console.log(`📋 PPK ${username} mengembalikan kegiatan ID: ${id}`);
+    console.log(`📝 Catatan: ${catatan}`);
+    
+    if (!id || isNaN(id)) {
+        return res.status(400).json({
+            success: false,
+            message: 'ID kegiatan tidak valid'
+        });
+    }
+    
+    if (!catatan || catatan.trim().length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Catatan wajib diisi ketika mengembalikan kegiatan'
+        });
+    }
+    
+    if (!req.user.isPPK) {
+        return res.status(403).json({
+            success: false,
+            message: 'Hanya PPK yang dapat mengembalikan pengajuan'
+        });
+    }
+    
+    let connection;
+    try {
+        const checkQuery = `
+            SELECT k.id, k.kegiatan, k.status, k.ppk_id
+            FROM accounting.nominatif_kegiatan k
+            WHERE k.id = ? AND k.ppk_id = ?
+        `;
+        const [checkRows] = await db.query(checkQuery, [id, userId]);
+        
+        if (checkRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Kegiatan tidak ditemukan atau tidak ditugaskan ke PPK Anda'
+            });
+        }
+        
+        const kegiatan = checkRows[0];
+        
+        // Status yang bisa dikembalikan adalah 'diajukan'
+        if (kegiatan.status !== 'diajukan') {
+            return res.status(400).json({
+                success: false,
+                message: `Kegiatan dengan status "${kegiatan.status}" tidak dapat dikembalikan. Hanya kegiatan yang diajukan yang dapat dikembalikan.`
+            });
+        }
+        
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const updateQuery = `
+            UPDATE accounting.nominatif_kegiatan 
+            SET 
+                status = 'dikembalikan',
+                catatan = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND ppk_id = ? AND status = 'diajukan'
+        `;
+        
+        await connection.execute(updateQuery, [catatan.trim(), id, userId]);
+        
+        const historyQuery = `
+            INSERT INTO accounting.nominatif_status_history 
+            (kegiatan_id, status, user_id, user_nama, user_role, catatan, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+        `;
+        
+        await connection.execute(historyQuery, [
+            id, 'dikembalikan', userId, username, 'ppk',
+            `Dikembalikan oleh PPK: ${username} - Alasan: ${catatan}`
+        ]);
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`✅ Kegiatan "${kegiatan.kegiatan}" dikembalikan oleh PPK ${username}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Kegiatan berhasil dikembalikan ke user',
+            data: {
+                kegiatan_id: parseInt(id),
+                status: 'dikembalikan'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error reject PPK:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengembalikan kegiatan',
+            error: error.message
+        });
+    }
+});
+
 // routes/kegiatan.js - Endpoint reject-kabalai
 
 router.post('/:id/reject-kabalai', keycloakAuth, async (req, res) => {
@@ -1959,5 +2074,7 @@ router.put('/:id/bendahara', keycloakAuth, async (req, res) => {
         });
     }
 });
+
+
 
 module.exports = router;

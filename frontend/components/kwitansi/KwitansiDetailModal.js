@@ -11,6 +11,10 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const [message, setMessage] = useState('');
     const [catatan, setCatatan] = useState('');
     
+    // State untuk SPTJM Transport
+    const [sptjmList, setSptjmList] = useState([]);
+    const [loadingSptjm, setLoadingSptjm] = useState(false);
+    
     // State untuk mode edit
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({
@@ -50,75 +54,39 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const isRejected = statusPegawai === 'ditolak' || statusBendahara === 'ditolak' || statusPpk === 'ditolak';
     const canEdit = isPegawai && isRejected;
     
-    // DEBUG: Log semua data untuk debugging
-    useEffect(() => {
-        const canApproveResult = isPpk && statusPegawai === 'sudah' && statusBendahara === 'sudah' && statusPpk === 'belum';
+    // Fungsi untuk mengambil data SPTJM Transport
+    const fetchSptjmTransport = async () => {
+        const kwitansiId = item.kwitansi_id || item.id;
+        if (!kwitansiId) return;
         
-        console.log('🔍 ========== KWITANSI DETAIL MODAL DEBUG ==========');
-        console.log('📋 Item data:', {
-            id: item.id,
-            kwitansi_id: item.kwitansi_id,
-            no_lpd: item.no_lpd,
-            status_pegawai: item.status_pegawai,
-            status_bendahara: item.status_bendahara,
-            status_ppk: item.status_ppk,
-            ppk_nama: item.ppk_nama,
-            ppk_nip: item.ppk_nip,
-            bendahara_nama: item.bendahara_nama,
-            bendahara_nip: item.bendahara_nip,
-            pegawai_nip: item.pegawai_nip || item.nip
-        });
-        
-        console.log('👤 User session:', {
-            userNip: userNip,
-            userRoles: session?.user?.roles || session?.user?.role,
-            userName: session?.user?.name
-        });
-        
-        console.log('🔐 Role checks:', {
-            isPegawai: isPegawai,
-            isBendahara: isBendahara,
-            isPpk: isPpk,
-            pegawaiNipMatch: userNip === pegawaiNip,
-            bendaharaNipMatch: userNip === bendaharaNip,
-            ppkNipMatch: userNip === ppkNip,
-            userNip: userNip,
-            ppkNip: ppkNip
-        });
-        
-        console.log('📊 Status approvals:', {
-            statusPegawai: statusPegawai,
-            statusBendahara: statusBendahara,
-            statusPpk: statusPpk
-        });
-        
-        console.log('✅ Can approve result:', canApproveResult);
-        console.log('🔍 ================================================');
-    }, [item, userNip, session, statusPegawai, statusBendahara, statusPpk, isPpk, isBendahara, isPegawai, pegawaiNip, bendaharaNip, ppkNip]);
-    
-    // Cek apakah user bisa approve
-    const canApprove = () => {
-        // PPK: harus NIP match, status_pegawai = 'sudah', status_bendahara = 'sudah', status_ppk = 'belum'
-        if (isPpk && statusPegawai === 'sudah' && statusBendahara === 'sudah' && statusPpk === 'belum') {
-            console.log('✅ PPK can approve: true');
-            return true;
+        setLoadingSptjm(true);
+        try {
+            const response = await axios.get(
+                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport/${kwitansiId}`,
+                { headers: { Authorization: `Bearer ${session?.accessToken}` } }
+            );
+            
+            if (response.data.success && response.data.data) {
+                setSptjmList(response.data.data);
+                console.log('📦 SPTJM Transport data:', response.data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching SPTJM transport:', error);
+            // Jika tabel belum ada, tidak perlu error
+            if (error.response?.status !== 404) {
+                setMessage('Gagal memuat data transport');
+            }
+        } finally {
+            setLoadingSptjm(false);
         }
-        
-        // Bendahara: harus NIP match, status_pegawai = 'sudah', status_bendahara = 'belum'
-        if (isBendahara && statusPegawai === 'sudah' && statusBendahara === 'belum') {
-            console.log('✅ Bendahara can approve: true');
-            return true;
-        }
-        
-        // Pegawai: harus NIP match, status_pegawai = 'belum'
-        if (isPegawai && statusPegawai === 'belum') {
-            console.log('✅ Pegawai can approve: true');
-            return true;
-        }
-        
-        console.log('❌ Cannot approve');
-        return false;
     };
+    
+    // Ambil data SPTJM Transport saat modal dibuka
+    useEffect(() => {
+        if (item.id || item.kwitansi_id) {
+            fetchSptjmTransport();
+        }
+    }, [item.id, item.kwitansi_id]);
     
     // Get status badge
     const getStatusBadge = (status, label) => {
@@ -328,7 +296,26 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     };
     
     const totalBiaya = hitungTotalBiaya();
-    const canUserApprove = canApprove();
+    const canUserApprove = (isPpk && statusPegawai === 'sudah' && statusBendahara === 'sudah' && statusPpk === 'belum') ||
+                           (isBendahara && statusPegawai === 'sudah' && statusBendahara === 'belum') ||
+                           (isPegawai && statusPegawai === 'belum');
+    
+    // Helper untuk mendapatkan label jenis transport
+    const getJenisTransportLabel = (jenis) => {
+        const icons = {
+            'Pesawat': '✈️',
+            'Kereta Api': '🚆',
+            'Bus': '🚌',
+            'Travel': '🚐',
+            'Taksi': '🚕',
+            'Kapal/Laut': '⛴️',
+            'Mobil Dinas': '🚗',
+            'Kendaraan Pribadi': '🏍️',
+            'Ojek': '🏍️',
+            'Lainnya': '📦'
+        };
+        return `${icons[jenis] || '🚗'} ${jenis}`;
+    };
     
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -345,8 +332,6 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                             </svg>
                         </button>
                     </div>
-                    
-                   
                     
                     {message && (
                         <div className={`mb-4 p-3 rounded-lg ${message.includes('berhasil') || message.includes('disetujui') ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -463,6 +448,65 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                     <p className="font-medium">Tanggal Kwitansi</p>
                                     <p>{item.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : '-'}</p>
                                 </div>
+                            </div>
+                            
+                            {/* SPTJM Transport Section */}
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                    </svg>
+                                    SPTJM Transport
+                                </h4>
+                                
+                                {loadingSptjm ? (
+                                    <div className="flex justify-center py-4">
+                                        <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                ) : sptjmList.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {sptjmList.map((sptjm, idx) => (
+                                            <div key={sptjm.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-medium text-gray-700">Transport {idx + 1}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {formatDateFn(sptjm.created_at)}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                                    <div>
+                                                        <span className="text-gray-500">Jenis Transport:</span>
+                                                        <p className="font-medium text-gray-800">
+                                                            {getJenisTransportLabel(sptjm.jenis_transport) || '-'}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Nama Maskapai/Perusahaan:</span>
+                                                        <p className="font-medium text-gray-800">{sptjm.nama_maskapai || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Kode Penerbangan/No. Polisi:</span>
+                                                        <p className="font-medium text-gray-800">{sptjm.kode_penerbangan || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Nomor Kursi/Kabin:</span>
+                                                        <p className="font-medium text-gray-800">{sptjm.nomor_kursi || '-'}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-gray-500 text-sm">
+                                        <svg className="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                        </svg>
+                                        Belum ada data SPTJM Transport
+                                    </div>
+                                )}
                             </div>
                             
                             {/* Status Approval Berjenjang */}
