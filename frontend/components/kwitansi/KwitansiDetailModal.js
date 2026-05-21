@@ -16,11 +16,16 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const [sptjmList, setSptjmList] = useState([]);
     const [loadingSptjm, setLoadingSptjm] = useState(false);
     
+    // State untuk SPTJM Penginapan
+    const [penginapanList, setPenginapanList] = useState([]);
+    const [loadingPenginapan, setLoadingPenginapan] = useState(false);
+    
     // State untuk mode edit
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({
         no_lpd: '',
         tgl_kwitansi: '',
+        tgl_spd: '',
         upload_kwitansi: null
     });
     const [editFile, setEditFile] = useState(null);
@@ -81,7 +86,33 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
         }
     };
     
-    // Fungsi untuk download file
+    // Fungsi untuk mengambil data SPTJM Penginapan
+    const fetchSptjmPenginapan = async () => {
+        const kwitansiId = item.kwitansi_id || item.id;
+        if (!kwitansiId) return;
+        
+        setLoadingPenginapan(true);
+        try {
+            const response = await axios.get(
+                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan/${kwitansiId}`,
+                { headers: { Authorization: `Bearer ${session?.accessToken}` } }
+            );
+            
+            if (response.data.success && response.data.data) {
+                setPenginapanList(response.data.data);
+                console.log('📦 SPTJM Penginapan data:', response.data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching SPTJM penginapan:', error);
+            if (error.response?.status !== 404) {
+                setMessage('Gagal memuat data penginapan');
+            }
+        } finally {
+            setLoadingPenginapan(false);
+        }
+    };
+    
+    // Fungsi untuk download file transport
     const downloadFile = async (fileId, fileName) => {
         try {
             const response = await axios.get(
@@ -108,10 +139,38 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
         }
     };
     
-    // Ambil data SPTJM Transport saat modal dibuka
+    // Fungsi untuk download file penginapan
+    const downloadPenginapanFile = async (fileId, fileName) => {
+        try {
+            const response = await axios.get(
+                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan-file/${fileId}/download`,
+                {
+                    headers: { Authorization: `Bearer ${session?.accessToken}` },
+                    responseType: 'blob'
+                }
+            );
+            
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading penginapan file:', error);
+            setMessage('Gagal mengunduh file penginapan');
+            setMessageType('error');
+            setTimeout(() => setMessage(''), 3000);
+        }
+    };
+    
+    // Ambil data SPTJM saat modal dibuka
     useEffect(() => {
         if (item.id || item.kwitansi_id) {
             fetchSptjmTransport();
+            fetchSptjmPenginapan();
         }
     }, [item.id, item.kwitansi_id]);
     
@@ -159,9 +218,10 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
         setEditData({
             no_lpd: item.no_lpd || '',
             tgl_kwitansi: item.tgl_kwitansi ? new Date(item.tgl_kwitansi).toISOString().split('T')[0] : '',
+            tgl_spd: item.tgl_spd ? new Date(item.tgl_spd).toISOString().split('T')[0] : '',
             upload_kwitansi: null
         });
-    }, [item.upload_kwitansi, item.no_lpd, item.tgl_kwitansi]);
+    }, [item.upload_kwitansi, item.no_lpd, item.tgl_kwitansi, item.tgl_spd]);
     
     const handleApprove = async (status) => {
         setLoading(true);
@@ -212,6 +272,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
             const formData = new FormData();
             formData.append('no_lpd', editData.no_lpd);
             formData.append('tgl_kwitansi', editData.tgl_kwitansi);
+            formData.append('tgl_spd', editData.tgl_spd);
             if (editFile) {
                 formData.append('upload_kwitansi', editFile);
             }
@@ -358,6 +419,13 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
         return `${icons[jenis] || '🚗'} ${jenis}`;
     };
     
+    // Helper untuk format tanggal menginap
+    const formatDateRange = (tglMulai, tglSelesai) => {
+        if (!tglMulai && !tglSelesai) return '-';
+        if (tglMulai === tglSelesai) return formatDateFn(tglMulai);
+        return `${formatDateFn(tglMulai)} - ${formatDateFn(tglSelesai)}`;
+    };
+    
     // Helper untuk mendapatkan icon file
     const getFileIcon = (fileName) => {
         const ext = fileName?.split('.').pop().toLowerCase();
@@ -450,6 +518,15 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                     placeholder="Masukkan No LPD"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal SPD</label>
+                                <input
+                                    type="date"
+                                    value={editData.tgl_spd}
+                                    onChange={(e) => setEditData({ ...editData, tgl_spd: e.target.value })}
+                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
                             
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kwitansi</label>
@@ -506,6 +583,10 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                     <p className="font-bold text-blue-600">{item.no_lpd || '-'}</p>
                                 </div>
                                 <div className="bg-gray-50 p-3 rounded">
+                                    <p className="font-medium">Tanggal SPD</p>
+                                    <p>{item.tgl_spd ? formatDateFn(item.tgl_spd) : '-'}</p>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded">
                                     <p className="font-medium">Kegiatan</p>
                                     <p>{item.nama_kegiatan || '-'}</p>
                                 </div>
@@ -517,10 +598,12 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                     <p className="font-medium">Pegawai</p>
                                     <p>{item.nama_pegawai || item.nama || '-'}<br/><span className="text-xs">{item.pegawai_nip || item.nip || '-'}</span></p>
                                 </div>
+                                 
                                 <div className="bg-gray-50 p-3 rounded">
                                     <p className="font-medium">Tanggal Kwitansi</p>
                                     <p>{item.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : '-'}</p>
                                 </div>
+                               
                             </div>
                             
                             {/* SPTJM Transport Section */}
@@ -615,7 +698,115 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 )}
                             </div>
                             
-                            {/* Status Approval Berjenjang - URUTAN BARU */}
+                            {/* SPTJM Penginapan Section - PERBAIKAN */}
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    SPTJM Penginapan
+                                </h4>
+                                
+                                {loadingPenginapan ? (
+                                    <div className="flex justify-center py-4">
+                                        <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                ) : penginapanList.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {penginapanList.map((penginapan, idx) => (
+                                            <div key={penginapan.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
+                                                    <span className="font-medium text-gray-700">Penginapan {idx + 1}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {penginapan.created_at ? formatDateFn(penginapan.created_at) : '-'}
+                                                    </span>
+                                                </div>
+                                                <div className="p-3">
+                                                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                                                        <div className="col-span-2">
+                                                            <span className="text-gray-500">Nama Hotel/Penginapan:</span>
+                                                            <p className="font-medium text-gray-800">
+                                                                {penginapan.nama_penginapan || penginapan.nama_hotel || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <span className="text-gray-500">Alamat:</span>
+                                                            <p className="font-medium text-gray-800">
+                                                                {penginapan.alamat_penginapan || penginapan.alamat || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Nomor Kamar:</span>
+                                                            <p className="font-medium text-gray-800">{penginapan.nomor_kamar || '-'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Tarif Hotel:</span>
+                                                            <p className="font-medium text-gray-800">
+                                                                {penginapan.tarif_hotel ? formatRupiah(penginapan.tarif_hotel) : '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Tanggal Menginap:</span>
+                                                            <p className="font-medium text-gray-800">
+                                                                {penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'}
+                                                            </p>
+                                                        </div>
+                                                        {penginapan.kode_booking && (
+                                                            <div>
+                                                                <span className="text-gray-500">Kode Booking:</span>
+                                                                <p className="font-medium text-gray-800">{penginapan.kode_booking}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* File Attachments */}
+                                                    {penginapan.files && penginapan.files.length > 0 && (
+                                                        <div className="mt-3 pt-3 border-t border-gray-200">
+                                                            <span className="text-xs font-medium text-gray-500 mb-2 block">File Pendukung:</span>
+                                                            <div className="space-y-2">
+                                                                {penginapan.files.map((file, fileIdx) => (
+                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                                        <div className="flex items-center gap-2 flex-1">
+                                                                            {getFileIcon(file.file_name)}
+                                                                            <span className="text-sm text-gray-700 truncate max-w-xs">{file.file_name}</span>
+                                                                            {file.file_size && (
+                                                                                <span className="text-xs text-gray-400">
+                                                                                    ({(file.file_size / 1024).toFixed(1)} KB)
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => downloadPenginapanFile(file.id, file.file_name)}
+                                                                            className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
+                                                                        >
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                            </svg>
+                                                                            Unduh
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-gray-500 text-sm">
+                                        <svg className="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                        </svg>
+                                        Belum ada data SPTJM Penginapan
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Status Approval Berjenjang */}
                             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                                 <h4 className="font-semibold text-gray-700 mb-3">Status Persetujuan Berjenjang (Pegawai → PPK → Bendahara)</h4>
                                 

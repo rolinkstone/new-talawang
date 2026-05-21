@@ -103,9 +103,9 @@ async function getTtdByNip(nip) {
 }
 
 // ============ GET kegiatan dengan pegawai ============
-// routes/kwitansi.js - Perbaikan untuk filter status_2
+// routes/kwitansi.js - Perbaikan pada endpoint /need-kwitansi
 
-// ============ GET kegiatan dengan pegawai ============
+// ============ GET kegiatan dengan pegawai dan biaya ============
 router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
@@ -124,7 +124,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         let queryParams = [];
         
         if (roleInfo.isRegularUser) {
-            // Regular user: hanya melihat data dengan status_2 = 'SELESAI'
             kegiatanQuery = `
                 SELECT DISTINCT 
                     n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
@@ -144,7 +143,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             queryParams = [normalizedUserNip];
             console.log('👤 Regular user mode: melihat data sendiri (status_2 = SELESAI)');
         } else if (roleInfo.isAdmin) {
-            // Admin: melihat semua data (tanpa filter status_2)
             kegiatanQuery = `
                 SELECT DISTINCT 
                     n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
@@ -162,7 +160,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             queryParams = [];
             console.log('👑 Admin mode: melihat semua data kwitansi');
         } else if (roleInfo.isPPK) {
-            // PPK: hanya melihat data dengan status_2 = 'SELESAI'
             kegiatanQuery = `
                 SELECT DISTINCT 
                     n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
@@ -184,7 +181,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
             console.log('📋 PPK mode: melihat data yang menunggu approve PPK (status_2 = SELESAI)');
         } else if (roleInfo.isBendahara) {
-            // Bendahara: hanya melihat data dengan status_2 = 'SELESAI'
             kegiatanQuery = `
                 SELECT DISTINCT 
                     n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
@@ -220,7 +216,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             let pegawaiQuery = `
                 SELECT 
                     p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
-                    k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi,
+                    k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
                     COALESCE(k.status_pegawai, 'belum') as status_pegawai,
                     COALESCE(k.status_ppk, 'belum') as status_ppk,
                     COALESCE(k.status_bendahara, 'belum') as status_bendahara,
@@ -241,7 +237,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 pegawaiParams.push(normalizedUserNip);
             }
             
-            // Tambahan filter untuk status approval berdasarkan role
             if (roleInfo.isPPK) {
                 pegawaiQuery += ` AND k.status_pegawai = 'sudah' AND k.status_ppk = 'belum'`;
             } else if (roleInfo.isBendahara) {
@@ -256,6 +251,72 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
             
             if (pegawaiList.length === 0) continue;
+            
+            // ============ AMBIL DATA BIAYA UNTUK SETIAP PEGAWAI ============
+            for (const pegawai of pegawaiList) {
+                // Ambil data biaya untuk pegawai ini
+                const [biayaList] = await db.query(`
+                    SELECT id as biaya_id 
+                    FROM nominatif_biaya_kegiatan 
+                    WHERE pegawai_id = ?
+                `, [pegawai.id]);
+                
+                let transportasi = [];
+                let uangHarian = [];
+                let penginapan = [];
+                
+                if (biayaList.length > 0) {
+                    const biayaIds = biayaList.map(b => b.biaya_id);
+                    
+                    [transportasi] = await db.query(`
+                        SELECT id, trans as jenis, harga, total, biaya_id
+                        FROM nominatif_transportasi
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    [uangHarian] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_uang_harian_items
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    [penginapan] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_penginapan_items
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                }
+                
+                const totalTransport = transportasi.reduce((sum, t) => sum + (Number(t.total) || 0), 0);
+                const totalUangHarian = uangHarian.reduce((sum, u) => sum + (Number(u.total) || 0), 0);
+                const totalPenginapan = penginapan.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+                const totalBiaya = totalTransport + totalUangHarian + totalPenginapan;
+                
+                // Tambahkan biaya_list ke pegawai
+                pegawai.biaya_list = [{
+                    transportasi: transportasi.map(t => ({
+                        jenis: t.jenis,
+                        harga_satuan: t.harga,
+                        total: t.total
+                    })),
+                    uang_harian: uangHarian.map(u => ({
+                        jenis: u.jenis,
+                        qty: u.qty,
+                        harga_satuan: u.harga,
+                        total: u.total
+                    })),
+                    penginapan: penginapan.map(p => ({
+                        jenis: p.jenis,
+                        qty: p.qty,
+                        harga_satuan: p.harga,
+                        total: p.total
+                    }))
+                }];
+                
+                pegawai.total_biaya_detail = totalBiaya;
+                
+                console.log(`💰 Pegawai ${pegawai.nama}: Transport=${totalTransport}, UH=${totalUangHarian}, Penginapan=${totalPenginapan}, Total=${totalBiaya}`);
+            }
             
             let semuaPegawaiApprove = true;
             let semuaPpkApprove = true;
@@ -289,13 +350,13 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     }
 });
 
-// ============ POST create new kwitansi ============
+// ============ POST create new kwitansi (dengan tgl_spd) ============
 router.post('/', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
         const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
-        const { kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi } = req.body;
+        const { kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, tgl_spd } = req.body;
         
         if (!kegiatan_id || !pegawai_id || !no_lpd?.trim()) {
             return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
@@ -322,13 +383,13 @@ router.post('/', keycloakAuth, async (req, res) => {
         
         const query = `
             INSERT INTO kwitansi_perjadin 
-            (kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, status_input,
+            (kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, tgl_spd, status_input,
              status_pegawai, status_ppk, status_bendahara)
-            VALUES (?, ?, ?, ?, 'sudah', 'belum', 'belum', 'belum')
+            VALUES (?, ?, ?, ?, ?, 'sudah', 'belum', 'belum', 'belum')
         `;
         
         const [result] = await db.query(query, [
-            kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi
+            kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, tgl_spd || tgl_kwitansi
         ]);
         
         console.log(`✅ Kwitansi saved with ID: ${result.insertId}`);
@@ -450,7 +511,6 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
         
         await db.query(updateQuery, updateParams);
         
-        // Ambil data terbaru untuk response
         const [updatedKwitansi] = await db.query(`
             SELECT status_pegawai, status_ppk, status_bendahara,
                    ttd_pegawai_path, ttd_ppk_path, ttd_bendahara_path
@@ -565,7 +625,7 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         const user = req.user;
         const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
-        const { no_lpd, tgl_kwitansi } = req.body;
+        const { no_lpd, tgl_kwitansi, tgl_spd } = req.body;
         
         const [existingKwitansi] = await db.query(`
             SELECT k.*, p.nip as pegawai_nip, p.nama as pegawai_nama,
@@ -612,6 +672,11 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         if (tgl_kwitansi) {
             updateFields.push('tgl_kwitansi = ?');
             updateValues.push(tgl_kwitansi);
+        }
+        
+        if (tgl_spd) {
+            updateFields.push('tgl_spd = ?');
+            updateValues.push(tgl_spd);
         }
         
         updateFields.push('status_pegawai = ?');
@@ -1062,6 +1127,375 @@ router.get('/sptjm-transport-file/:fileId/download', keycloakAuth, async (req, r
         
     } catch (error) {
         console.error('❌ Error downloading SPTJM transport file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ SPTJM PENGINAPAN ENDPOINTS ============
+
+// Setup upload directory untuk SPTJM Penginapan
+const sptjmPenginapanUploadDir = path.join(__dirname, '../public/uploads/sptjm-penginapan');
+if (!fs.existsSync(sptjmPenginapanUploadDir)) {
+    fs.mkdirSync(sptjmPenginapanUploadDir, { recursive: true });
+    console.log('✅ SPTJM Penginapan upload directory created:', sptjmPenginapanUploadDir);
+}
+
+// Konfigurasi multer untuk upload file SPTJM Penginapan
+const sptjmPenginapanStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, sptjmPenginapanUploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        const filename = 'sptjm-penginapan-' + uniqueSuffix + ext;
+        cb(null, filename);
+    }
+});
+
+const uploadSptjmPenginapan = multer({
+    storage: sptjmPenginapanStorage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Hanya file gambar (jpeg, jpg, png), PDF, atau Word yang diperbolehkan'));
+        }
+    }
+});
+
+// GET data SPTJM Penginapan berdasarkan kwitansi_id
+router.get('/sptjm-penginapan/:kwitansiId', keycloakAuth, async (req, res) => {
+    try {
+        const { kwitansiId } = req.params;
+        
+        const [tableCheck] = await db.query(`
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'sptjm_penginapan'
+        `);
+        
+        if (tableCheck[0].count === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'Tabel SPTJM Penginapan belum tersedia'
+            });
+        }
+        
+        const [penginapanList] = await db.query(`
+            SELECT 
+                id,
+                kwitansi_id,
+                kegiatan_id,
+                pegawai_id,
+                nama_penginapan,
+                alamat_penginapan,
+                nomor_kamar,
+                tarif_hotel,
+                tgl_menginap,
+                created_at,
+                updated_at
+            FROM sptjm_penginapan
+            WHERE kwitansi_id = ?
+            ORDER BY id ASC
+        `, [kwitansiId]);
+        
+        const [files] = await db.query(`
+            SELECT 
+                id,
+                sptjm_penginapan_id,
+                kwitansi_id,
+                file_path,
+                file_name,
+                file_type,
+                file_size,
+                created_at
+            FROM sptjm_penginapan_files
+            WHERE kwitansi_id = ?
+            ORDER BY id ASC
+        `, [kwitansiId]);
+        
+        const filesByPenginapan = {};
+        files.forEach(file => {
+            if (!filesByPenginapan[file.sptjm_penginapan_id]) {
+                filesByPenginapan[file.sptjm_penginapan_id] = [];
+            }
+            filesByPenginapan[file.sptjm_penginapan_id].push({
+                id: file.id,
+                file_path: cleanFilePath(file.file_path),
+                file_name: file.file_name,
+                file_type: file.file_type,
+                file_size: file.file_size,
+                created_at: file.created_at
+            });
+        });
+        
+        const result = penginapanList.map(penginapan => ({
+            ...penginapan,
+            files: filesByPenginapan[penginapan.id] || []
+        }));
+        
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching SPTJM penginapan:', error);
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'Tabel SPTJM Penginapan belum tersedia'
+            });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST create/update SPTJM Penginapan dengan upload file
+router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
+    uploadSptjmPenginapan.array('files', 10)(req, res, async (err) => {
+        if (err) {
+            console.error('Upload error:', err);
+            return res.status(400).json({ success: false, message: err.message });
+        }
+        
+        try {
+            const { kwitansiId } = req.params;
+            const { penginapan_list, kegiatan_id, pegawai_id } = req.body;
+            
+            console.log(`📝 Saving SPTJM Penginapan for kwitansi ID: ${kwitansiId}`);
+            
+            const penginapanListData = penginapan_list ? JSON.parse(penginapan_list) : [];
+            
+            if (!penginapanListData || !Array.isArray(penginapanListData)) {
+                return res.status(400).json({ success: false, message: 'Data SPTJM penginapan tidak valid' });
+            }
+            
+            // Cek dan buat tabel jika belum ada
+            const [tableCheck] = await db.query(`
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'sptjm_penginapan'
+            `);
+            
+            if (tableCheck[0].count === 0) {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS sptjm_penginapan (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        kwitansi_id INT NOT NULL,
+                        kegiatan_id INT NOT NULL,
+                        pegawai_id INT NOT NULL,
+                        nama_penginapan VARCHAR(255) DEFAULT NULL,
+                        alamat_penginapan TEXT DEFAULT NULL,
+                        nomor_kamar VARCHAR(50) DEFAULT NULL,
+                        tarif_hotel DECIMAL(20,2) DEFAULT NULL,
+                        tgl_menginap DATE DEFAULT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_kwitansi_id (kwitansi_id),
+                        INDEX idx_kegiatan_id (kegiatan_id),
+                        INDEX idx_pegawai_id (pegawai_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                `);
+                console.log('✅ Created sptjm_penginapan table');
+            }
+            
+            const [filesTableCheck] = await db.query(`
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'sptjm_penginapan_files'
+            `);
+            
+            if (filesTableCheck[0].count === 0) {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS sptjm_penginapan_files (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        sptjm_penginapan_id INT NOT NULL,
+                        kwitansi_id INT NOT NULL,
+                        file_path VARCHAR(500) NOT NULL,
+                        file_name VARCHAR(255) NOT NULL,
+                        file_type VARCHAR(50) DEFAULT NULL,
+                        file_size INT DEFAULT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_sptjm_penginapan_id (sptjm_penginapan_id),
+                        INDEX idx_kwitansi_id (kwitansi_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                `);
+                console.log('✅ Created sptjm_penginapan_files table');
+            }
+            
+            const connection = await db.getConnection();
+            await connection.beginTransaction();
+            
+            try {
+                // Hapus file fisik lama
+                const [oldFiles] = await connection.query(
+                    'SELECT file_path FROM sptjm_penginapan_files WHERE kwitansi_id = ?',
+                    [kwitansiId]
+                );
+                
+                for (const file of oldFiles) {
+                    const filePath = path.join(__dirname, '../public', file.file_path);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                        console.log(`🗑️ Deleted old file: ${filePath}`);
+                    }
+                }
+                
+                // Hapus data lama
+                await connection.query('DELETE FROM sptjm_penginapan_files WHERE kwitansi_id = ?', [kwitansiId]);
+                await connection.query('DELETE FROM sptjm_penginapan WHERE kwitansi_id = ?', [kwitansiId]);
+                
+                console.log(`🗑️ Deleted old records for kwitansi_id: ${kwitansiId}`);
+                
+                // Insert data SPTJM Penginapan baru
+                const insertedIds = [];
+                let fileIndex = 0;
+                
+                for (let i = 0; i < penginapanListData.length; i++) {
+                    const item = penginapanListData[i];
+                    
+                    const [insertResult] = await connection.query(`
+                        INSERT INTO sptjm_penginapan 
+                        (kwitansi_id, kegiatan_id, pegawai_id, nama_penginapan, alamat_penginapan, nomor_kamar, tarif_hotel, tgl_menginap)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
+                        parseInt(kwitansiId),
+                        parseInt(kegiatan_id),
+                        parseInt(pegawai_id),
+                        item.nama_penginapan || null,
+                        item.alamat_penginapan || null,
+                        item.nomor_kamar || null,
+                        item.tarif_hotel || null,
+                        item.tgl_menginap || null
+                    ]);
+                    
+                    insertedIds.push({
+                        index: i,
+                        id: insertResult.insertId
+                    });
+                    
+                    // Upload files untuk penginapan ini
+                    if (item.files && item.files.length > 0 && req.files) {
+                        for (let f = 0; f < item.files.length && fileIndex < req.files.length; f++) {
+                            const fileInfo = item.files[f];
+                            const uploadedFile = req.files[fileIndex];
+                            
+                            const filePath = `/uploads/sptjm-penginapan/${uploadedFile.filename}`;
+                            
+                            await connection.query(`
+                                INSERT INTO sptjm_penginapan_files 
+                                (sptjm_penginapan_id, kwitansi_id, file_path, file_name, file_type, file_size)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            `, [
+                                insertResult.insertId,
+                                parseInt(kwitansiId),
+                                filePath,
+                                fileInfo.file_name || uploadedFile.originalname,
+                                uploadedFile.mimetype,
+                                uploadedFile.size
+                            ]);
+                            
+                            fileIndex++;
+                        }
+                    }
+                }
+                
+                await connection.commit();
+                
+                console.log(`✅ SPTJM Penginapan saved for kwitansi ID: ${kwitansiId}, total: ${penginapanListData.length} items`);
+                
+                res.status(200).json({
+                    success: true,
+                    message: 'Data SPTJM Penginapan berhasil disimpan',
+                    data: { total_saved: penginapanListData.length }
+                });
+                
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+            
+        } catch (error) {
+            console.error('❌ Error saving SPTJM penginapan:', error);
+            res.status(500).json({ 
+                success: false, 
+                message: error.message,
+                code: error.code,
+                sqlMessage: error.sqlMessage
+            });
+        }
+    });
+});
+
+// DELETE file SPTJM Penginapan
+router.delete('/sptjm-penginapan-file/:fileId', keycloakAuth, async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        
+        const [files] = await db.query(`
+            SELECT file_path FROM sptjm_penginapan_files WHERE id = ?
+        `, [fileId]);
+        
+        if (files.length === 0) {
+            return res.status(404).json({ success: false, message: 'File tidak ditemukan' });
+        }
+        
+        const filePath = path.join(__dirname, '../public', files[0].file_path);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`🗑️ Deleted file: ${filePath}`);
+        }
+        
+        await db.query('DELETE FROM sptjm_penginapan_files WHERE id = ?', [fileId]);
+        
+        res.status(200).json({
+            success: true,
+            message: 'File berhasil dihapus'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error deleting SPTJM penginapan file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Download file SPTJM Penginapan
+router.get('/sptjm-penginapan-file/:fileId/download', keycloakAuth, async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        
+        const [files] = await db.query(`
+            SELECT file_path, file_name FROM sptjm_penginapan_files WHERE id = ?
+        `, [fileId]);
+        
+        if (files.length === 0) {
+            return res.status(404).json({ success: false, message: 'File tidak ditemukan' });
+        }
+        
+        const filePath = path.join(__dirname, '../public', files[0].file_path);
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, message: 'File fisik tidak ditemukan' });
+        }
+        
+        res.download(filePath, files[0].file_name);
+        
+    } catch (error) {
+        console.error('❌ Error downloading SPTJM penginapan file:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

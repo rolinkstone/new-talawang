@@ -175,7 +175,10 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   
   const today = new Date();
   const todayFormatted = formatDateFn(today);
-  const spdDate = item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted;
+  
+  // Tanggal SPD dari item (tgl_spd) atau fallback ke tgl_kwitansi
+  const tglSpd = item?.tgl_spd ? formatDateFn(item.tgl_spd) : (item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted);
+  const tglKwitansi = item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted;
   const noSpt = item?.no_lpd || pegawai?.no_lpd || '-';
 
   // Hitung total transport dari nominatif
@@ -210,7 +213,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     let sptjmTableRows = '';
     
     if (hasMultipleTransport) {
-      // Jika komponen transport di nominatif lebih dari 1, tampilkan dari nominatif
       console.log('📋 Multiple transport detected, using nominatif data');
       transportDetail.forEach((t, idx) => {
         const itemTotal = Number(t.total) || 0;
@@ -224,11 +226,8 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         `;
       });
     } else if (hasSptjm && sptjmList.length > 0) {
-      // Jika hanya 1 komponen transport di nominatif, tampilkan dari SPTJM (input kwitansi)
-      // Nominal hanya di item pertama, sisanya kosong
       console.log('📋 Single transport detected, using SPTJM data from input');
       sptjmList.forEach((sptjm, idx) => {
-        // Format uraian
         let uraian = sptjm.jenis_transport || '-';
         if (sptjm.nama_maskapai) {
           uraian += ` ${sptjm.nama_maskapai}`;
@@ -240,7 +239,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           uraian += ` - Kursi: ${sptjm.nomor_kursi}`;
         }
         
-        // Nominal hanya untuk item pertama, sisanya kosong
         const nominal = idx === 0 ? `Rp ${formatRupiah(totalTransportFromNominatif)}` : '-';
         
         sptjmTableRows += `
@@ -252,7 +250,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         `;
       });
     } else if (transportDetail.length > 0) {
-      // Fallback: tampilkan dari transportDetail
       transportDetail.forEach((t, idx) => {
         const itemTotal = Number(t.total) || 0;
         const uraian = t.transport || t.trans || '-';
@@ -265,7 +262,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         `;
       });
     } else {
-      // Default jika tidak ada data sama sekali
       sptjmTableRows = `
         <tr>
           <td class="text-center" style="border: 1px solid #000; padding: 6px;">1</td>
@@ -397,9 +393,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <div class="title">${kegiatanText}</div>
 
           <div class="lampiran">
-            Lampiran SPD Nomor : ${noSpt}<br/>
-            Tanggal : ${spdDate}
-          </div>
+            Lampiran SPD Nomor  : ${noSpt}<br/>
+            Tanggal SPD         : ${tglSpd}<br/>
+            </div>
 
           <table>
             <thead>
@@ -501,7 +497,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           
           <div class="sptjm-text">
             Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}<\/strong> 
-            tanggal <strong>${spdDate}<\/strong>, dengan ini menyatakan bahwa :
+            tanggal <strong>${tglSpd}<\/strong>, dengan ini menyatakan bahwa :
           <\/div>
           
           <div class="sptjm-text">

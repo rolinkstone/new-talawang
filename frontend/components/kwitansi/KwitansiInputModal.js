@@ -12,7 +12,8 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
     // Form data
     const [formData, setFormData] = useState({
         no_lpd: '',
-        tgl_kwitansi: new Date().toISOString().split('T')[0]
+        tgl_kwitansi: new Date().toISOString().split('T')[0],
+        tgl_spd: new Date().toISOString().split('T')[0]
     });
     
     // SPTJM Transport data - bisa multiple entries dengan file
@@ -23,7 +24,20 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
             nama_maskapai: '',
             kode_penerbangan: '',
             nomor_kursi: '',
-            files: [] // Array untuk menyimpan file
+            files: []
+        }
+    ]);
+    
+    // SPTJM Penginapan data - bisa multiple entries dengan file
+    const [penginapanList, setPenginapanList] = useState([
+        {
+            id: Date.now(),
+            nama_penginapan: '',
+            alamat_penginapan: '',
+            nomor_kamar: '',
+            tarif_hotel: '',
+            tgl_menginap: '',
+            files: []
         }
     ]);
     
@@ -42,7 +56,50 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         { value: 'Lainnya', label: '📦 Lainnya' }
     ];
     
-    // Add new SPTJM entry
+    // Fungsi untuk format Rupiah
+    const formatRupiah = (value) => {
+        if (!value || value === 0) return 'Rp 0';
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(value);
+    };
+    
+    // Parse biaya_list dari kegiatan
+    const parseBiayaList = () => {
+        let biayaData = null;
+        
+        if (kegiatan.pegawai && kegiatan.pegawai.length > 0) {
+            const selectedPegawai = kegiatan.pegawai.find(p => p.id === pegawai.id);
+            if (selectedPegawai && selectedPegawai.biaya_list && selectedPegawai.biaya_list.length > 0) {
+                biayaData = selectedPegawai.biaya_list[0];
+            }
+        }
+        
+        if (!biayaData && kegiatan.biaya_list && kegiatan.biaya_list.length > 0) {
+            biayaData = kegiatan.biaya_list[0];
+        }
+        
+        return {
+            transport: biayaData?.transportasi || [],
+            penginapan: biayaData?.penginapan || []
+        };
+    };
+    
+    const { transport, penginapan } = parseBiayaList();
+    
+    // Hitung total transportasi
+    const totalTransportasi = transport.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    
+    // Hitung total penginapan
+    const totalPenginapan = penginapan.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+    
+    // Total keseluruhan
+    const totalKeseluruhan = totalTransportasi + totalPenginapan;
+    
+    // ============ Fungsi untuk SPTJM Transport ============
     const addSptjmEntry = () => {
         setSptjmList([
             ...sptjmList,
@@ -57,7 +114,6 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         ]);
     };
     
-    // Remove SPTJM entry
     const removeSptjmEntry = (id) => {
         if (sptjmList.length === 1) {
             setMessage('Minimal harus ada satu data transport');
@@ -68,14 +124,12 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         setSptjmList(sptjmList.filter(item => item.id !== id));
     };
     
-    // Update SPTJM entry
     const updateSptjmEntry = (id, field, value) => {
         setSptjmList(sptjmList.map(item => 
             item.id === id ? { ...item, [field]: value } : item
         ));
     };
     
-    // Add file to SPTJM entry
     const addFileToSptjm = (sptjmId, file) => {
         if (file) {
             const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -101,10 +155,74 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         }
     };
     
-    // Remove file from SPTJM entry
     const removeFileFromSptjm = (sptjmId, fileIndex) => {
         setSptjmList(sptjmList.map(item => 
             item.id === sptjmId 
+                ? { ...item, files: item.files.filter((_, idx) => idx !== fileIndex) }
+                : item
+        ));
+    };
+    
+    // ============ Fungsi untuk SPTJM Penginapan ============
+    const addPenginapanEntry = () => {
+        setPenginapanList([
+            ...penginapanList,
+            {
+                id: Date.now(),
+                nama_penginapan: '',
+                alamat_penginapan: '',
+                nomor_kamar: '',
+                tarif_hotel: '',
+                tgl_menginap: '',
+                files: []
+            }
+        ]);
+    };
+    
+    const removePenginapanEntry = (id) => {
+        if (penginapanList.length === 1) {
+            setMessage('Minimal harus ada satu data penginapan');
+            setMessageType('error');
+            setTimeout(() => setMessage(''), 3000);
+            return;
+        }
+        setPenginapanList(penginapanList.filter(item => item.id !== id));
+    };
+    
+    const updatePenginapanEntry = (id, field, value) => {
+        setPenginapanList(penginapanList.map(item => 
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+    
+    const addFileToPenginapan = (penginapanId, file) => {
+        if (file) {
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+            if (!allowedTypes.includes(file.type)) {
+                setMessage('Hanya file JPG, JPEG, PNG, atau PDF yang diperbolehkan');
+                setMessageType('error');
+                setTimeout(() => setMessage(''), 3000);
+                return;
+            }
+            
+            if (file.size > 10 * 1024 * 1024) {
+                setMessage('Ukuran file maksimal 10MB');
+                setMessageType('error');
+                setTimeout(() => setMessage(''), 3000);
+                return;
+            }
+            
+            setPenginapanList(penginapanList.map(item => 
+                item.id === penginapanId 
+                    ? { ...item, files: [...item.files, { file, preview: URL.createObjectURL(file), name: file.name }] }
+                    : item
+            ));
+        }
+    };
+    
+    const removeFileFromPenginapan = (penginapanId, fileIndex) => {
+        setPenginapanList(penginapanList.map(item => 
+            item.id === penginapanId 
                 ? { ...item, files: item.files.filter((_, idx) => idx !== fileIndex) }
                 : item
         ));
@@ -122,6 +240,13 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         
         if (!formData.tgl_kwitansi) {
             setMessage('Tanggal kwitansi wajib diisi');
+            setMessageType('error');
+            setTimeout(() => setMessage(''), 3000);
+            return;
+        }
+        
+        if (!formData.tgl_spd) {
+            setMessage('Tanggal SPD wajib diisi');
             setMessageType('error');
             setTimeout(() => setMessage(''), 3000);
             return;
@@ -151,7 +276,8 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     kegiatan_id: kegiatan.id,
                     pegawai_id: pegawai.id,
                     no_lpd: formData.no_lpd,
-                    tgl_kwitansi: formData.tgl_kwitansi
+                    tgl_kwitansi: formData.tgl_kwitansi,
+                    tgl_spd: formData.tgl_spd
                 },
                 {
                     headers: {
@@ -164,14 +290,12 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
             if (response.data.success) {
                 const kwitansiId = response.data.data.id;
                 
-                // 2. Siapkan data SPTJM Transport untuk dikirim
+                // 2. Simpan SPTJM Transport
                 const validSptjm = sptjmList.filter(item => item.jenis_transport !== '');
                 
                 if (validSptjm.length > 0) {
-                    // Siapkan FormData untuk upload files
                     const formDataToSend = new FormData();
                     
-                    // Tambahkan data sptjm_list sebagai JSON
                     const sptjmData = validSptjm.map(item => ({
                         jenis_transport: item.jenis_transport,
                         nama_maskapai: item.nama_maskapai,
@@ -184,12 +308,9 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     formDataToSend.append('kegiatan_id', kegiatan.id);
                     formDataToSend.append('pegawai_id', pegawai.id);
                     
-                    // Tambahkan semua files
-                    let fileIndex = 0;
                     for (const item of validSptjm) {
                         for (const fileObj of item.files) {
                             formDataToSend.append('files', fileObj.file);
-                            fileIndex++;
                         }
                     }
                     
@@ -205,8 +326,52 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     );
                 }
                 
+                // 3. Simpan SPTJM Penginapan
+                const validPenginapan = penginapanList.filter(item => 
+                    item.nama_penginapan !== '' || 
+                    item.alamat_penginapan !== '' || 
+                    item.nomor_kamar !== '' || 
+                    item.tarif_hotel !== '' || 
+                    item.tgl_menginap !== '' ||
+                    item.files.length > 0
+                );
+                
+                if (validPenginapan.length > 0) {
+                    const formDataPenginapan = new FormData();
+                    
+                    const penginapanData = validPenginapan.map(item => ({
+                        nama_penginapan: item.nama_penginapan,
+                        alamat_penginapan: item.alamat_penginapan,
+                        nomor_kamar: item.nomor_kamar,
+                        tarif_hotel: item.tarif_hotel ? parseFloat(item.tarif_hotel) : null,
+                        tgl_menginap: item.tgl_menginap,
+                        files: item.files.map(f => ({ file_name: f.name }))
+                    }));
+                    
+                    formDataPenginapan.append('penginapan_list', JSON.stringify(penginapanData));
+                    formDataPenginapan.append('kegiatan_id', kegiatan.id);
+                    formDataPenginapan.append('pegawai_id', pegawai.id);
+                    
+                    for (const item of validPenginapan) {
+                        for (const fileObj of item.files) {
+                            formDataPenginapan.append('files', fileObj.file);
+                        }
+                    }
+                    
+                    await axios.post(
+                        `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan/${kwitansiId}`,
+                        formDataPenginapan,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${session.accessToken}`,
+                                'Content-Type': 'multipart/form-data'
+                            }
+                        }
+                    );
+                }
+                
                 if (onSuccess) {
-                    onSuccess('Kwitansi dan SPTJM Transport berhasil disimpan');
+                    onSuccess('Kwitansi, SPTJM Transport, dan SPTJM Penginapan berhasil disimpan');
                 }
                 onClose();
             } else {
@@ -228,7 +393,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
-                <div className="relative bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div className="relative bg-white rounded-lg max-w-5xl w-full p-6 max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white">
                         <h3 className="text-lg font-medium">
                             Input Kwitansi - {pegawai.nama}
@@ -260,28 +425,138 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             </div>
                         </div>
                         
-                        {/* Data Kwitansi */}
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">No SPD *</label>
-                            <input
-                                type="text"
-                                value={formData.no_lpd}
-                                onChange={(e) => setFormData({ ...formData, no_lpd: e.target.value })}
-                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="Masukkan No SPD"
-                                required
-                            />
+                        {/* KOMPONEN NOMINATIF - TABEL RINCIAN BIAYA */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 overflow-x-auto">
+                            <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                Rincian Biaya Perjalanan Dinas
+                            </h4>
+                            
+                            {/* Tabel 2 Kolom: Transportasi dan Penginapan */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Kolom Transportasi */}
+                                <div className="bg-white rounded-lg overflow-hidden">
+                                    <div className="bg-blue-600 text-white p-2 text-center font-semibold text-sm">
+                                        Transportasi
+                                    </div>
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-gray-100">
+                                            <tr>
+                                                <th className="p-2 text-left">Jenis</th>
+                                                <th className="p-2 text-right">Harga</th>
+                                                <th className="p-2 text-right">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {transport.length > 0 ? (
+                                                transport.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-gray-100">
+                                                        <td className="p-2">{item.jenis || '-'}</td>
+                                                        <td className="p-2 text-right">{formatRupiah(item.harga_satuan)}</td>
+                                                        <td className="p-2 text-right font-medium">{formatRupiah(item.total)}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="3" className="p-4 text-center text-gray-400">
+                                                        Tidak ada data transportasi
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            <tr className="bg-blue-50 font-semibold">
+                                                <td className="p-2">Total Transportasi</td>
+                                                <td className="p-2 text-right" colSpan="2">
+                                                    {formatRupiah(totalTransportasi)}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                {/* Kolom Penginapan */}
+                                <div className="bg-white rounded-lg overflow-hidden">
+                                    <div className="bg-purple-600 text-white p-2 text-center font-semibold text-sm">
+                                        Penginapan
+                                    </div>
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-gray-100">
+                                            <tr>
+                                                <th className="p-2 text-left">Jenis</th>
+                                                <th className="p-2 text-center">Qty</th>
+                                                <th className="p-2 text-right">Harga</th>
+                                                <th className="p-2 text-right">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {penginapan.length > 0 ? (
+                                                penginapan.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-gray-100">
+                                                        <td className="p-2">{item.jenis || item.nama_hotel || '-'}</td>
+                                                        <td className="p-2 text-center">{item.qty || item.jumlah_malam || '-'}</td>
+                                                        <td className="p-2 text-right">{formatRupiah(item.harga_satuan)}</td>
+                                                        <td className="p-2 text-right font-medium">{formatRupiah(item.total)}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="4" className="p-4 text-center text-gray-400">
+                                                        Tidak ada data penginapan
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            <tr className="bg-purple-50 font-semibold">
+                                                <td colSpan="3" className="p-2">Total Penginapan</td>
+                                                <td className="p-2 text-right">{formatRupiah(totalPenginapan)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {/* Grand Total */}
+                            <div className="mt-4 p-3 bg-yellow-100 rounded-lg flex justify-between items-center">
+                                <span className="font-bold text-lg">TOTAL KESELURUHAN</span>
+                                <span className="font-bold text-2xl text-red-600">{formatRupiah(totalKeseluruhan)}</span>
+                            </div>
                         </div>
                         
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kwitansi *</label>
-                            <input
-                                type="date"
-                                value={formData.tgl_kwitansi}
-                                onChange={(e) => setFormData({ ...formData, tgl_kwitansi: e.target.value })}
-                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                required
-                            />
+                        {/* Data Kwitansi */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">No SPD *</label>
+                                <input
+                                    type="text"
+                                    value={formData.no_lpd}
+                                    onChange={(e) => setFormData({ ...formData, no_lpd: e.target.value })}
+                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Masukkan No SPD"
+                                    required
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal SPD *</label>
+                                <input
+                                    type="date"
+                                    value={formData.tgl_spd}
+                                    onChange={(e) => setFormData({ ...formData, tgl_spd: e.target.value })}
+                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kwitansi *</label>
+                                <input
+                                    type="date"
+                                    value={formData.tgl_kwitansi}
+                                    onChange={(e) => setFormData({ ...formData, tgl_kwitansi: e.target.value })}
+                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
                         </div>
                         
                         {/* SPTJM Transport Section */}
@@ -301,7 +576,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             </div>
                             
                             <p className="text-xs text-gray-500 mb-3">
-                                Isi data transportasi yang digunakan selama perjalanan dinas. Anda bisa menambahkan beberapa transport dan upload file pendukung.
+                                Isi data transportasi yang digunakan selama perjalanan dinas.
                             </p>
                             
                             {sptjmList.map((item, index) => (
@@ -369,7 +644,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                         </div>
                                     </div>
                                     
-                                    {/* File Upload Section */}
+                                    {/* File Upload untuk Transport */}
                                     <div className="mt-3 pt-3 border-t border-gray-200">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             File Pendukung (tiket, boarding pass, dll)
@@ -388,7 +663,6 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                             />
                                         </div>
                                         
-                                        {/* List Files */}
                                         {item.files.length > 0 && (
                                             <div className="mt-2 space-y-1">
                                                 {item.files.map((fileObj, fileIdx) => (
@@ -397,20 +671,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                             {fileObj.file.type.startsWith('image/') && fileObj.preview && (
                                                                 <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
                                                             )}
-                                                            {fileObj.file.type === 'application/pdf' && (
-                                                                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                                </svg>
-                                                            )}
-                                                            {fileObj.file.type.includes('word') && (
-                                                                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                                </svg>
-                                                            )}
                                                             <span className="text-sm text-gray-600 truncate max-w-xs">{fileObj.file.name}</span>
-                                                            <span className="text-xs text-gray-400">
-                                                                ({(fileObj.file.size / 1024).toFixed(1)} KB)
-                                                            </span>
                                                         </div>
                                                         <button
                                                             type="button"
@@ -418,7 +679,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                             className="text-red-500 hover:text-red-700"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3m-9 0h12" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                             </svg>
                                                         </button>
                                                     </div>
@@ -430,7 +691,160 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             ))}
                         </div>
                         
-                        <div className="flex gap-3 pt-4 border-t mt-4">
+                        {/* SPTJM Penginapan Section */}
+                        <div className="border-t pt-4 mt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="font-semibold text-gray-700">SPTJM Penginapan</h4>
+                                <button
+                                    type="button"
+                                    onClick={addPenginapanEntry}
+                                    className="px-3 py-1 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 flex items-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Tambah Penginapan
+                                </button>
+                            </div>
+                            
+                            <p className="text-xs text-gray-500 mb-3">
+                                Isi data penginapan selama perjalanan dinas (jika ada).
+                            </p>
+                            
+                            {penginapanList.map((item, index) => (
+                                <div key={item.id} className="border border-gray-200 rounded-lg p-4 mb-3 relative">
+                                    <div className="absolute top-2 right-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => removePenginapanEntry(item.id)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Hapus"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3m-9 0h12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Nama Hotel/Penginapan
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={item.nama_penginapan}
+                                                onChange={(e) => updatePenginapanEntry(item.id, 'nama_penginapan', e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                placeholder="Contoh: Hotel Santika, RedDoorz"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Alamat Penginapan
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={item.alamat_penginapan}
+                                                onChange={(e) => updatePenginapanEntry(item.id, 'alamat_penginapan', e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                placeholder="Alamat lengkap hotel"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Nomor Kamar
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={item.nomor_kamar}
+                                                onChange={(e) => updatePenginapanEntry(item.id, 'nomor_kamar', e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                placeholder="Contoh: 301, Suite Room"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Tarif Hotel (Rp)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={item.tarif_hotel}
+                                                onChange={(e) => updatePenginapanEntry(item.id, 'tarif_hotel', e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                placeholder="0"
+                                            />
+                                            {item.tarif_hotel && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    {formatRupiah(item.tarif_hotel)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Tanggal Menginap
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={item.tgl_menginap}
+                                                onChange={(e) => updatePenginapanEntry(item.id, 'tgl_menginap', e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* File Upload untuk Penginapan */}
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            File Pendukung (bukti booking, invoice, dll)
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="file"
+                                                onChange={(e) => {
+                                                    if (e.target.files && e.target.files[0]) {
+                                                        addFileToPenginapan(item.id, e.target.files[0]);
+                                                    }
+                                                    e.target.value = '';
+                                                }}
+                                                accept=".jpg,.jpeg,.png,.pdf"
+                                                className="flex-1 text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                                            />
+                                        </div>
+                                        
+                                        {item.files.length > 0 && (
+                                            <div className="mt-2 space-y-1">
+                                                {item.files.map((fileObj, fileIdx) => (
+                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                        <div className="flex items-center gap-2">
+                                                            {fileObj.file.type.startsWith('image/') && fileObj.preview && (
+                                                                <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
+                                                            )}
+                                                            <span className="text-sm text-gray-600 truncate max-w-xs">{fileObj.file.name}</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeFileFromPenginapan(item.id, fileIdx)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="flex gap-3 pt-4 border-t mt-4 sticky bottom-0 bg-white">
                             <button
                                 type="submit"
                                 disabled={loading}
