@@ -54,14 +54,13 @@ export default function KwitansiContainer() {
     };
     
     // Helper untuk mendapatkan badge status approval
-    // Di dalam badge status approval, tambahkan tooltip atau indikator visual
-        const getApprovalBadge = (status) => {
-            switch (status) {
-                case 'sudah': return <span className="w-3 h-3 rounded-full bg-green-500" title="Disetujui"></span>;
-                case 'ditolak': return <span className="w-3 h-3 rounded-full bg-red-500" title="Ditolak - Perlu Edit"></span>;
-                default: return <span className="w-3 h-3 rounded-full bg-yellow-500" title="Menunggu"></span>;
-            }
-        };
+    const getApprovalBadge = (status) => {
+        switch (status) {
+            case 'sudah': return <span className="w-3 h-3 rounded-full bg-green-500" title="Disetujui"></span>;
+            case 'ditolak': return <span className="w-3 h-3 rounded-full bg-red-500" title="Ditolak - Perlu Edit"></span>;
+            default: return <span className="w-3 h-3 rounded-full bg-yellow-500" title="Menunggu"></span>;
+        }
+    };
     
     useEffect(() => {
         if (session) {
@@ -243,7 +242,6 @@ export default function KwitansiContainer() {
         }
     };
     
-    // PERBAIKAN: handleViewDetail tanpa panggil endpoint /kegiatan/:id/detail
     const handleViewDetail = async (pegawai, kegiatan) => {
         try {
             let latestKwitansi = null;
@@ -252,37 +250,30 @@ export default function KwitansiContainer() {
                 latestKwitansi = await fetchLatestKwitansi(pegawai.kwitansi_id);
             }
             
-            // Langsung gunakan data pegawai dan kegiatan yang sudah ada
             setSelectedKwitansi({
-                // Data dari pegawai
                 ...pegawai,
-                // Data dari kwitansi terbaru
                 ...(latestKwitansi || {}),
-                // Data dari kegiatan
                 nama_kegiatan: kegiatan.kegiatan,
                 no_st: kegiatan.no_st,
                 mak: kegiatan.mak,
                 kota_kab_kecamatan: kegiatan.kota_kab_kecamatan,
                 kwitansi_id: pegawai.kwitansi_id,
-                // Status approval berjenjang
                 status_pegawai: latestKwitansi?.status_pegawai || pegawai.status_pegawai || 'belum',
-                status_bendahara: latestKwitansi?.status_bendahara || pegawai.status_bendahara || 'belum',
                 status_ppk: latestKwitansi?.status_ppk || pegawai.status_ppk || 'belum',
+                status_bendahara: latestKwitansi?.status_bendahara || pegawai.status_bendahara || 'belum',
                 tgl_ttd_pegawai: latestKwitansi?.tgl_ttd_pegawai || pegawai.tgl_ttd_pegawai,
-                tgl_ttd_bendahara: latestKwitansi?.tgl_ttd_bendahara || pegawai.tgl_ttd_bendahara,
                 tgl_ttd_ppk: latestKwitansi?.tgl_ttd_ppk || pegawai.tgl_ttd_ppk,
+                tgl_ttd_bendahara: latestKwitansi?.tgl_ttd_bendahara || pegawai.tgl_ttd_bendahara,
                 catatan_pegawai: latestKwitansi?.catatan_pegawai || pegawai.catatan_pegawai,
-                catatan_bendahara: latestKwitansi?.catatan_bendahara || pegawai.catatan_bendahara,
                 catatan_ppk: latestKwitansi?.catatan_ppk || pegawai.catatan_ppk,
+                catatan_bendahara: latestKwitansi?.catatan_bendahara || pegawai.catatan_bendahara,
                 ttd_pegawai_path: latestKwitansi?.ttd_pegawai_path || pegawai.ttd_pegawai_path,
-                ttd_bendahara_path: latestKwitansi?.ttd_bendahara_path || pegawai.ttd_bendahara_path,
                 ttd_ppk_path: latestKwitansi?.ttd_ppk_path || pegawai.ttd_ppk_path,
-                // Data dari kegiatan
+                ttd_bendahara_path: latestKwitansi?.ttd_bendahara_path || pegawai.ttd_bendahara_path,
                 bendahara_nama: kegiatan.bendahara_nama,
                 bendahara_nip: kegiatan.bendahara_nip,
                 ppk_nama: kegiatan.ppk_nama,
                 ppk_nip: kegiatan.ppk_nip,
-                // Data tambahan
                 total_biaya: pegawai.total_biaya || 0,
                 biaya_list: pegawai.biaya_list || []
             });
@@ -290,7 +281,6 @@ export default function KwitansiContainer() {
             setShowDetailModal(true);
         } catch (error) {
             console.error('Error preparing detail data:', error);
-            // Fallback: gunakan data yang ada
             setSelectedKwitansi({
                 ...pegawai,
                 nama_kegiatan: kegiatan.kegiatan,
@@ -298,8 +288,8 @@ export default function KwitansiContainer() {
                 mak: kegiatan.mak,
                 kota_kab_kecamatan: kegiatan.kota_kab_kecamatan,
                 status_pegawai: pegawai.status_pegawai || 'belum',
-                status_bendahara: pegawai.status_bendahara || 'belum',
                 status_ppk: pegawai.status_ppk || 'belum',
+                status_bendahara: pegawai.status_bendahara || 'belum',
                 bendahara_nama: kegiatan.bendahara_nama,
                 bendahara_nip: kegiatan.bendahara_nip,
                 ppk_nama: kegiatan.ppk_nama,
@@ -311,66 +301,66 @@ export default function KwitansiContainer() {
     };
     
     const handlePrint = async (pegawai, kegiatan, kwitansiItem) => {
-    try {
-        let latestKwitansi = null;
-        
-        if (pegawai.kwitansi_id) {
-            latestKwitansi = await fetchLatestKwitansi(pegawai.kwitansi_id);
-        }
-        
-        // Ambil data biaya lengkap dari backend
-        let biayaData = {
-            transportasi_detail: [],
-            uang_harian_detail: [],
-            penginapan_detail: [],
-            transport_total: 0,
-            uang_harian_total: 0,
-            penginapan_total: 0,
-            total_biaya: pegawai.total_biaya || 0
-        };
-        
         try {
-            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/pegawai/${pegawai.id}/biaya`, {
-                headers: { Authorization: `Bearer ${session.accessToken}` }
-            });
+            let latestKwitansi = null;
             
-            if (res.data.success) {
-                biayaData = res.data.data;
-                console.log('✅ Data biaya loaded:', biayaData);
+            if (pegawai.kwitansi_id) {
+                latestKwitansi = await fetchLatestKwitansi(pegawai.kwitansi_id);
             }
-        } catch (err) {
-            console.error('Gagal mengambil data biaya:', err.message);
-            // Coba alternatif dari data yang sudah ada
-            if (pegawai.biaya_list && pegawai.biaya_list.length > 0) {
-                biayaData.biaya_list = pegawai.biaya_list;
+            
+            let biayaData = {
+                transportasi_detail: [],
+                uang_harian_detail: [],
+                penginapan_detail: [],
+                transport_total: 0,
+                uang_harian_total: 0,
+                penginapan_total: 0,
+                total_biaya: pegawai.total_biaya || 0
+            };
+            
+            try {
+                const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/pegawai/${pegawai.id}/biaya`, {
+                    headers: { Authorization: `Bearer ${session.accessToken}` }
+                });
+                
+                if (res.data.success) {
+                    biayaData = res.data.data;
+                    console.log('✅ Data biaya loaded:', biayaData);
+                }
+            } catch (err) {
+                console.error('Gagal mengambil data biaya:', err.message);
+                if (pegawai.biaya_list && pegawai.biaya_list.length > 0) {
+                    biayaData.biaya_list = pegawai.biaya_list;
+                }
             }
+            
+            setPrintData({
+                item: {
+                    ...kwitansiItem,
+                    ...latestKwitansi,
+                    no_lpd: pegawai.no_lpd || kwitansiItem?.no_lpd,
+                    tgl_kwitansi: pegawai.tgl_kwitansi || kwitansiItem?.tgl_kwitansi,
+                    status_pegawai: latestKwitansi?.status_pegawai || pegawai.status_pegawai || 'belum',
+                    status_ppk: latestKwitansi?.status_ppk || pegawai.status_ppk || 'belum',
+                    status_bendahara: latestKwitansi?.status_bendahara || pegawai.status_bendahara || 'belum'
+                },
+                kegiatan: kegiatan,
+                pegawai: {
+                    ...pegawai,
+                    ...biayaData,
+                    nama: pegawai.nama,
+                    nip: pegawai.nip,
+                    total_biaya: biayaData.total_biaya || pegawai.total_biaya
+                }
+            });
+            setShowPrintModal(true);
+            
+        } catch (error) {
+            console.error('Error preparing print data:', error);
+            setNotificationMessage('Gagal mengambil data untuk dicetak');
+            setModalOpen(true);
         }
-        
-        setPrintData({
-            item: {
-                ...kwitansiItem,
-                ...latestKwitansi,
-                no_lpd: pegawai.no_lpd || kwitansiItem?.no_lpd,
-                tgl_kwitansi: pegawai.tgl_kwitansi || kwitansiItem?.tgl_kwitansi,
-                status_ttd: latestKwitansi?.status_ttd || pegawai.status_ttd || 'belum'
-            },
-            kegiatan: kegiatan,
-            pegawai: {
-                ...pegawai,
-                ...biayaData,
-                nama: pegawai.nama,
-                nip: pegawai.nip,
-                total_biaya: biayaData.total_biaya || pegawai.total_biaya
-            }
-        });
-        setShowPrintModal(true);
-        
-    } catch (error) {
-        console.error('Error preparing print data:', error);
-        setNotificationMessage('Gagal mengambil data untuk dicetak');
-        setModalOpen(true);
-    }
-};
+    };
     
     const closeModal = () => {
         setModalOpen(false);
@@ -418,11 +408,11 @@ export default function KwitansiContainer() {
                     <p className="text-gray-600 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | Role: {userRole || 'User'}
                         {userType.isAdmin && <span className="ml-2 text-blue-600">(Admin - Melihat Semua Data)</span>}
-                        {userType.isPPK && <span className="ml-2 text-purple-600">(PPK - Approval Level 3)</span>}
-                        {userType.isBendahara && <span className="ml-2 text-orange-600">(Bendahara - Approval Level 2)</span>}
+                        {userType.isPPK && <span className="ml-2 text-purple-600">(PPK - Approval Level 2)</span>}
+                        {userType.isBendahara && <span className="ml-2 text-orange-600">(Bendahara - Approval Level 3)</span>}
                         {userType.isRegularUser && <span className="ml-2 text-green-600">(Pegawai - Approval Level 1)</span>}
                     </p>
-                    <p className="text-sm text-blue-600 mt-1">Alur Persetujuan: Pegawai → Bendahara → PPK</p>
+                    <p className="text-sm text-blue-600 mt-1">Alur Persetujuan: Pegawai → PPK → Bendahara</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     <button onClick={expandAll} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
@@ -440,7 +430,7 @@ export default function KwitansiContainer() {
                 </div>
             </div>
             
-            {/* Informasi role dan alur approval */}
+            {/* Informasi role dan alur approval - URUTAN BARU */}
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex items-center text-sm">
                     <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -455,13 +445,13 @@ export default function KwitansiContainer() {
                                 <span className="text-gray-400">→</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-                                <span className="text-xs">2. Bendahara</span>
+                                <span className="w-3 h-3 rounded-full bg-purple-500"></span>
+                                <span className="text-xs">2. PPK</span>
                                 <span className="text-gray-400">→</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded-full bg-purple-500"></span>
-                                <span className="text-xs">3. PPK</span>
+                                <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+                                <span className="text-xs">3. Bendahara</span>
                             </div>
                         </div>
                     </div>
@@ -508,12 +498,12 @@ export default function KwitansiContainer() {
                                 <div><span className="font-medium">Lokasi:</span> {kegiatan.kota_kab_kecamatan}</div>
                                 <div><span className="font-medium">Progress Input:</span> <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">{kegiatan.sudah_input || 0} / {kegiatan.total_pegawai} sudah input</span></div>
                                 <div><span className="font-medium">Status Approval:</span> 
-                                    {kegiatan.semua_ppk_approve ? 
+                                    {kegiatan.semua_bendahara_approve ? 
                                         <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">✓ Selesai</span> : 
-                                        kegiatan.semua_bendahara_approve ?
-                                        <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800">Menunggu PPK</span> :
+                                        kegiatan.semua_ppk_approve ?
+                                        <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800">Menunggu Bendahara</span> :
                                         kegiatan.semua_pegawai_approve ?
-                                        <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-800">Menunggu Bendahara</span> :
+                                        <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-800">Menunggu PPK</span> :
                                         <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">Menunggu Pegawai</span>
                                     }
                                 </div>
@@ -565,12 +555,12 @@ export default function KwitansiContainer() {
                                                                     <span className="text-gray-600">Pegawai</span>
                                                                 </div>
                                                                 <div className="flex items-center justify-center gap-1">
-                                                                    {getApprovalBadge(pegawai.status_bendahara)}
-                                                                    <span className="text-gray-600">Bendahara</span>
-                                                                </div>
-                                                                <div className="flex items-center justify-center gap-1">
                                                                     {getApprovalBadge(pegawai.status_ppk)}
                                                                     <span className="text-gray-600">PPK</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    {getApprovalBadge(pegawai.status_bendahara)}
+                                                                    <span className="text-gray-600">Bendahara</span>
                                                                 </div>
                                                             </div>
                                                         </td>

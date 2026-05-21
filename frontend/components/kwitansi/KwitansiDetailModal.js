@@ -10,6 +10,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [catatan, setCatatan] = useState('');
+    const [messageType, setMessageType] = useState('info');
     
     // State untuk SPTJM Transport
     const [sptjmList, setSptjmList] = useState([]);
@@ -25,15 +26,15 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const [editFile, setEditFile] = useState(null);
     const [editFileName, setEditFileName] = useState('');
     
-    // Status approvals
+    // Status approvals - URUTAN BARU: Pegawai -> PPK -> Bendahara
     const [statusPegawai, setStatusPegawai] = useState(item.status_pegawai || 'belum');
-    const [statusBendahara, setStatusBendahara] = useState(item.status_bendahara || 'belum');
     const [statusPpk, setStatusPpk] = useState(item.status_ppk || 'belum');
+    const [statusBendahara, setStatusBendahara] = useState(item.status_bendahara || 'belum');
     
     // TTD URLs
     const [ttdPegawaiUrl, setTtdPegawaiUrl] = useState(null);
-    const [ttdBendaharaUrl, setTtdBendaharaUrl] = useState(null);
     const [ttdPpkUrl, setTtdPpkUrl] = useState(null);
+    const [ttdBendaharaUrl, setTtdBendaharaUrl] = useState(null);
     
     // User info
     const normalizeNip = (value) => {
@@ -51,7 +52,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     const isPpk = userNip && ppkNip && userNip === ppkNip;
     
     // Cek apakah kwitansi ditolak dan pegawai bisa edit
-    const isRejected = statusPegawai === 'ditolak' || statusBendahara === 'ditolak' || statusPpk === 'ditolak';
+    const isRejected = statusPegawai === 'ditolak' || statusPpk === 'ditolak' || statusBendahara === 'ditolak';
     const canEdit = isPegawai && isRejected;
     
     // Fungsi untuk mengambil data SPTJM Transport
@@ -72,12 +73,38 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
             }
         } catch (error) {
             console.error('Error fetching SPTJM transport:', error);
-            // Jika tabel belum ada, tidak perlu error
             if (error.response?.status !== 404) {
                 setMessage('Gagal memuat data transport');
             }
         } finally {
             setLoadingSptjm(false);
+        }
+    };
+    
+    // Fungsi untuk download file
+    const downloadFile = async (fileId, fileName) => {
+        try {
+            const response = await axios.get(
+                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport-file/${fileId}/download`,
+                {
+                    headers: { Authorization: `Bearer ${session?.accessToken}` },
+                    responseType: 'blob'
+                }
+            );
+            
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            setMessage('Gagal mengunduh file');
+            setMessageType('error');
+            setTimeout(() => setMessage(''), 3000);
         }
     };
     
@@ -113,9 +140,9 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     // Load TTD images
     useEffect(() => {
         if (item.ttd_pegawai_path) setTtdPegawaiUrl(getTtdImageUrl(item.ttd_pegawai_path));
-        if (item.ttd_bendahara_path) setTtdBendaharaUrl(getTtdImageUrl(item.ttd_bendahara_path));
         if (item.ttd_ppk_path) setTtdPpkUrl(getTtdImageUrl(item.ttd_ppk_path));
-    }, [item.ttd_pegawai_path, item.ttd_bendahara_path, item.ttd_ppk_path]);
+        if (item.ttd_bendahara_path) setTtdBendaharaUrl(getTtdImageUrl(item.ttd_bendahara_path));
+    }, [item.ttd_pegawai_path, item.ttd_ppk_path, item.ttd_bendahara_path]);
     
     // Setup file URL
     useEffect(() => {
@@ -153,8 +180,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
             
             if (response.data.success) {
                 if (isPegawai) setStatusPegawai(status);
-                if (isBendahara) setStatusBendahara(status);
                 if (isPpk) setStatusPpk(status);
+                if (isBendahara) setStatusBendahara(status);
                 
                 setMessage(response.data.message);
                 
@@ -203,8 +230,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
             if (response.data.success) {
                 setMessage('Kwitansi berhasil diperbarui');
                 setStatusPegawai('belum');
-                setStatusBendahara('belum');
                 setStatusPpk('belum');
+                setStatusBendahara('belum');
                 setIsEditing(false);
                 
                 if (response.data.data.upload_kwitansi) {
@@ -296,9 +323,23 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     };
     
     const totalBiaya = hitungTotalBiaya();
-    const canUserApprove = (isPpk && statusPegawai === 'sudah' && statusBendahara === 'sudah' && statusPpk === 'belum') ||
-                           (isBendahara && statusPegawai === 'sudah' && statusBendahara === 'belum') ||
-                           (isPegawai && statusPegawai === 'belum');
+    
+    // Cek apakah user bisa approve - URUTAN BARU: Pegawai -> PPK -> Bendahara
+    const canUserApprove = () => {
+        // Pegawai: harus NIP match, status_pegawai = 'belum'
+        if (isPegawai && statusPegawai === 'belum') {
+            return true;
+        }
+        // PPK: harus NIP match, status_pegawai = 'sudah', status_ppk = 'belum'
+        if (isPpk && statusPegawai === 'sudah' && statusPpk === 'belum') {
+            return true;
+        }
+        // Bendahara: harus NIP match, status_pegawai = 'sudah', status_ppk = 'sudah', status_bendahara = 'belum'
+        if (isBendahara && statusPegawai === 'sudah' && statusPpk === 'sudah' && statusBendahara === 'belum') {
+            return true;
+        }
+        return false;
+    };
     
     // Helper untuk mendapatkan label jenis transport
     const getJenisTransportLabel = (jenis) => {
@@ -316,6 +357,38 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
         };
         return `${icons[jenis] || '🚗'} ${jenis}`;
     };
+    
+    // Helper untuk mendapatkan icon file
+    const getFileIcon = (fileName) => {
+        const ext = fileName?.split('.').pop().toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+            return (
+                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            );
+        } else if (ext === 'pdf') {
+            return (
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+            );
+        } else if (ext === 'doc' || ext === 'docx') {
+            return (
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            );
+        } else {
+            return (
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            );
+        }
+    };
+    
+    const showApproveButtons = canUserApprove();
     
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -350,8 +423,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                             </div>
                             <div className="mt-2 text-sm text-red-600">
                                 {statusPegawai === 'ditolak' && <p>Catatan Pegawai: {item.catatan_pegawai}</p>}
-                                {statusBendahara === 'ditolak' && <p>Catatan Bendahara: {item.catatan_bendahara}</p>}
                                 {statusPpk === 'ditolak' && <p>Catatan PPK: {item.catatan_ppk}</p>}
+                                {statusBendahara === 'ditolak' && <p>Catatan Bendahara: {item.catatan_bendahara}</p>}
                             </div>
                             {canEdit && !isEditing && (
                                 <button
@@ -469,32 +542,65 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 ) : sptjmList.length > 0 ? (
                                     <div className="space-y-3">
                                         {sptjmList.map((sptjm, idx) => (
-                                            <div key={sptjm.id} className="bg-white rounded-lg border border-gray-200 p-3">
-                                                <div className="flex items-center justify-between mb-2">
+                                            <div key={sptjm.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
                                                     <span className="font-medium text-gray-700">Transport {idx + 1}</span>
                                                     <span className="text-xs text-gray-500">
                                                         {formatDateFn(sptjm.created_at)}
                                                     </span>
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                                    <div>
-                                                        <span className="text-gray-500">Jenis Transport:</span>
-                                                        <p className="font-medium text-gray-800">
-                                                            {getJenisTransportLabel(sptjm.jenis_transport) || '-'}
-                                                        </p>
+                                                <div className="p-3">
+                                                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                                                        <div>
+                                                            <span className="text-gray-500">Jenis Transport:</span>
+                                                            <p className="font-medium text-gray-800">
+                                                                {getJenisTransportLabel(sptjm.jenis_transport) || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Nama Maskapai/Perusahaan:</span>
+                                                            <p className="font-medium text-gray-800">{sptjm.nama_maskapai || '-'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Kode Penerbangan/No. Polisi:</span>
+                                                            <p className="font-medium text-gray-800">{sptjm.kode_penerbangan || '-'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Nomor Kursi/Kabin:</span>
+                                                            <p className="font-medium text-gray-800">{sptjm.nomor_kursi || '-'}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Nama Maskapai/Perusahaan:</span>
-                                                        <p className="font-medium text-gray-800">{sptjm.nama_maskapai || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Kode Penerbangan/No. Polisi:</span>
-                                                        <p className="font-medium text-gray-800">{sptjm.kode_penerbangan || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-500">Nomor Kursi/Kabin:</span>
-                                                        <p className="font-medium text-gray-800">{sptjm.nomor_kursi || '-'}</p>
-                                                    </div>
+                                                    
+                                                    {/* File Attachments */}
+                                                    {sptjm.files && sptjm.files.length > 0 && (
+                                                        <div className="mt-3 pt-3 border-t border-gray-200">
+                                                            <span className="text-xs font-medium text-gray-500 mb-2 block">File Pendukung:</span>
+                                                            <div className="space-y-2">
+                                                                {sptjm.files.map((file, fileIdx) => (
+                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                                        <div className="flex items-center gap-2 flex-1">
+                                                                            {getFileIcon(file.file_name)}
+                                                                            <span className="text-sm text-gray-700 truncate max-w-xs">{file.file_name}</span>
+                                                                            {file.file_size && (
+                                                                                <span className="text-xs text-gray-400">
+                                                                                    ({(file.file_size / 1024).toFixed(1)} KB)
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => downloadFile(file.id, file.file_name)}
+                                                                            className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
+                                                                        >
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                            </svg>
+                                                                            Unduh
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -509,9 +615,9 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 )}
                             </div>
                             
-                            {/* Status Approval Berjenjang */}
+                            {/* Status Approval Berjenjang - URUTAN BARU */}
                             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                <h4 className="font-semibold text-gray-700 mb-3">Status Persetujuan Berjenjang</h4>
+                                <h4 className="font-semibold text-gray-700 mb-3">Status Persetujuan Berjenjang (Pegawai → PPK → Bendahara)</h4>
                                 
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between p-2 bg-white rounded">
@@ -527,18 +633,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                     
                                     <div className="flex items-center justify-between p-2 bg-white rounded">
                                         <div>
-                                            <span className="font-medium">2. Persetujuan Bendahara</span>
-                                            <p className="text-xs text-gray-500">{item.bendahara_nama || '-'} ({item.bendahara_nip || '-'})</p>
-                                        </div>
-                                        <div className="text-right">
-                                            {getStatusBadge(statusBendahara, 'Bendahara')}
-                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_bendahara)}</p>}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-between p-2 bg-white rounded">
-                                        <div>
-                                            <span className="font-medium">3. Persetujuan PPK</span>
+                                            <span className="font-medium">2. Persetujuan PPK</span>
                                             <p className="text-xs text-gray-500">{item.ppk_nama || '-'} ({item.ppk_nip || '-'})</p>
                                         </div>
                                         <div className="text-right">
@@ -546,10 +641,21 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                             {item.tgl_ttd_ppk && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_ppk)}</p>}
                                         </div>
                                     </div>
+                                    
+                                    <div className="flex items-center justify-between p-2 bg-white rounded">
+                                        <div>
+                                            <span className="font-medium">3. Persetujuan Bendahara</span>
+                                            <p className="text-xs text-gray-500">{item.bendahara_nama || '-'} ({item.bendahara_nip || '-'})</p>
+                                        </div>
+                                        <div className="text-right">
+                                            {getStatusBadge(statusBendahara, 'Bendahara')}
+                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_bendahara)}</p>}
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 {/* Tanda Tangan Digital */}
-                                {(statusPegawai === 'sudah' || statusBendahara === 'sudah' || statusPpk === 'sudah') && (
+                                {(statusPegawai === 'sudah' || statusPpk === 'sudah' || statusBendahara === 'sudah') && (
                                     <div className="mt-4 pt-4 border-t">
                                         <h5 className="font-semibold text-gray-700 mb-3">Tanda Tangan Digital</h5>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -561,14 +667,6 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                                     ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
                                                 </div>
                                             )}
-                                            {statusBendahara === 'sudah' && (
-                                                <div className="text-center p-3 bg-white rounded-lg shadow">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">Bendahara</p>
-                                                    {ttdBendaharaUrl ? (
-                                                        <img src={ttdBendaharaUrl} alt="TTD Bendahara" className="max-h-20 mx-auto object-contain" />
-                                                    ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
-                                                </div>
-                                            )}
                                             {statusPpk === 'sudah' && (
                                                 <div className="text-center p-3 bg-white rounded-lg shadow">
                                                     <p className="text-sm font-medium text-gray-600 mb-2">PPK</p>
@@ -577,17 +675,25 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                                     ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
                                                 </div>
                                             )}
+                                            {statusBendahara === 'sudah' && (
+                                                <div className="text-center p-3 bg-white rounded-lg shadow">
+                                                    <p className="text-sm font-medium text-gray-600 mb-2">Bendahara</p>
+                                                    {ttdBendaharaUrl ? (
+                                                        <img src={ttdBendaharaUrl} alt="TTD Bendahara" className="max-h-20 mx-auto object-contain" />
+                                                    ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
                                 
                                 {/* Tombol Persetujuan */}
-                                {canUserApprove && (
+                                {showApproveButtons && (
                                     <div className="mt-4 pt-4 border-t">
                                         <p className="text-sm text-gray-600 mb-3">
-                                            {isPpk && 'Sebagai PPK, silakan periksa kwitansi dan berikan persetujuan akhir.'}
-                                            {isBendahara && 'Sebagai Bendahara, silakan periksa kwitansi dan berikan persetujuan.'}
                                             {isPegawai && 'Sebagai Pegawai, silakan periksa kwitansi dan berikan persetujuan.'}
+                                            {isPpk && 'Sebagai PPK, silakan periksa kwitansi dan berikan persetujuan.'}
+                                            {isBendahara && 'Sebagai Bendahara, silakan periksa kwitansi dan berikan persetujuan akhir.'}
                                         </p>
                                         <div className="mb-3">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (jika ditolak)</label>
@@ -619,12 +725,15 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 )}
                                 
                                 {/* Pesan jika tidak bisa approve */}
-                                {!canUserApprove && isPpk && (
+                                {!showApproveButtons && (
                                     <div className="mt-4 pt-4 border-t text-center text-gray-500 text-sm">
-                                        {statusPegawai !== 'sudah' && '⏳ Menunggu persetujuan dari Pegawai terlebih dahulu.'}
-                                        {statusPegawai === 'sudah' && statusBendahara !== 'sudah' && '⏳ Menunggu persetujuan dari Bendahara terlebih dahulu.'}
-                                        {statusPegawai === 'sudah' && statusBendahara === 'sudah' && statusPpk === 'sudah' && '✓ Kwitansi sudah lengkap disetujui oleh semua pihak.'}
-                                        {statusPpk === 'ditolak' && '✗ Kwitansi sudah ditolak.'}
+                                        {isPegawai && statusPegawai !== 'belum' && '✓ Anda sudah memberikan persetujuan.'}
+                                        {isPpk && statusPegawai !== 'sudah' && '⏳ Menunggu persetujuan dari Pegawai terlebih dahulu.'}
+                                        {isPpk && statusPegawai === 'sudah' && statusPpk !== 'belum' && '✓ Anda sudah memberikan persetujuan.'}
+                                        {isBendahara && statusPegawai !== 'sudah' && '⏳ Menunggu persetujuan dari Pegawai terlebih dahulu.'}
+                                        {isBendahara && statusPegawai === 'sudah' && statusPpk !== 'sudah' && '⏳ Menunggu persetujuan dari PPK terlebih dahulu.'}
+                                        {isBendahara && statusPegawai === 'sudah' && statusPpk === 'sudah' && statusBendahara !== 'belum' && '✓ Anda sudah memberikan persetujuan.'}
+                                        {statusPegawai === 'sudah' && statusPpk === 'sudah' && statusBendahara === 'sudah' && '✓ Kwitansi sudah lengkap disetujui oleh semua pihak.'}
                                     </div>
                                 )}
                             </div>

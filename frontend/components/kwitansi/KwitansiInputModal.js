@@ -12,24 +12,20 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
     // Form data
     const [formData, setFormData] = useState({
         no_lpd: '',
-        tgl_kwitansi: new Date().toISOString().split('T')[0],
-        upload_kwitansi: null
+        tgl_kwitansi: new Date().toISOString().split('T')[0]
     });
     
-    // SPTJM Transport data - bisa multiple entries
+    // SPTJM Transport data - bisa multiple entries dengan file
     const [sptjmList, setSptjmList] = useState([
         {
             id: Date.now(),
             jenis_transport: '',
             nama_maskapai: '',
             kode_penerbangan: '',
-            nomor_kursi: ''
+            nomor_kursi: '',
+            files: [] // Array untuk menyimpan file
         }
     ]);
-    
-    const [filePreview, setFilePreview] = useState(null);
-    const [fileError, setFileError] = useState(false);
-    const [fileName, setFileName] = useState('');
     
     // Jenis transport options
     const jenisTransportOptions = [
@@ -55,7 +51,8 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 jenis_transport: '',
                 nama_maskapai: '',
                 kode_penerbangan: '',
-                nomor_kursi: ''
+                nomor_kursi: '',
+                files: []
             }
         ]);
     };
@@ -78,39 +75,39 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         ));
     };
     
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
+    // Add file to SPTJM entry
+    const addFileToSptjm = (sptjmId, file) => {
         if (file) {
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
             if (!allowedTypes.includes(file.type)) {
-                setMessage('Hanya file JPG, JPEG, PNG, atau PDF yang diperbolehkan');
+                setMessage('Hanya file JPG, JPEG, PNG, PDF, atau Word yang diperbolehkan');
                 setMessageType('error');
                 setTimeout(() => setMessage(''), 3000);
                 return;
             }
             
-            if (file.size > 5 * 1024 * 1024) {
-                setMessage('Ukuran file maksimal 5MB');
+            if (file.size > 10 * 1024 * 1024) {
+                setMessage('Ukuran file maksimal 10MB');
                 setMessageType('error');
                 setTimeout(() => setMessage(''), 3000);
                 return;
             }
             
-            setFormData({ ...formData, upload_kwitansi: file });
-            setFileName(file.name);
-            setFileError(false);
-            
-            // Preview untuk gambar
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setFilePreview(reader.result);
-                };
-                reader.readAsDataURL(file);
-            } else {
-                setFilePreview(null);
-            }
+            setSptjmList(sptjmList.map(item => 
+                item.id === sptjmId 
+                    ? { ...item, files: [...item.files, { file, preview: URL.createObjectURL(file), name: file.name }] }
+                    : item
+            ));
         }
+    };
+    
+    // Remove file from SPTJM entry
+    const removeFileFromSptjm = (sptjmId, fileIndex) => {
+        setSptjmList(sptjmList.map(item => 
+            item.id === sptjmId 
+                ? { ...item, files: item.files.filter((_, idx) => idx !== fileIndex) }
+                : item
+        ));
     };
     
     const handleSubmit = async (e) => {
@@ -130,21 +127,14 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
             return;
         }
         
-        if (!formData.upload_kwitansi) {
-            setMessage('File kwitansi wajib diupload');
-            setMessageType('error');
-            setTimeout(() => setMessage(''), 3000);
-            return;
-        }
-        
         // Validasi SPTJM Transport
         const invalidSptjm = sptjmList.some(item => 
             item.jenis_transport === '' && 
-            (item.nama_maskapai !== '' || item.kode_penerbangan !== '' || item.nomor_kursi !== '')
+            (item.nama_maskapai !== '' || item.kode_penerbangan !== '' || item.nomor_kursi !== '' || item.files.length > 0)
         );
         
         if (invalidSptjm) {
-            setMessage('Jenis transport harus diisi jika mengisi data transport lainnya');
+            setMessage('Jenis transport harus diisi jika mengisi data transport lainnya atau upload file');
             setMessageType('error');
             setTimeout(() => setMessage(''), 3000);
             return;
@@ -154,21 +144,19 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         setMessage('');
         
         try {
-            // 1. Upload file kwitansi
-            const formDataToSend = new FormData();
-            formDataToSend.append('kegiatan_id', kegiatan.id);
-            formDataToSend.append('pegawai_id', pegawai.id);
-            formDataToSend.append('no_lpd', formData.no_lpd);
-            formDataToSend.append('tgl_kwitansi', formData.tgl_kwitansi);
-            formDataToSend.append('upload_kwitansi', formData.upload_kwitansi);
-            
+            // 1. Simpan kwitansi
             const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/kwitansi`,
-                formDataToSend,
+                {
+                    kegiatan_id: kegiatan.id,
+                    pegawai_id: pegawai.id,
+                    no_lpd: formData.no_lpd,
+                    tgl_kwitansi: formData.tgl_kwitansi
+                },
                 {
                     headers: {
                         Authorization: `Bearer ${session.accessToken}`,
-                        'Content-Type': 'multipart/form-data'
+                        'Content-Type': 'application/json'
                     }
                 }
             );
@@ -176,21 +164,42 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
             if (response.data.success) {
                 const kwitansiId = response.data.data.id;
                 
-                // 2. Simpan SPTJM Transport jika ada data
+                // 2. Siapkan data SPTJM Transport untuk dikirim
                 const validSptjm = sptjmList.filter(item => item.jenis_transport !== '');
                 
                 if (validSptjm.length > 0) {
+                    // Siapkan FormData untuk upload files
+                    const formDataToSend = new FormData();
+                    
+                    // Tambahkan data sptjm_list sebagai JSON
+                    const sptjmData = validSptjm.map(item => ({
+                        jenis_transport: item.jenis_transport,
+                        nama_maskapai: item.nama_maskapai,
+                        kode_penerbangan: item.kode_penerbangan,
+                        nomor_kursi: item.nomor_kursi,
+                        files: item.files.map(f => ({ file_name: f.name }))
+                    }));
+                    
+                    formDataToSend.append('sptjm_list', JSON.stringify(sptjmData));
+                    formDataToSend.append('kegiatan_id', kegiatan.id);
+                    formDataToSend.append('pegawai_id', pegawai.id);
+                    
+                    // Tambahkan semua files
+                    let fileIndex = 0;
+                    for (const item of validSptjm) {
+                        for (const fileObj of item.files) {
+                            formDataToSend.append('files', fileObj.file);
+                            fileIndex++;
+                        }
+                    }
+                    
                     await axios.post(
                         `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport/${kwitansiId}`,
-                        {
-                            sptjm_list: validSptjm,
-                            kegiatan_id: kegiatan.id,
-                            pegawai_id: pegawai.id
-                        },
+                        formDataToSend,
                         {
                             headers: {
                                 Authorization: `Bearer ${session.accessToken}`,
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'multipart/form-data'
                             }
                         }
                     );
@@ -219,7 +228,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
-                <div className="relative bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div className="relative bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white">
                         <h3 className="text-lg font-medium">
                             Input Kwitansi - {pegawai.nama}
@@ -275,23 +284,6 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             />
                         </div>
                         
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">File Nota * (PDF/Gambar)</label>
-                            <input
-                                type="file"
-                                onChange={handleFileChange}
-                                accept=".jpg,.jpeg,.png,.pdf"
-                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                required
-                            />
-                            {fileName && <p className="text-sm text-green-600 mt-1">File: {fileName}</p>}
-                            {filePreview && (
-                                <div className="mt-2">
-                                    <img src={filePreview} alt="Preview" className="max-h-40 object-contain rounded-lg border" />
-                                </div>
-                            )}
-                        </div>
-                        
                         {/* SPTJM Transport Section */}
                         <div className="border-t pt-4 mt-4">
                             <div className="flex justify-between items-center mb-3">
@@ -309,7 +301,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             </div>
                             
                             <p className="text-xs text-gray-500 mb-3">
-                                Isi data transportasi yang digunakan selama perjalanan dinas. Anda bisa menambahkan beberapa transport.
+                                Isi data transportasi yang digunakan selama perjalanan dinas. Anda bisa menambahkan beberapa transport dan upload file pendukung.
                             </p>
                             
                             {sptjmList.map((item, index) => (
@@ -375,6 +367,64 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                 placeholder="Contoh: 12A, Eksekutif"
                                             />
                                         </div>
+                                    </div>
+                                    
+                                    {/* File Upload Section */}
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            File Pendukung (tiket, boarding pass, dll)
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="file"
+                                                onChange={(e) => {
+                                                    if (e.target.files && e.target.files[0]) {
+                                                        addFileToSptjm(item.id, e.target.files[0]);
+                                                    }
+                                                    e.target.value = '';
+                                                }}
+                                                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                                                className="flex-1 text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                            />
+                                        </div>
+                                        
+                                        {/* List Files */}
+                                        {item.files.length > 0 && (
+                                            <div className="mt-2 space-y-1">
+                                                {item.files.map((fileObj, fileIdx) => (
+                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                        <div className="flex items-center gap-2">
+                                                            {fileObj.file.type.startsWith('image/') && fileObj.preview && (
+                                                                <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
+                                                            )}
+                                                            {fileObj.file.type === 'application/pdf' && (
+                                                                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                                </svg>
+                                                            )}
+                                                            {fileObj.file.type.includes('word') && (
+                                                                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                </svg>
+                                                            )}
+                                                            <span className="text-sm text-gray-600 truncate max-w-xs">{fileObj.file.name}</span>
+                                                            <span className="text-xs text-gray-400">
+                                                                ({(fileObj.file.size / 1024).toFixed(1)} KB)
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeFileFromSptjm(item.id, fileIdx)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3m-9 0h12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
