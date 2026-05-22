@@ -39,27 +39,40 @@ export default function KwitansiContainer() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     
+    // Tab state
+    const [activeTab, setActiveTab] = useState('diri_sendiri');
+    
     const [userRole, setUserRole] = useState('');
     const [userType, setUserType] = useState({
         isAdmin: false,
         isPPK: false,
         isKabalai: false,
         isBendahara: false,
-        isRegularUser: false
+        isRegularUser: false,
+        isCreator: false
     });
+    
+    // Data user login
+    const [currentUserNip, setCurrentUserNip] = useState('');
+    const [currentUserId, setCurrentUserId] = useState('');
+    const [currentUserName, setCurrentUserName] = useState('');
     
     const formatRupiah = (number) => {
         if (number === undefined || number === null) return '0';
         return new Intl.NumberFormat('id-ID').format(number);
     };
     
-    // Helper untuk mendapatkan badge status approval
     const getApprovalBadge = (status) => {
         switch (status) {
             case 'sudah': return <span className="w-3 h-3 rounded-full bg-green-500" title="Disetujui"></span>;
             case 'ditolak': return <span className="w-3 h-3 rounded-full bg-red-500" title="Ditolak - Perlu Edit"></span>;
             default: return <span className="w-3 h-3 rounded-full bg-yellow-500" title="Menunggu"></span>;
         }
+    };
+    
+    const normalizeNip = (nip) => {
+        if (!nip) return '';
+        return String(nip).replace(/\s/g, '');
     };
     
     useEffect(() => {
@@ -84,8 +97,15 @@ export default function KwitansiContainer() {
                 isPPK,
                 isKabalai,
                 isBendahara,
-                isRegularUser: !isAdmin && !isPPK && !isKabalai && !isBendahara
+                isRegularUser: !isAdmin && !isPPK && !isKabalai && !isBendahara,
+                isCreator: false
             });
+            
+            const userNip = userData.nip || userData.username || '';
+            const userId = userData.id || userData.userId || '';
+            setCurrentUserNip(normalizeNip(userNip));
+            setCurrentUserId(userId);
+            setCurrentUserName(userData.name || userData.email || 'User');
             
             console.log('📊 User Type Info:', {
                 isAdmin,
@@ -93,17 +113,135 @@ export default function KwitansiContainer() {
                 isKabalai,
                 isBendahara,
                 isRegularUser: !isAdmin && !isPPK && !isKabalai && !isBendahara,
-                roles
+                roles,
+                userNip: currentUserNip,
+                userId: currentUserId,
+                userName: currentUserName
             });
         }
     }, [session]);
+    
+    // Filter data untuk tab Diri Sendiri
+    const filterSelfData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        return data.filter(kegiatan => {
+            const hasCurrentUser = kegiatan.pegawai?.some(p => p.isCurrentUser === true);
+            return hasCurrentUser;
+        }).map(kegiatan => ({
+            ...kegiatan,
+            pegawai: kegiatan.pegawai?.filter(p => p.isCurrentUser === true)
+        }));
+    };
+    
+    // Filter data untuk tab Pegawai Lain (hanya untuk creator kegiatan)
+    const filterOtherData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        const filtered = data.filter(kegiatan => {
+            const isCreatorKegiatan = kegiatan.user_id === currentUserId;
+            const hasOtherPegawai = kegiatan.pegawai?.some(p => p.isCurrentUser !== true);
+            return isCreatorKegiatan && hasOtherPegawai;
+        }).map(kegiatan => {
+            const otherPegawai = kegiatan.pegawai?.filter(p => p.isCurrentUser !== true);
+            return {
+                ...kegiatan,
+                pegawai: otherPegawai,
+                isCreator: true
+            };
+        });
+        
+        console.log(`👥 Tab "Pegawai Lain": ${filtered.length} kegiatan`);
+        return filtered;
+    };
+    
+    // Filter data untuk tab Persetujuan PPK (menunggu approve PPK)
+    const filterPpkApprovalData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        const filtered = data.filter(kegiatan => {
+            const hasWaitingPpk = kegiatan.pegawai?.some(p => 
+                p.status_ppk === 'belum' && 
+                p.status_pegawai === 'sudah'
+            );
+            return hasWaitingPpk;
+        }).map(kegiatan => {
+            const waitingPegawai = kegiatan.pegawai?.filter(p => 
+                p.status_ppk === 'belum' && 
+                p.status_pegawai === 'sudah'
+            );
+            return {
+                ...kegiatan,
+                pegawai: waitingPegawai
+            };
+        });
+        
+        console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan`);
+        return filtered;
+    };
+    
+    // Filter data untuk tab Riwayat PPK (sudah disetujui PPK)
+    const filterPpkHistoryData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        const filtered = data.filter(kegiatan => {
+            const hasApprovedPpk = kegiatan.pegawai?.some(p => p.status_ppk === 'sudah');
+            return hasApprovedPpk;
+        }).map(kegiatan => {
+            return {
+                ...kegiatan,
+                pegawai: kegiatan.pegawai
+            };
+        });
+        
+        console.log(`📜 Tab "Riwayat PPK": ${filtered.length} kegiatan`);
+        return filtered;
+    };
+    
+    const filterDataByTab = (data, tab) => {
+        if (!data || data.length === 0) {
+            setFilteredKegiatan([]);
+            return;
+        }
+        
+        let filtered = [];
+        
+        if (tab === 'diri_sendiri') {
+            filtered = filterSelfData(data);
+            console.log(`👤 Tab "Diri Sendiri": ${filtered.length} kegiatan`);
+        } else if (tab === 'pegawai_lain') {
+            filtered = filterOtherData(data);
+            console.log(`👥 Tab "Pegawai Lain": ${filtered.length} kegiatan`);
+        } else if (tab === 'persetujuan_ppk') {
+            filtered = filterPpkApprovalData(data);
+            console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan`);
+        } else if (tab === 'riwayat_ppk') {
+            filtered = filterPpkHistoryData(data);
+            console.log(`📜 Tab "Riwayat PPK": ${filtered.length} kegiatan`);
+        }
+        
+        setFilteredKegiatan(filtered);
+        
+        const expanded = {};
+        filtered.forEach(k => {
+            if (k && k.id) {
+                expanded[k.id] = true;
+            }
+        });
+        setExpandedKegiatan(expanded);
+    };
     
     const fetchNeedKwitansi = async () => {
         if (!session?.accessToken) return;
         
         try {
-            console.log('🔄 Fetching need-kwitansi data...');
-            const url = `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/need-kwitansi`;
+            let url = `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/need-kwitansi`;
+            
+            if (activeTab === 'riwayat_ppk') {
+                url = `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/need-kwitansi-ppk-history`;
+            }
+            
+            console.log('🔄 Fetching need-kwitansi data from:', url);
             const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${session.accessToken}` }
             });
@@ -113,15 +251,35 @@ export default function KwitansiContainer() {
             if (res.data.success) {
                 console.log(`✅ Total kegiatan: ${res.data.data.length}`);
                 
-                setKegiatanList(res.data.data);
-                setFilteredKegiatan(res.data.data);
-                setCurrentPage(1);
-                
-                const expanded = {};
-                res.data.data.forEach(k => {
-                    expanded[k.id] = true;
+                const processedData = res.data.data.map(kegiatan => {
+                    const pegawaiList = kegiatan.pegawai || [];
+                    
+                    const pegawaiWithFlag = pegawaiList.map(pegawai => {
+                        const isCurrentUser = normalizeNip(pegawai.nip) === currentUserNip;
+                        return {
+                            ...pegawai,
+                            isCurrentUser: isCurrentUser
+                        };
+                    });
+                    
+                    const isCreatorKegiatan = kegiatan.user_id === currentUserId;
+                    
+                    return {
+                        ...kegiatan,
+                        pegawai: pegawaiWithFlag,
+                        isCreator: isCreatorKegiatan
+                    };
                 });
-                setExpandedKegiatan(expanded);
+                
+                const hasCreatorAccess = processedData.some(k => k.isCreator === true);
+                setUserType(prev => ({
+                    ...prev,
+                    isCreator: hasCreatorAccess
+                }));
+                
+                setKegiatanList(processedData);
+                filterDataByTab(processedData, activeTab);
+                setCurrentPage(1);
             } else {
                 console.error('API returned success=false:', res.data);
             }
@@ -138,14 +296,22 @@ export default function KwitansiContainer() {
     };
     
     useEffect(() => {
-        if (session?.accessToken) {
+        if (session?.accessToken && currentUserNip) {
             fetchNeedKwitansi();
         }
-    }, [session]);
+    }, [session, currentUserNip, activeTab]);
+    
+    useEffect(() => {
+        if (kegiatanList.length > 0) {
+            filterDataByTab(kegiatanList, activeTab);
+        }
+    }, [activeTab]);
     
     useEffect(() => {
         if (!searchTerm.trim()) {
-            setFilteredKegiatan(kegiatanList);
+            if (kegiatanList.length > 0) {
+                filterDataByTab(kegiatanList, activeTab);
+            }
         } else {
             const filtered = kegiatanList.filter(kegiatan => 
                 kegiatan.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -153,10 +319,29 @@ export default function KwitansiContainer() {
                 kegiatan.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 kegiatan.kota_kab_kecamatan?.toLowerCase().includes(searchTerm.toLowerCase())
             );
-            setFilteredKegiatan(filtered);
+            
+            let result = [];
+            if (activeTab === 'diri_sendiri') {
+                result = filterSelfData(filtered);
+            } else if (activeTab === 'pegawai_lain') {
+                result = filterOtherData(filtered);
+            } else if (activeTab === 'persetujuan_ppk') {
+                result = filterPpkApprovalData(filtered);
+            } else if (activeTab === 'riwayat_ppk') {
+                result = filterPpkHistoryData(filtered);
+            }
+            setFilteredKegiatan(result);
+            
+            const expanded = {};
+            result.forEach(k => {
+                if (k && k.id) {
+                    expanded[k.id] = true;
+                }
+            });
+            setExpandedKegiatan(expanded);
         }
         setCurrentPage(1);
-    }, [searchTerm, kegiatanList]);
+    }, [searchTerm, kegiatanList, activeTab]);
     
     useEffect(() => {
         setTotalPages(Math.ceil(filteredKegiatan.length / ITEMS_PER_PAGE));
@@ -180,7 +365,9 @@ export default function KwitansiContainer() {
     const expandAll = () => {
         const expanded = {};
         paginatedKegiatan.forEach(k => {
-            expanded[k.id] = true;
+            if (k && k.id) {
+                expanded[k.id] = true;
+            }
         });
         setExpandedKegiatan(expanded);
     };
@@ -188,7 +375,9 @@ export default function KwitansiContainer() {
     const collapseAll = () => {
         const expanded = {};
         paginatedKegiatan.forEach(k => {
-            expanded[k.id] = false;
+            if (k && k.id) {
+                expanded[k.id] = false;
+            }
         });
         setExpandedKegiatan(expanded);
     };
@@ -231,13 +420,28 @@ export default function KwitansiContainer() {
     };
     
     const fetchLatestKwitansi = async (kwitansiId) => {
+        if (!kwitansiId || kwitansiId === 'null' || kwitansiId === 'undefined') {
+            console.log('No valid kwitansi ID provided, returning null');
+            return null;
+        }
+        
         try {
+            console.log(`🔍 Fetching kwitansi with ID: ${kwitansiId}`);
             const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/${kwitansiId}`, {
                 headers: { Authorization: `Bearer ${session.accessToken}` }
             });
-            return response.data.success ? response.data.data : null;
+            
+            if (response.data.success && response.data.data) {
+                console.log(`✅ Kwitansi found: ${response.data.data.id}`);
+                return response.data.data;
+            }
+            return null;
         } catch (error) {
-            console.error('Error fetching latest kwitansi:', error);
+            console.error('Error fetching latest kwitansi:', error.message);
+            if (error.response?.status === 404) {
+                console.log('Kwitansi not found (404), returning null');
+                return null;
+            }
             return null;
         }
     };
@@ -337,7 +541,7 @@ export default function KwitansiContainer() {
             setPrintData({
                 item: {
                     ...kwitansiItem,
-                    ...latestKwitansi,
+                    ...(latestKwitansi || {}),
                     no_lpd: pegawai.no_lpd || kwitansiItem?.no_lpd,
                     tgl_kwitansi: pegawai.tgl_kwitansi || kwitansiItem?.tgl_kwitansi,
                     status_pegawai: latestKwitansi?.status_pegawai || pegawai.status_pegawai || 'belum',
@@ -357,7 +561,7 @@ export default function KwitansiContainer() {
             
         } catch (error) {
             console.error('Error preparing print data:', error);
-            setNotificationMessage('Gagal mengambil data untuk dicetak');
+            setNotificationMessage('Gagal mengambil data untuk dicetak: ' + (error.message || 'Unknown error'));
             setModalOpen(true);
         }
     };
@@ -397,12 +601,21 @@ export default function KwitansiContainer() {
         }
     };
     
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        setSearchTerm('');
+        setCurrentPage(1);
+    };
+    
+    const canAccessPegawaiLain = userType.isAdmin || userType.isCreator;
+    const canAccessPpkTabs = userType.isPPK || userType.isAdmin;
+    
     if (status === 'loading') return <LoadingSpinner />;
     if (!session) return null;
     
     return (
         <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto" key={refreshKey}>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-gray-900">KWITANSI PERJALANAN DINAS</h2>
                     <p className="text-gray-600 mt-1">
@@ -411,6 +624,7 @@ export default function KwitansiContainer() {
                         {userType.isPPK && <span className="ml-2 text-purple-600">(PPK - Approval Level 2)</span>}
                         {userType.isBendahara && <span className="ml-2 text-orange-600">(Bendahara - Approval Level 3)</span>}
                         {userType.isRegularUser && <span className="ml-2 text-green-600">(Pegawai - Approval Level 1)</span>}
+                        {userType.isCreator && <span className="ml-2 text-teal-600">(Creator - Dapat Input Kwitansi Pegawai Lain)</span>}
                     </p>
                     <p className="text-sm text-blue-600 mt-1">Alur Persetujuan: Pegawai → PPK → Bendahara</p>
                 </div>
@@ -430,7 +644,6 @@ export default function KwitansiContainer() {
                 </div>
             </div>
             
-            {/* Informasi role dan alur approval - URUTAN BARU */}
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex items-center text-sm">
                     <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -458,6 +671,80 @@ export default function KwitansiContainer() {
                 </div>
             </div>
             
+            {/* Tab Menu */}
+            <div className="mb-6 border-b border-gray-200">
+                <nav className="flex gap-2 flex-wrap" aria-label="Tabs">
+                    <button
+                        onClick={() => handleTabChange('diri_sendiri')}
+                        className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                            activeTab === 'diri_sendiri'
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Diri Sendiri
+                    </button>
+                    
+                    {/* Tab Pegawai Lain - Hanya untuk Admin atau Creator */}
+                    {canAccessPegawaiLain && (
+                        <button
+                            onClick={() => handleTabChange('pegawai_lain')}
+                            className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                                activeTab === 'pegawai_lain'
+                                    ? 'bg-teal-600 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            Pegawai Lain
+                            {userType.isCreator && !userType.isAdmin && (
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-teal-200 text-teal-800 rounded-full">Creator</span>
+                            )}
+                        </button>
+                    )}
+                    
+                    {/* Tab PPK - Hanya untuk role PPK dan Admin */}
+                    {canAccessPpkTabs && (
+                        <>
+                            <button
+                                onClick={() => handleTabChange('persetujuan_ppk')}
+                                className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                                    activeTab === 'persetujuan_ppk'
+                                        ? 'bg-purple-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                Persetujuan PPK
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded-full">Menunggu</span>
+                            </button>
+                            
+                            <button
+                                onClick={() => handleTabChange('riwayat_ppk')}
+                                className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                                    activeTab === 'riwayat_ppk'
+                                        ? 'bg-green-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Riwayat PPK
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-200 text-green-800 rounded-full">Sudah</span>
+                            </button>
+                        </>
+                    )}
+                </nav>
+            </div>
+            
             <div className="mb-4">
                 <input 
                     type="text" 
@@ -479,18 +766,56 @@ export default function KwitansiContainer() {
             
             {paginatedKegiatan.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <p className="text-gray-500">Belum ada kegiatan yang memerlukan input kwitansi.</p>
-                    <p className="text-sm text-gray-400 mt-1">Setelah kegiatan selesai, Anda dapat menginput kwitansi di sini.</p>
+                    <p className="text-gray-500">
+                        {activeTab === 'diri_sendiri' && 'Belum ada kegiatan yang memerlukan input kwitansi untuk Anda.'}
+                        {activeTab === 'pegawai_lain' && 'Belum ada kegiatan yang memerlukan input kwitansi untuk pegawai lain.'}
+                        {activeTab === 'persetujuan_ppk' && 'Belum ada kwitansi yang menunggu persetujuan PPK.'}
+                        {activeTab === 'riwayat_ppk' && 'Belum ada kwitansi yang sudah disetujui PPK.'}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                        {activeTab === 'diri_sendiri' && 'Setelah kegiatan selesai, Anda dapat menginput kwitansi di sini.'}
+                        {activeTab === 'pegawai_lain' && 'Setelah pegawai lain menyelesaikan kegiatan, kwitansi akan muncul di sini.'}
+                        {activeTab === 'persetujuan_ppk' && 'Semua kwitansi sudah diproses atau belum ada yang memerlukan persetujuan PPK.'}
+                        {activeTab === 'riwayat_ppk' && 'Kwitansi yang sudah disetujui PPK akan muncul di sini.'}
+                    </p>
                 </div>
             ) : (
                 paginatedKegiatan.map((kegiatan) => (
                     <div key={kegiatan.id} className="mb-4 border rounded-lg overflow-hidden">
-                        <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 border-b cursor-pointer hover:bg-blue-100" onClick={() => toggleExpand(kegiatan.id)}>
+                        <div className={`p-4 border-b cursor-pointer hover:bg-blue-100 ${
+                            activeTab === 'persetujuan_ppk' 
+                                ? 'bg-gradient-to-r from-purple-50 to-purple-100' 
+                                : activeTab === 'pegawai_lain'
+                                ? 'bg-gradient-to-r from-teal-50 to-teal-100'
+                                : activeTab === 'riwayat_ppk'
+                                ? 'bg-gradient-to-r from-green-50 to-green-100'
+                                : 'bg-gradient-to-r from-blue-50 to-blue-100'
+                        }`} onClick={() => toggleExpand(kegiatan.id)}>
                             <div className="flex items-center gap-2">
-                                <svg className={`h-5 w-5 text-blue-600 transform transition-transform ${expandedKegiatan[kegiatan.id] ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className={`h-5 w-5 ${
+                                    activeTab === 'persetujuan_ppk' ? 'text-purple-600' : 
+                                    activeTab === 'pegawai_lain' ? 'text-teal-600' : 
+                                    activeTab === 'riwayat_ppk' ? 'text-green-600' : 'text-blue-600'
+                                } transform transition-transform ${expandedKegiatan[kegiatan.id] ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                                <h3 className="font-bold text-lg text-blue-900">{kegiatan.kegiatan}</h3>
+                                <h3 className={`font-bold text-lg ${
+                                    activeTab === 'persetujuan_ppk' ? 'text-purple-900' : 
+                                    activeTab === 'pegawai_lain' ? 'text-teal-900' : 
+                                    activeTab === 'riwayat_ppk' ? 'text-green-900' : 'text-blue-900'
+                                }`}>{kegiatan.kegiatan}</h3>
+                                {activeTab === 'diri_sendiri' && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Anda</span>
+                                )}
+                                {activeTab === 'persetujuan_ppk' && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">Menunggu PPK</span>
+                                )}
+                                {activeTab === 'riwayat_ppk' && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Sudah Disetujui PPK</span>
+                                )}
+                                {activeTab === 'pegawai_lain' && kegiatan.isCreator && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-teal-100 text-teal-700 rounded-full">Kegiatan Saya</span>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm mt-2 ml-7">
                                 <div><span className="font-medium">No ST:</span> {kegiatan.no_st || '-'}</div>
@@ -509,9 +834,18 @@ export default function KwitansiContainer() {
                                 </div>
                             </div>
                             <div className="mt-2 ml-7 text-xs text-gray-500">
-                                <span className="font-medium">ℹ️ Jumlah pegawai: {kegiatan.pegawai?.length || 0} orang</span>
-                                {!userType.isAdmin && kegiatan.pegawai?.length === 1 && (
+                                <span className="font-medium">ℹ️ Jumlah pegawai yang ditampilkan: {kegiatan.pegawai?.length || 0} orang</span>
+                                {activeTab === 'diri_sendiri' && kegiatan.pegawai?.length === 1 && (
                                     <span className="ml-2 text-green-600">(Hanya menampilkan data Anda)</span>
+                                )}
+                                {activeTab === 'pegawai_lain' && (
+                                    <span className="ml-2 text-teal-600">(Data pegawai lain dalam kegiatan yang Anda buat)</span>
+                                )}
+                                {activeTab === 'persetujuan_ppk' && (
+                                    <span className="ml-2 text-purple-600">(Menunggu persetujuan PPK)</span>
+                                )}
+                                {activeTab === 'riwayat_ppk' && (
+                                    <span className="ml-2 text-green-600">(Sudah disetujui PPK)</span>
                                 )}
                             </div>
                         </div>
@@ -536,10 +870,23 @@ export default function KwitansiContainer() {
                                         <tbody className="bg-white divide-y divide-gray-200">
                                             {kegiatan.pegawai.map((pegawai, idx) => {
                                                 const sudahInput = pegawai.kwitansi_status === 'sudah';
+                                                const isWaitingPpk = pegawai.status_ppk === 'belum' && pegawai.status_pegawai === 'sudah';
+                                                const isApprovedPpk = pegawai.status_ppk === 'sudah';
                                                 return (
                                                     <tr key={pegawai.id} className="hover:bg-gray-50">
                                                         <td className="px-4 py-3">{idx + 1}</td>
-                                                        <td className="px-4 py-3 font-medium">{pegawai.nama}</td>
+                                                        <td className="px-4 py-3 font-medium">
+                                                            {pegawai.nama}
+                                                            {pegawai.isCurrentUser && (
+                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">Anda</span>
+                                                            )}
+                                                            {isWaitingPpk && (
+                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">Menunggu PPK</span>
+                                                            )}
+                                                            {isApprovedPpk && (
+                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">✓ Disetujui PPK</span>
+                                                            )}
+                                                        </td>
                                                         <td className="px-4 py-3">{pegawai.nip || '-'}</td>
                                                         <td className="px-4 py-3 text-right font-semibold text-green-600">Rp {formatRupiah(pegawai.total_biaya)}</td>
                                                         <td className="px-4 py-3 text-center">
@@ -574,19 +921,35 @@ export default function KwitansiContainer() {
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex justify-center gap-2 flex-wrap">
                                                                 {!sudahInput ? (
-                                                                    <button onClick={() => handleInputKwitansi(kegiatan, pegawai)} className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm">
-                                                                        Input Kwitansi
-                                                                    </button>
+                                                                    // Tombol Input Kwitansi - HANYA untuk Regular User, Creator, atau Admin
+                                                                    (userType.isRegularUser || userType.isCreator || userType.isAdmin) && (
+                                                                        <button 
+                                                                            onClick={() => handleInputKwitansi(kegiatan, pegawai)} 
+                                                                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                                                                        >
+                                                                            Input Kwitansi
+                                                                        </button>
+                                                                    )
                                                                 ) : (
                                                                     <>
-                                                                        <button onClick={() => handleViewDetail(pegawai, kegiatan)} className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                                                        <button 
+                                                                            onClick={() => handleViewDetail(pegawai, kegiatan)} 
+                                                                            className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                                                                        >
                                                                             Detail
                                                                         </button>
-                                                                        <button onClick={() => handlePrint(pegawai, kegiatan, { no_lpd: pegawai.no_lpd, id: pegawai.kwitansi_id })} className="px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm">
+                                                                        <button 
+                                                                            onClick={() => handlePrint(pegawai, kegiatan, { no_lpd: pegawai.no_lpd, id: pegawai.kwitansi_id })} 
+                                                                            className="px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                                                                        >
                                                                             🖨️ Cetak
                                                                         </button>
-                                                                        {userType.isAdmin && (
-                                                                            <button onClick={() => handleDelete(kegiatan.id, pegawai.id, pegawai.kwitansi_id)} className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm" disabled={deletingId === pegawai.kwitansi_id}>
+                                                                        {(userType.isAdmin || pegawai.isCurrentUser || kegiatan.isCreator) && (
+                                                                            <button 
+                                                                                onClick={() => handleDelete(kegiatan.id, pegawai.id, pegawai.kwitansi_id)} 
+                                                                                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm" 
+                                                                                disabled={deletingId === pegawai.kwitansi_id}
+                                                                            >
                                                                                 Hapus
                                                                             </button>
                                                                         )}
@@ -605,7 +968,15 @@ export default function KwitansiContainer() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                         </svg>
                                         <p>Tidak ada data pegawai untuk kegiatan ini.</p>
-                                        <p className="text-sm mt-1">Pastikan kegiatan memiliki pegawai yang terdaftar.</p>
+                                        <p className="text-sm mt-1">
+                                            {activeTab === 'diri_sendiri' 
+                                                ? 'Anda tidak terdaftar sebagai pegawai dalam kegiatan ini.'
+                                                : activeTab === 'pegawai_lain'
+                                                ? 'Tidak ada pegawai lain dalam kegiatan yang Anda buat.'
+                                                : activeTab === 'persetujuan_ppk'
+                                                ? 'Tidak ada kwitansi yang menunggu persetujuan PPK.'
+                                                : 'Tidak ada kwitansi yang sudah disetujui PPK.'}
+                                        </p>
                                     </div>
                                 )}
                             </div>

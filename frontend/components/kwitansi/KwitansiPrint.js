@@ -19,6 +19,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
 
   // SPTJM Transport data dari input kwitansi
   const [sptjmList, setSptjmList] = useState([]);
+  
+  // SPTJM Penginapan data dari input kwitansi
+  const [penginapanSptjmList, setPenginapanSptjmList] = useState([]);
 
   // Detail biaya dari nominatif
   const transportDetail = pegawai?.transportasi_detail || [];
@@ -45,9 +48,30 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     }
   };
 
+  // Fetch SPTJM Penginapan data dari tabel sptjm_penginapan (input kwitansi)
+  const fetchSptjmPenginapan = async () => {
+    const kwitansiId = item?.kwitansi_id || item?.id;
+    if (!kwitansiId) return;
+    
+    try {
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan/${kwitansiId}`,
+        { headers: { Authorization: `Bearer ${session?.accessToken}` } }
+      );
+      
+      if (response.data.success && response.data.data) {
+        setPenginapanSptjmList(response.data.data);
+        console.log('📦 SPTJM Penginapan data from input:', response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching SPTJM penginapan:', error);
+    }
+  };
+
   useEffect(() => {
     if (session?.accessToken) {
       fetchSptjmTransport();
+      fetchSptjmPenginapan();
     }
   }, [item, session]);
 
@@ -184,6 +208,67 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   // Hitung total transport dari nominatif
   const totalTransportFromNominatif = transportDetail.reduce((sum, t) => sum + (Number(t.total) || 0), 0) || transportTotal;
   const hasMultipleTransport = transportDetail.length > 1;
+  const hasPenginapanSptjm = penginapanSptjmList && penginapanSptjmList.length > 0;
+
+  const generateSptjmPenginapanRows = () => {
+    if (hasPenginapanSptjm) {
+      return penginapanSptjmList.map((penginapan, idx) => {
+        // Gabungkan nama hotel dan alamat
+        let namaDanAlamat = penginapan.nama_penginapan || '-';
+        if (penginapan.alamat_penginapan) {
+          namaDanAlamat += `, ${penginapan.alamat_penginapan}`;
+        }
+        
+        // Hitung panjang maksimal label untuk perataan
+        const labelNama = "Nama dan Alamat Penginapan";
+        const labelKamar = "Nomor kamar";
+        const labelTarif = "Tarif hotel";
+        
+        return `
+          <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 5px; display: flex;">
+              <div style="width: 200px;">${labelNama}</div>
+              <div style="flex: 1;">: ${namaDanAlamat}</div>
+            </div>
+            <div style="margin-bottom: 3px; display: flex;">
+              <div style="width: 200px;">${labelKamar}</div>
+              <div style="flex: 1;">: ${penginapan.nomor_kamar || '-'}</div>
+            </div>
+            <div style="display: flex;">
+              <div style="width: 200px;">${labelTarif}</div>
+              <div style="flex: 1;">: Rp ${formatRupiah(penginapan.tarif_hotel)}/ hari tanggal ${penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else if (penginapanDetail.length > 0) {
+      return penginapanDetail.map((p, idx) => {
+        let namaDanAlamat = p.hotel || p.jenis || '-';
+        
+        const labelNama = "Nama dan Alamat Penginapan";
+        const labelKamar = "Nomor kamar";
+        const labelTarif = "Tarif hotel";
+        
+        return `
+          <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 5px; display: flex;">
+              <div style="width: 200px;"><strong>${labelNama}</strong></div>
+              <div style="flex: 1;">: ${namaDanAlamat}</div>
+            </div>
+            <div style="margin-bottom: 3px; display: flex;">
+              <div style="width: 200px;"><strong>${labelKamar}</strong></div>
+              <div style="flex: 1;">: -</div>
+            </div>
+            <div style="display: flex;">
+              <div style="width: 200px;"><strong>${labelTarif}</strong></div>
+              <div style="flex: 1;">: Rp ${formatRupiah(p.total)}/ hari</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    return '<div style="color: #999;">Tidak ada data penginapan</div>';
+  };
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=800');
@@ -209,7 +294,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
 
     const hasSptjm = sptjmList && sptjmList.length > 0;
     
-    // Generate tabel SPTJM
+    // Generate tabel SPTJM Transport
     let sptjmTableRows = '';
     
     if (hasMultipleTransport) {
@@ -270,6 +355,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         </tr>
       `;
     }
+
+    // Generate SPTJM Penginapan rows
+    const sptjmPenginapanRows = generateSptjmPenginapanRows();
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -395,7 +483,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <div class="lampiran">
             Lampiran SPD Nomor  : ${noSpt}<br/>
             Tanggal SPD         : ${tglSpd}<br/>
-            </div>
+          </div>
 
           <table>
             <thead>
@@ -464,10 +552,10 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <\/div>
         <\/div>
 
-        <!-- Page Break untuk halaman 2 -->
+        <!-- Page Break untuk halaman 2 - SPTJM Transport -->
         <div class="page-break"><\/div>
 
-        <!-- Halaman 2: SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) -->
+        <!-- Halaman 2: SPTJM Transport (Surat Pernyataan Tanggung Jawab Mutlak) -->
         <div class="sptjm-container">
           <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK<\/div>
           
@@ -537,12 +625,76 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <\/div>
         <\/div>
 
+        <!-- Page Break untuk halaman 3 - SPTJM Penginapan -->
+        <div class="page-break"><\/div>
+
+        <!-- Halaman 3: SPTJM Penginapan (Surat Pernyataan Tanggung Jawab Mutlak untuk Penginapan) -->
+        <div class="sptjm-container">
+          <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK<\/div>
+          
+          <div class="sptjm-text">
+            Yang bertandatangan dibawah ini saya :
+          <\/div>
+          
+          <table class="sptjm-data-table">
+            <tbody>
+              <tr>
+                <td style="width: 180px;">Nama Lengkap<\/td>
+                <td style="width: 20px; text-align: center;">:<\/td>
+                <td><strong>${pegawaiNama}<\/strong><\/td>
+              <\/tr>
+              <tr>
+                <td style="width: 180px;">NIP.<\/td>
+                <td style="width: 20px; text-align: center;">:<\/td>
+                <td><strong>${pegawaiNip}<\/strong><\/td>
+              <\/tr>
+              <tr>
+                <td style="width: 180px;">Jabatan<\/td>
+                <td style="width: 20px; text-align: center;">:<\/td>
+                <td><strong>${pegawaiJabatan}<\/strong><\/td>
+              <\/tr>
+            <\/tbody>
+          <\/table>
+          
+          <div class="sptjm-text">
+            Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}<\/strong> 
+            tanggal <strong>${tglSpd}<\/strong>, dengan ini menyatakan bahwa :
+          <\/div>
+          
+          <div class="sptjm-text">
+            1. Bukti penginapan yang saya sampaikan sebagai pertanggungjawaban adalah benar asli, dengan tempat penginapan sebagai berikut:
+          <\/div>
+          
+          <div style="margin: 15px 0 15px 0;">
+            ${sptjmPenginapanRows}
+          <\/div>
+          
+          <div class="sptjm-text">
+            2. Jika dikemudian hari terdapat ketidaksesuaian, saya bersedia mempertanggungjawabkan dan mengembalikan ke Kas Negara.
+          <\/div>
+          
+          <div class="sptjm-text">
+            Demikian surat pernyataan ini saya buat untuk dapat digunakan sebagaimana mestinya.
+          <\/div>
+          
+          <div class="sptjm-signature">
+            <div class="sptjm-signature-box">
+              <div>Palangka Raya, ${todayFormatted}<\/div>
+              <div>Yang membuat pernyataan dan<\/div>
+              <div>melakukan Perjalanan Dinas<\/div>
+              <div style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 15px 0;">${ttdPegawaiHtml}<\/div>
+              <div class="sptjm-signature-line">${pegawaiNama}<\/div>
+              <div class="sptjm-signature-nip">NIP. ${pegawaiNip}<\/div>
+            <\/div>
+          <\/div>
+        <\/div>
+
         <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">🖨️ Cetak</button>
-          <button onclick="window.close();" style="padding:10px 20px;cursor:pointer;">Tutup</button>
-        </div>
-      </body>
-      </html>
+          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">🖨️ Cetak<\/button>
+          <button onclick="window.close();" style="padding:10px 20px;cursor:pointer;">Tutup<\/button>
+        <\/div>
+      <\/body>
+      <\/html>
     `);
 
     printWindow.document.close();
@@ -575,12 +727,20 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
               <p className="text-sm font-medium text-yellow-800">📄 Dokumen yang akan dicetak:</p>
               <ul className="text-xs text-yellow-700 mt-1 list-disc list-inside">
                 <li>Halaman 1: Kwitansi Perjalanan Dinas</li>
-                <li>Halaman 2: Surat Pernyataan Tanggung Jawab Mutlak (SPTJM)</li>
+                <li>Halaman 2: SPTJM Transport (Surat Pernyataan Tanggung Jawab Mutlak)</li>
+                <li>Halaman 3: SPTJM Penginapan (Surat Pernyataan Tanggung Jawab Mutlak)</li>
               </ul>
               <p className="text-xs text-yellow-700 mt-2">
                 {hasMultipleTransport 
                   ? "✅ Data transport di SPTJM dari nominatif (multiple items)"
                   : "⚠️ Data transport di SPTJM dari input kwitansi, nominal hanya di item pertama"}
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                {hasPenginapanSptjm 
+                  ? "✅ Data penginapan di SPTJM dari input kwitansi"
+                  : penginapanDetail.length > 0
+                    ? "⚠️ Data penginapan di SPTJM dari nominatif"
+                    : "⚠️ Tidak ada data penginapan"}
               </p>
             </div>
           </div>

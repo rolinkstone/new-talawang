@@ -110,11 +110,13 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
         const userNip = user?.nip || '';
+        const userId = getUserId(user);
         const roleInfo = getUserRoleInfo(user);
         const normalizedUserNip = normalizeNip(userNip);
         
         console.log('👤 User info for need-kwitansi:', {
             nip: normalizedUserNip,
+            userId: userId,
             isAdmin: roleInfo.isAdmin,
             isPPK: roleInfo.isPPK,
             isBendahara: roleInfo.isBendahara
@@ -131,17 +133,24 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.user_id
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
-                AND REPLACE(p.nip, ' ', '') = ?
+                AND (
+                    -- User yang membuat kegiatan (creator)
+                    n.user_id = ?
+                    OR 
+                    -- User yang terdaftar sebagai pegawai dalam kegiatan
+                    REPLACE(p.nip, ' ', '') = ?
+                )
                 AND UPPER(n.status_2) = 'SELESAI'
                 ORDER BY n.created_at DESC
             `;
-            queryParams = [normalizedUserNip];
-            console.log('👤 Regular user mode: melihat data sendiri (status_2 = SELESAI)');
+            queryParams = [userId, normalizedUserNip];
+            console.log('👤 Regular user mode: melihat data sendiri (creator atau pegawai)');
         } else if (roleInfo.isAdmin) {
             kegiatanQuery = `
                 SELECT DISTINCT 
@@ -150,7 +159,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.user_id
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
@@ -167,7 +177,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.user_id
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
@@ -188,7 +199,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.user_id
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
@@ -232,9 +244,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             
             if (roleInfo.isPPK || roleInfo.isBendahara) {
                 // PPK dan Bendahara: lihat semua pegawai dalam kegiatan yang sudah terfilter
-            } else if (!roleInfo.isAdmin && normalizedUserNip) {
-                pegawaiQuery += ` AND REPLACE(p.nip, ' ', '') = ?`;
-                pegawaiParams.push(normalizedUserNip);
+            } else if (!roleInfo.isAdmin) {
+                // Untuk user biasa: tampilkan pegawai yang terdaftar (semua pegawai dalam kegiatan)
             }
             
             if (roleInfo.isPPK) {
@@ -254,7 +265,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             
             // ============ AMBIL DATA BIAYA UNTUK SETIAP PEGAWAI ============
             for (const pegawai of pegawaiList) {
-                // Ambil data biaya untuk pegawai ini
                 const [biayaList] = await db.query(`
                     SELECT id as biaya_id 
                     FROM nominatif_biaya_kegiatan 
@@ -292,7 +302,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 const totalPenginapan = penginapan.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
                 const totalBiaya = totalTransport + totalUangHarian + totalPenginapan;
                 
-                // Tambahkan biaya_list ke pegawai
                 pegawai.biaya_list = [{
                     transportasi: transportasi.map(t => ({
                         jenis: t.jenis,
@@ -337,7 +346,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 semua_ppk_approve: semuaPpkApprove,
                 semua_bendahara_approve: semuaBendaharaApprove,
                 pegawai: pegawaiList,
-                tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-'
+                tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-',
+                user_id: kegiatan.user_id // Pastikan user_id dikirim
             });
         }
         
@@ -350,35 +360,302 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     }
 });
 
+// routes/kwitansi.js - Tambahkan endpoint untuk riwayat PPK
+
+// ============ GET kegiatan untuk riwayat PPK (sudah disetujui) ============
+router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const userNip = user?.nip || '';
+        const userId = getUserId(user);
+        const roleInfo = getUserRoleInfo(user);
+        const normalizedUserNip = normalizeNip(userNip);
+        
+        console.log('👤 User info for need-kwitansi-ppk-history:', {
+            nip: normalizedUserNip,
+            userId: userId,
+            isAdmin: roleInfo.isAdmin,
+            isPPK: roleInfo.isPPK,
+            isBendahara: roleInfo.isBendahara
+        });
+        
+        // Hanya PPK atau Admin yang bisa akses
+        if (!roleInfo.isPPK && !roleInfo.isAdmin) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Hanya PPK atau Admin yang dapat mengakses riwayat ini' 
+            });
+        }
+        
+        let kegiatanQuery = '';
+        let queryParams = [];
+        
+        if (roleInfo.isAdmin) {
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND k.status_ppk = 'sudah'
+                AND UPPER(n.status_2) = 'SELESAI'
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [];
+            console.log('👑 Admin mode: melihat semua riwayat PPK');
+        } else {
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
+                AND k.status_ppk = 'sudah'
+                AND UPPER(n.status_2) = 'SELESAI'
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
+            console.log('📋 PPK mode: melihat riwayat PPK (sudah disetujui)');
+        }
+        
+        console.log('📝 Query:', kegiatanQuery);
+        console.log('📝 Params:', queryParams);
+        
+        const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
+        
+        const result = [];
+
+        for (const kegiatan of kegiatanList) {
+            let pegawaiQuery = `
+                SELECT 
+                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
+                    k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
+                    COALESCE(k.status_pegawai, 'belum') as status_pegawai,
+                    COALESCE(k.status_ppk, 'belum') as status_ppk,
+                    COALESCE(k.status_bendahara, 'belum') as status_bendahara,
+                    k.tgl_ttd_pegawai, k.tgl_ttd_ppk, k.tgl_ttd_bendahara,
+                    k.catatan_pegawai, k.catatan_ppk, k.catatan_bendahara,
+                    CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
+                FROM nominatif_pegawai p
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
+                WHERE p.kegiatan_id = ?
+            `;
+            
+            const pegawaiParams = [kegiatan.id];
+            
+            pegawaiQuery += ` ORDER BY p.id ASC`;
+            
+            console.log(`📝 Pegawai Query for kegiatan ${kegiatan.id}:`, pegawaiQuery);
+            console.log(`📝 Pegawai Params:`, pegawaiParams);
+            
+            const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
+            
+            if (pegawaiList.length === 0) continue;
+            
+            // ============ AMBIL DATA BIAYA UNTUK SETIAP PEGAWAI ============
+            for (const pegawai of pegawaiList) {
+                const [biayaList] = await db.query(`
+                    SELECT id as biaya_id 
+                    FROM nominatif_biaya_kegiatan 
+                    WHERE pegawai_id = ?
+                `, [pegawai.id]);
+                
+                let transportasi = [];
+                let uangHarian = [];
+                let penginapan = [];
+                
+                if (biayaList.length > 0) {
+                    const biayaIds = biayaList.map(b => b.biaya_id);
+                    
+                    [transportasi] = await db.query(`
+                        SELECT id, trans as jenis, harga, total, biaya_id
+                        FROM nominatif_transportasi
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    [uangHarian] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_uang_harian_items
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    [penginapan] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_penginapan_items
+                        WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                }
+                
+                const totalTransport = transportasi.reduce((sum, t) => sum + (Number(t.total) || 0), 0);
+                const totalUangHarian = uangHarian.reduce((sum, u) => sum + (Number(u.total) || 0), 0);
+                const totalPenginapan = penginapan.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+                const totalBiaya = totalTransport + totalUangHarian + totalPenginapan;
+                
+                pegawai.biaya_list = [{
+                    transportasi: transportasi.map(t => ({
+                        jenis: t.jenis,
+                        harga_satuan: t.harga,
+                        total: t.total
+                    })),
+                    uang_harian: uangHarian.map(u => ({
+                        jenis: u.jenis,
+                        qty: u.qty,
+                        harga_satuan: u.harga,
+                        total: u.total
+                    })),
+                    penginapan: penginapan.map(p => ({
+                        jenis: p.jenis,
+                        qty: p.qty,
+                        harga_satuan: p.harga,
+                        total: p.total
+                    }))
+                }];
+                
+                pegawai.total_biaya_detail = totalBiaya;
+            }
+            
+            let semuaPegawaiApprove = true;
+            let semuaPpkApprove = true;
+            let semuaBendaharaApprove = true;
+            
+            pegawaiList.forEach(p => {
+                if (p.kwitansi_status === 'belum') semuaPegawaiApprove = false;
+                if (p.status_pegawai !== 'sudah') semuaPegawaiApprove = false;
+                if (p.status_ppk !== 'sudah') semuaPpkApprove = false;
+                if (p.status_bendahara !== 'sudah') semuaBendaharaApprove = false;
+            });
+            
+            result.push({
+                ...kegiatan,
+                total_pegawai: pegawaiList.length,
+                sudah_input: pegawaiList.filter(p => p.kwitansi_status === 'sudah').length,
+                semua_pegawai_approve: semuaPegawaiApprove,
+                semua_ppk_approve: semuaPpkApprove,
+                semua_bendahara_approve: semuaBendaharaApprove,
+                pegawai: pegawaiList,
+                tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-'
+            });
+        }
+        
+        console.log(`✅ Sending ${result.length} kegiatan to frontend`);
+        
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('❌ Error in need-kwitansi-ppk-history:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // ============ POST create new kwitansi (dengan tgl_spd) ============
+// ============ POST create new kwitansi (dengan tgl_spd) - DIPERBAIKI ============
 router.post('/', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
         const userNip = user?.nip || '';
+        const userId = getUserId(user);
         const roleInfo = getUserRoleInfo(user);
         const { kegiatan_id, pegawai_id, no_lpd, tgl_kwitansi, tgl_spd } = req.body;
+        
+        console.log('📝 Creating kwitansi with data:', {
+            kegiatan_id,
+            pegawai_id,
+            no_lpd,
+            tgl_kwitansi,
+            tgl_spd,
+            userId,
+            userNip: normalizeNip(userNip),
+            roleInfo
+        });
         
         if (!kegiatan_id || !pegawai_id || !no_lpd?.trim()) {
             return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
         }
         
-        if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara) {
-            const [accessCheck] = await db.query(`
-                SELECT p.id FROM nominatif_pegawai p
-                WHERE p.id = ? AND p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [pegawai_id, kegiatan_id, normalizeNip(userNip)]);
+        let hasAccess = false;
+        
+        // Admin memiliki akses penuh
+        if (roleInfo.isAdmin) {
+            hasAccess = true;
+            console.log('👑 Admin access granted');
+        }
+        // PPK dan Bendahara juga bisa (mereka approval, tidak perlu input kwitansi)
+        else if (roleInfo.isPPK || roleInfo.isBendahara) {
+            hasAccess = false;
+            console.log('⚠️ PPK/Bendahara tidak bisa input kwitansi');
+        }
+        else {
+            // Untuk user biasa, cek:
+            // 1. Apakah user adalah pegawai yang bersangkutan (NIP match)
+            // 2. Apakah user adalah creator kegiatan (user_id match)
             
-            if (accessCheck.length === 0) {
-                return res.status(403).json({ success: false, message: 'Tidak memiliki akses' });
+            const [accessCheck] = await db.query(`
+                SELECT 
+                    p.id as pegawai_id,
+                    p.nip as pegawai_nip,
+                    n.user_id as kegiatan_creator_id
+                FROM nominatif_pegawai p
+                JOIN nominatif_kegiatan n ON p.kegiatan_id = n.id
+                WHERE p.id = ? AND p.kegiatan_id = ?
+            `, [pegawai_id, kegiatan_id]);
+            
+            if (accessCheck.length > 0) {
+                const pegawaiNip = normalizeNip(accessCheck[0].pegawai_nip);
+                const kegiatanCreatorId = accessCheck[0].kegiatan_creator_id;
+                const normalizedUserNip = normalizeNip(userNip);
+                
+                console.log('🔍 Access check:', {
+                    pegawaiNip,
+                    normalizedUserNip,
+                    kegiatanCreatorId,
+                    userId
+                });
+                
+                // Cek apakah user adalah pegawai yang bersangkutan
+                if (pegawaiNip === normalizedUserNip) {
+                    hasAccess = true;
+                    console.log('✅ Access granted: User is the pegawai');
+                }
+                // Cek apakah user adalah creator kegiatan
+                else if (kegiatanCreatorId === userId) {
+                    hasAccess = true;
+                    console.log('✅ Access granted: User is the kegiatan creator');
+                }
+                else {
+                    console.log('❌ Access denied: No matching criteria');
+                }
+            } else {
+                console.log('❌ Pegawai not found for kegiatan');
             }
         }
         
+        if (!hasAccess) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Tidak memiliki akses untuk menginput kwitansi ini. Hanya pegawai yang bersangkutan atau pembuat kegiatan yang dapat menginput kwitansi.' 
+            });
+        }
+        
+        // Cek apakah kwitansi sudah ada
         const [existingCheck] = await db.query(`
             SELECT id FROM kwitansi_perjadin WHERE kegiatan_id = ? AND pegawai_id = ?
         `, [kegiatan_id, pegawai_id]);
         
         if (existingCheck.length > 0) {
-            return res.status(400).json({ success: false, message: 'Kwitansi sudah ada' });
+            return res.status(400).json({ success: false, message: 'Kwitansi sudah ada untuk pegawai ini' });
         }
         
         const query = `
