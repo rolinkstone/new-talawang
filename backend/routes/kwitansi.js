@@ -29,7 +29,42 @@ const sptjmStorage = multer.diskStorage({
 
 const uploadSptjm = multer({
     storage: sptjmStorage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Hanya file gambar (jpeg, jpg, png), PDF, atau Word yang diperbolehkan'));
+        }
+    }
+});
+
+// Setup upload directory untuk SPTJM Penginapan
+const sptjmPenginapanUploadDir = path.join(__dirname, '../public/uploads/sptjm-penginapan');
+if (!fs.existsSync(sptjmPenginapanUploadDir)) {
+    fs.mkdirSync(sptjmPenginapanUploadDir, { recursive: true });
+    console.log('✅ SPTJM Penginapan upload directory created:', sptjmPenginapanUploadDir);
+}
+
+// Konfigurasi multer untuk upload file SPTJM Penginapan
+const sptjmPenginapanStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, sptjmPenginapanUploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        const filename = 'sptjm-penginapan-' + uniqueSuffix + ext;
+        cb(null, filename);
+    }
+});
+
+const uploadSptjmPenginapan = multer({
+    storage: sptjmPenginapanStorage,
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -102,9 +137,6 @@ async function getTtdByNip(nip) {
     }
 }
 
-// ============ GET kegiatan dengan pegawai ============
-// routes/kwitansi.js - Perbaikan pada endpoint /need-kwitansi
-
 // ============ GET kegiatan dengan pegawai dan biaya ============
 router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
     try {
@@ -134,17 +166,16 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
                     n.status_2, n.catatan_status_2,
-                    n.user_id
+                    n.user_id,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND (
-                    -- User yang membuat kegiatan (creator)
                     n.user_id = ?
-                    OR 
-                    -- User yang terdaftar sebagai pegawai dalam kegiatan
-                    REPLACE(p.nip, ' ', '') = ?
+                    OR REPLACE(p.nip, ' ', '') = ?
                 )
                 AND UPPER(n.status_2) = 'SELESAI'
                 ORDER BY n.created_at DESC
@@ -160,10 +191,12 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
                     n.status_2, n.catatan_status_2,
-                    n.user_id
+                    n.user_id,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 ORDER BY n.created_at DESC
             `;
@@ -178,10 +211,12 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
                     n.status_2, n.catatan_status_2,
-                    n.user_id
+                    n.user_id,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
                 AND k.status_pegawai = 'sudah'
@@ -190,7 +225,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 ORDER BY n.created_at DESC
             `;
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
-            console.log('📋 PPK mode: melihat data yang menunggu approve PPK (status_2 = SELESAI)');
+            console.log('📋 PPK mode: melihat data yang menunggu approve PPK');
         } else if (roleInfo.isBendahara) {
             kegiatanQuery = `
                 SELECT DISTINCT 
@@ -200,10 +235,12 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
                     n.status_2, n.catatan_status_2,
-                    n.user_id
+                    n.user_id,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND (n.bendahara_id = ? OR n.bendahara_nip = ? OR n.bendahara_nama = ?)
                 AND k.status_pegawai = 'sudah'
@@ -213,7 +250,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 ORDER BY n.created_at DESC
             `;
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
-            console.log('💰 Bendahara mode: melihat data yang menunggu approve Bendahara (status_2 = SELESAI)');
+            console.log('💰 Bendahara mode: melihat data yang menunggu approve Bendahara');
         }
         
         console.log('📝 Query:', kegiatanQuery);
@@ -284,11 +321,24 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                         WHERE biaya_id IN (?)
                     `, [biayaIds]);
                     
+                    // Query uang harian tanpa field tanggal (karena tidak ada di tabel ini)
                     [uangHarian] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
+                        SELECT 
+                            id, 
+                            jenis, 
+                            qty, 
+                            harga, 
+                            total, 
+                            biaya_id
                         FROM nominatif_uang_harian_items
                         WHERE biaya_id IN (?)
                     `, [biayaIds]);
+                    
+                    // Tambahkan tanggal dari kegiatan ke setiap uang harian
+                    for (const uh of uangHarian) {
+                        uh.rencana_tanggal_pelaksanaan = kegiatan.rencana_tanggal_pelaksanaan || null;
+                        uh.rencana_tanggal_pelaksanaan_akhir = kegiatan.rencana_tanggal_pelaksanaan_akhir || null;
+                    }
                     
                     [penginapan] = await db.query(`
                         SELECT id, jenis, qty, harga, total, biaya_id
@@ -312,7 +362,9 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                         jenis: u.jenis,
                         qty: u.qty,
                         harga_satuan: u.harga,
-                        total: u.total
+                        total: u.total,
+                        rencana_tanggal_pelaksanaan: u.rencana_tanggal_pelaksanaan,
+                        rencana_tanggal_pelaksanaan_akhir: u.rencana_tanggal_pelaksanaan_akhir
                     })),
                     penginapan: penginapan.map(p => ({
                         jenis: p.jenis,
@@ -347,7 +399,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 semua_bendahara_approve: semuaBendaharaApprove,
                 pegawai: pegawaiList,
                 tgl_st_formatted: kegiatan.tgl_st ? new Date(kegiatan.tgl_st).toLocaleDateString('id-ID') : '-',
-                user_id: kegiatan.user_id // Pastikan user_id dikirim
+                user_id: kegiatan.user_id
             });
         }
         
@@ -359,8 +411,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
-
-// routes/kwitansi.js - Tambahkan endpoint untuk riwayat PPK
 
 // ============ GET kegiatan untuk riwayat PPK (sudah disetujui) ============
 router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
@@ -379,7 +429,6 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
             isBendahara: roleInfo.isBendahara
         });
         
-        // Hanya PPK atau Admin yang bisa akses
         if (!roleInfo.isPPK && !roleInfo.isAdmin) {
             return res.status(403).json({ 
                 success: false, 
@@ -398,7 +447,9 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
@@ -417,7 +468,9 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                     n.ppk_nama, n.ppk_id, n.ppk_nip,
                     n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
                     n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
-                    n.status_2, n.catatan_status_2
+                    n.status_2, n.catatan_status_2,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
@@ -466,7 +519,6 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
             
             if (pegawaiList.length === 0) continue;
             
-            // ============ AMBIL DATA BIAYA UNTUK SETIAP PEGAWAI ============
             for (const pegawai of pegawaiList) {
                 const [biayaList] = await db.query(`
                     SELECT id as biaya_id 
@@ -560,8 +612,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
     }
 });
 
-// ============ POST create new kwitansi (dengan tgl_spd) ============
-// ============ POST create new kwitansi (dengan tgl_spd) - DIPERBAIKI ============
+// ============ POST create new kwitansi ============
 router.post('/', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
@@ -587,21 +638,13 @@ router.post('/', keycloakAuth, async (req, res) => {
         
         let hasAccess = false;
         
-        // Admin memiliki akses penuh
         if (roleInfo.isAdmin) {
             hasAccess = true;
             console.log('👑 Admin access granted');
-        }
-        // PPK dan Bendahara juga bisa (mereka approval, tidak perlu input kwitansi)
-        else if (roleInfo.isPPK || roleInfo.isBendahara) {
+        } else if (roleInfo.isPPK || roleInfo.isBendahara) {
             hasAccess = false;
             console.log('⚠️ PPK/Bendahara tidak bisa input kwitansi');
-        }
-        else {
-            // Untuk user biasa, cek:
-            // 1. Apakah user adalah pegawai yang bersangkutan (NIP match)
-            // 2. Apakah user adalah creator kegiatan (user_id match)
-            
+        } else {
             const [accessCheck] = await db.query(`
                 SELECT 
                     p.id as pegawai_id,
@@ -624,21 +667,13 @@ router.post('/', keycloakAuth, async (req, res) => {
                     userId
                 });
                 
-                // Cek apakah user adalah pegawai yang bersangkutan
                 if (pegawaiNip === normalizedUserNip) {
                     hasAccess = true;
                     console.log('✅ Access granted: User is the pegawai');
-                }
-                // Cek apakah user adalah creator kegiatan
-                else if (kegiatanCreatorId === userId) {
+                } else if (kegiatanCreatorId === userId) {
                     hasAccess = true;
                     console.log('✅ Access granted: User is the kegiatan creator');
                 }
-                else {
-                    console.log('❌ Access denied: No matching criteria');
-                }
-            } else {
-                console.log('❌ Pegawai not found for kegiatan');
             }
         }
         
@@ -649,7 +684,6 @@ router.post('/', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Cek apakah kwitansi sudah ada
         const [existingCheck] = await db.query(`
             SELECT id FROM kwitansi_perjadin WHERE kegiatan_id = ? AND pegawai_id = ?
         `, [kegiatan_id, pegawai_id]);
@@ -682,7 +716,7 @@ router.post('/', keycloakAuth, async (req, res) => {
     }
 });
 
-// ============ POST untuk approval berjenjang (Pegawai → PPK → Bendahara) ============
+// ============ POST untuk approval berjenjang ============
 router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
     try {
         const { kwitansiId } = req.params;
@@ -725,7 +759,7 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Validasi urutan approval: Pegawai → PPK → Bendahara
+        // Validasi urutan approval
         if (role === 'pegawai' && kwitansiData.status_pegawai !== 'belum') {
             return res.status(400).json({ success: false, message: 'Anda sudah memberikan persetujuan' });
         }
@@ -745,7 +779,6 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Anda sudah memberikan persetujuan' });
         }
         
-        // Ambil TTD dari profile
         let ttdPath = null;
         let approvalDate = status === 'sudah' ? new Date() : null;
         
@@ -759,7 +792,6 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
             }
         }
         
-        // Update berdasarkan role
         let updateQuery = '';
         let updateParams = [];
         
@@ -1011,7 +1043,9 @@ router.get('/pegawai/:pegawaiId/biaya', keycloakAuth, async (req, res) => {
         
         const [pegawai] = await db.query(`
             SELECT p.*, n.kegiatan as nama_kegiatan, n.no_st, n.mak,
-                   n.ppk_nama, n.ppk_nip, n.bendahara_nama, n.bendahara_nip
+                   n.ppk_nama, n.ppk_nip, n.bendahara_nama, n.bendahara_nip,
+                   n.rencana_tanggal_pelaksanaan,
+                   n.rencana_tanggal_pelaksanaan_akhir
             FROM nominatif_pegawai p
             JOIN nominatif_kegiatan n ON p.kegiatan_id = n.id
             WHERE p.id = ?
@@ -1020,6 +1054,8 @@ router.get('/pegawai/:pegawaiId/biaya', keycloakAuth, async (req, res) => {
         if (pegawai.length === 0) {
             return res.status(404).json({ success: false, message: 'Pegawai tidak ditemukan' });
         }
+        
+        const kegiatan = pegawai[0];
         
         const [biayaList] = await db.query(`
             SELECT id as biaya_id 
@@ -1042,11 +1078,23 @@ router.get('/pegawai/:pegawaiId/biaya', keycloakAuth, async (req, res) => {
                 WHERE biaya_id IN (?)
             `, [biayaIds]);
             
+            // Query uang harian tanpa field tanggal
             [uangHarian] = await db.query(`
-                SELECT id, qty, harga as tarif, total, biaya_id
+                SELECT 
+                    id, 
+                    qty, 
+                    harga as tarif, 
+                    total, 
+                    biaya_id
                 FROM nominatif_uang_harian_items
                 WHERE biaya_id IN (?)
             `, [biayaIds]);
+            
+            // Tambahkan tanggal dari kegiatan ke setiap uang harian
+            for (const uh of uangHarian) {
+                uh.rencana_tanggal_pelaksanaan = kegiatan.rencana_tanggal_pelaksanaan || null;
+                uh.rencana_tanggal_pelaksanaan_akhir = kegiatan.rencana_tanggal_pelaksanaan_akhir || null;
+            }
             
             [penginapan] = await db.query(`
                 SELECT id, jenis as hotel, qty, harga as tarif, total, biaya_id
@@ -1410,41 +1458,6 @@ router.get('/sptjm-transport-file/:fileId/download', keycloakAuth, async (req, r
 
 // ============ SPTJM PENGINAPAN ENDPOINTS ============
 
-// Setup upload directory untuk SPTJM Penginapan
-const sptjmPenginapanUploadDir = path.join(__dirname, '../public/uploads/sptjm-penginapan');
-if (!fs.existsSync(sptjmPenginapanUploadDir)) {
-    fs.mkdirSync(sptjmPenginapanUploadDir, { recursive: true });
-    console.log('✅ SPTJM Penginapan upload directory created:', sptjmPenginapanUploadDir);
-}
-
-// Konfigurasi multer untuk upload file SPTJM Penginapan
-const sptjmPenginapanStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, sptjmPenginapanUploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        const filename = 'sptjm-penginapan-' + uniqueSuffix + ext;
-        cb(null, filename);
-    }
-});
-
-const uploadSptjmPenginapan = multer({
-    storage: sptjmPenginapanStorage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
-        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowedTypes.test(file.mimetype);
-        if (mimetype && extname) {
-            return cb(null, true);
-        } else {
-            cb(new Error('Hanya file gambar (jpeg, jpg, png), PDF, atau Word yang diperbolehkan'));
-        }
-    }
-});
-
 // GET data SPTJM Penginapan berdasarkan kwitansi_id
 router.get('/sptjm-penginapan/:kwitansiId', keycloakAuth, async (req, res) => {
     try {
@@ -1556,7 +1569,6 @@ router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
                 return res.status(400).json({ success: false, message: 'Data SPTJM penginapan tidak valid' });
             }
             
-            // Cek dan buat tabel jika belum ada
             const [tableCheck] = await db.query(`
                 SELECT COUNT(*) as count 
                 FROM information_schema.tables 
@@ -1616,7 +1628,6 @@ router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
             await connection.beginTransaction();
             
             try {
-                // Hapus file fisik lama
                 const [oldFiles] = await connection.query(
                     'SELECT file_path FROM sptjm_penginapan_files WHERE kwitansi_id = ?',
                     [kwitansiId]
@@ -1630,13 +1641,11 @@ router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
                     }
                 }
                 
-                // Hapus data lama
                 await connection.query('DELETE FROM sptjm_penginapan_files WHERE kwitansi_id = ?', [kwitansiId]);
                 await connection.query('DELETE FROM sptjm_penginapan WHERE kwitansi_id = ?', [kwitansiId]);
                 
                 console.log(`🗑️ Deleted old records for kwitansi_id: ${kwitansiId}`);
                 
-                // Insert data SPTJM Penginapan baru
                 const insertedIds = [];
                 let fileIndex = 0;
                 
@@ -1663,7 +1672,6 @@ router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
                         id: insertResult.insertId
                     });
                     
-                    // Upload files untuk penginapan ini
                     if (item.files && item.files.length > 0 && req.files) {
                         for (let f = 0; f < item.files.length && fileIndex < req.files.length; f++) {
                             const fileInfo = item.files[f];

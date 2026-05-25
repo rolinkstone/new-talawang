@@ -452,9 +452,11 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
 });
 
 // GET DETAIL KEGIATAN + PEGAWAI + BIAYA
+// GET DETAIL KEGIATAN + PEGAWAI + BIAYA
 router.get('/:id/detail', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
+    const userId = getUserId(req.user);
 
     if (!id || isNaN(id)) {
         return res.status(400).json({
@@ -467,24 +469,52 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         let where = '';
         let params = [id];
         
+        console.log(`📋 User ${username} (ID: ${userId}) mengakses detail kegiatan ${id}`);
+        console.log(`👤 User role: isAdmin=${req.user.isAdmin}, isPPK=${req.user.isPPK}, isKabalai=${req.user.isKabalai}, isRegularUser=${req.user.isRegularUser}`);
+        console.log(`📝 User NIP: "${req.user.nip}"`);
+        
         if (req.user.isAdmin) {
             where = `WHERE k.id = ?`;
+            console.log('👑 Admin: dapat melihat semua data');
         } 
         else if (req.user.isPPK) {
             where = `WHERE k.id = ? AND k.ppk_id = ?`;
-            params.push(req.user.user_id);
+            params.push(userId);
+            console.log('📋 PPK: melihat data yang ditugaskan ke PPK ID:', userId);
         } 
         else if (req.user.isKabalai) {
             where = `WHERE k.id = ?`;
+            console.log('👔 Kabalai: melihat data');
         } 
         else {
-            const normalizedNip = String(req.user.nip || '').replace(/\s/g, '');
-            where = `WHERE k.id = ? AND EXISTS (
-                SELECT 1 FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = k.id 
-                AND REPLACE(p.nip, ' ', '') = ?
-            )`;
-            params.push(normalizedNip);
+            // PERBAIKAN: Untuk regular user, cek apakah user adalah creator kegiatan ATAU pegawai
+            const normalizedUserNip = String(req.user.nip || '').replace(/\s/g, '');
+            console.log(`🔍 Regular User NIP (normalized): "${normalizedUserNip}"`);
+            
+            // Cek apakah user adalah creator kegiatan
+            const [creatorCheck] = await db.query(
+                'SELECT id FROM accounting.nominatif_kegiatan WHERE id = ? AND user_id = ?',
+                [id, userId]
+            );
+            
+            const isCreator = creatorCheck.length > 0;
+            console.log(`📝 Apakah user adalah creator? ${isCreator}`);
+            
+            if (isCreator) {
+                // Jika user adalah creator, beri akses penuh tanpa cek NIP pegawai
+                where = `WHERE k.id = ?`;
+                params = [id];
+                console.log('✅ User adalah creator kegiatan, akses diberikan');
+            } else {
+                // Jika bukan creator, cek apakah user terdaftar sebagai pegawai
+                where = `WHERE k.id = ? AND EXISTS (
+                    SELECT 1 FROM accounting.nominatif_pegawai p 
+                    WHERE p.kegiatan_id = k.id 
+                    AND REPLACE(p.nip, ' ', '') = ?
+                )`;
+                params = [id, normalizedUserNip];
+                console.log('🔍 User bukan creator, mengecek apakah terdaftar sebagai pegawai...');
+            }
         }
 
         const kegiatanQuery = `
@@ -523,9 +553,13 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
             ${where}
         `;
         
+        console.log(`📝 Query kegiatan: ${kegiatanQuery}`);
+        console.log(`📝 Query params:`, params);
+        
         const [kegiatanRows] = await db.query(kegiatanQuery, params);
 
         if (kegiatanRows.length === 0) {
+            console.log(`❌ Kegiatan ${id} tidak ditemukan untuk user ${username}`);
             return res.status(404).json({
                 success: false,
                 message: 'Kegiatan tidak ditemukan atau Anda tidak memiliki akses'
@@ -533,6 +567,7 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         }
 
         const kegiatanData = kegiatanRows[0];
+        console.log(`✅ Kegiatan ditemukan: ${kegiatanData.kegiatan}`);
 
         // Ambil pegawai dengan biaya_list
         const pegawaiQuery = `
@@ -548,6 +583,7 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         `;
         
         const [pegawaiRows] = await db.query(pegawaiQuery, [id]);
+        console.log(`📦 Ditemukan ${pegawaiRows.length} pegawai untuk kegiatan ini`);
 
         // Ambil biaya untuk setiap pegawai
         for (const pegawai of pegawaiRows) {
@@ -605,7 +641,7 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
                 for (const u of biaya.uang_harian) totalFromComponents += Number(u.total || 0);
                 for (const p of biaya.penginapan) totalFromComponents += Number(p.total || 0);
             }
-            pegawai.total_biaya = totalFromComponents;
+            pegawai.total_biaya = totalFromComponents > 0 ? totalFromComponents : pegawai.total_biaya;
         }
 
         const responseData = {

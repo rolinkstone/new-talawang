@@ -41,7 +41,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       
       if (response.data.success && response.data.data) {
         setSptjmList(response.data.data);
-        console.log('📦 SPTJM Transport data from input:', response.data.data);
       }
     } catch (error) {
       console.error('Error fetching SPTJM transport:', error);
@@ -61,7 +60,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       
       if (response.data.success && response.data.data) {
         setPenginapanSptjmList(response.data.data);
-        console.log('📦 SPTJM Penginapan data from input:', response.data.data);
       }
     } catch (error) {
       console.error('Error fetching SPTJM penginapan:', error);
@@ -200,74 +198,204 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   const today = new Date();
   const todayFormatted = formatDateFn(today);
   
-  // Tanggal SPD dari item (tgl_spd) atau fallback ke tgl_kwitansi
   const tglSpd = item?.tgl_spd ? formatDateFn(item.tgl_spd) : (item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted);
-  const tglKwitansi = item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted;
   const noSpt = item?.no_lpd || pegawai?.no_lpd || '-';
 
-  // Hitung total transport dari nominatif
-  const totalTransportFromNominatif = transportDetail.reduce((sum, t) => sum + (Number(t.total) || 0), 0) || transportTotal;
+  const totalTransportFromNominatif = transportDetail.reduce((sum, t) => sum + (Number(t.total) || 0), 0) || totals.transportTotal;
   const hasMultipleTransport = transportDetail.length > 1;
   const hasPenginapanSptjm = penginapanSptjmList && penginapanSptjmList.length > 0;
+
+  // Generate baris untuk kwitansi
+  const generateKwitansiRows = () => {
+    let rows = '';
+    
+    // Transport
+    if (transportDetail.length > 0) {
+      transportDetail.forEach((t, idx) => {
+        const namaTransport = t.transport || t.trans || '-';
+        const lokasiTujuan = t.tujuan || t.keterangan || 'Pulang Pisau';
+        const nominal = t.total ? `${formatRupiah(t.total)}` : '';
+        rows += `
+          <tr>
+            <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">${idx === 0 ? '1' : ''}</td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${idx === 0 ? '<strong>Uang Transport</strong>' : ''}
+              <div style="padding-left: 20px; font-size: 10px; margin-top: 2px;">
+                Uang Transport ${namaTransport} (Palangka Raya - ${lokasiTujuan})
+              </div>
+            </td>
+            <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${nominal}
+            </td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+          </tr>
+        `;
+      });
+    } else if (transportTotal > 0) {
+      rows += `
+        <tr>
+          <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">1</td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            <strong>Uang Transport</strong>
+            <div style="padding-left: 20px; font-size: 10px; margin-top: 2px;">
+              Uang Transport (Palangka Raya - Pulang Pisau)
+            </div>
+          </td>
+          <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            ${formatRupiah(transportTotal)}
+          </td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+        </tr>
+      `;
+    }
+    
+    // Uang Harian
+    if (uangHarianDetail.length > 0) {
+      uangHarianDetail.forEach((u, idx) => {
+        // Ambil tanggal dari rencana_tanggal_pelaksanaan dan rencana_tanggal_pelaksanaan_akhir
+        const tglMulai = u.rencana_tanggal_pelaksanaan || u.tanggal_mulai || u.tanggal;
+        const tglAkhir = u.rencana_tanggal_pelaksanaan_akhir || u.tanggal_akhir;
+        
+        let tanggalText = '';
+        if (tglMulai && tglAkhir) {
+          tanggalText = `Uang Harian tanggal ${formatDateFn(tglMulai)} s.d ${formatDateFn(tglAkhir)}`;
+        } else if (tglMulai) {
+          tanggalText = `Uang Harian tanggal ${formatDateFn(tglMulai)}`;
+        } else {
+          tanggalText = 'Uang Harian';
+        }
+        
+        const nominal = u.total ? `${formatRupiah(u.total)}` : '';
+        rows += `
+          <tr>
+            <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">${idx === 0 ? '2' : ''}</td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${idx === 0 ? '<strong>Uang Harian</strong>' : ''}
+              <div style="padding-left: 20px; font-size: 10px; margin-top: 2px;">
+                ${tanggalText}
+              </div>
+            </td>
+            <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${nominal}
+            </td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+          </tr>
+        `;
+      });
+    } else if (uangHarianTotal > 0) {
+      rows += `
+        <tr>
+          <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">2</td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            <strong>Uang Harian</strong>
+          </td>
+          <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            ${formatRupiah(uangHarianTotal)}
+          </td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+        </tr>
+      `;
+    }
+    
+    // Penginapan
+    if (penginapanDetail.length > 0) {
+      penginapanDetail.forEach((p, idx) => {
+        const namaHotel = p.hotel || p.jenis || '-';
+        const nominal = p.total ? `${formatRupiah(p.total)}` : '';
+        rows += `
+          <tr>
+            <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">${idx === 0 ? '3' : ''}</td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${idx === 0 ? '<strong>Penginapan</strong>' : ''}
+              <div style="padding-left: 20px; font-size: 10px; margin-top: 2px;">
+                ${namaHotel}
+              </div>
+            </td>
+            <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+              ${nominal}
+            </td>
+            <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+          </tr>
+        `;
+      });
+    } else if (penginapanTotal > 0) {
+      rows += `
+        <tr>
+          <td class="text-center" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">3</td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            <strong>Penginapan</strong>
+          </td>
+          <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
+            ${formatRupiah(penginapanTotal)}
+          </td>
+          <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;"></td>
+        </tr>
+      `;
+    }
+    
+    return rows;
+  };
 
   const generateSptjmPenginapanRows = () => {
     if (hasPenginapanSptjm) {
       return penginapanSptjmList.map((penginapan, idx) => {
-        // Gabungkan nama hotel dan alamat
         let namaDanAlamat = penginapan.nama_penginapan || '-';
         if (penginapan.alamat_penginapan) {
           namaDanAlamat += `, ${penginapan.alamat_penginapan}`;
         }
         
-        // Hitung panjang maksimal label untuk perataan
-        const labelNama = "Nama dan Alamat Penginapan";
-        const labelKamar = "Nomor kamar";
-        const labelTarif = "Tarif hotel";
-        
         return `
-          <div style="margin-bottom: 20px;">
-            <div style="margin-bottom: 5px; display: flex;">
-              <div style="width: 200px;">${labelNama}</div>
-              <div style="flex: 1;">: ${namaDanAlamat}</div>
-            </div>
-            <div style="margin-bottom: 3px; display: flex;">
-              <div style="width: 200px;">${labelKamar}</div>
-              <div style="flex: 1;">: ${penginapan.nomor_kamar || '-'}</div>
-            </div>
-            <div style="display: flex;">
-              <div style="width: 200px;">${labelTarif}</div>
-              <div style="flex: 1;">: Rp ${formatRupiah(penginapan.tarif_hotel)}/ hari tanggal ${penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'}</div>
-            </div>
-          </div>
+         <div style="margin-bottom: 15px; padding-bottom: 10px; ${idx !== penginapanSptjmList.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <tbody>
+            <tr>
+              <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nama dan Alamat Penginapan</td>
+              <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;"><strong>${namaDanAlamat}</strong></td>
+            </tr>
+            <tr>
+              <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nomor kamar</td>
+              <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;">${penginapan.nomor_kamar || '-'}</td>
+            </tr>
+            <tr>
+              <td style="width: 180px; padding: 4px 0; vertical-align: top;">Tarif hotel</td>
+              <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;">Rp ${formatRupiah(penginapan.tarif_hotel)} / hari (tanggal ${penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'})</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
         `;
       }).join('');
     } else if (penginapanDetail.length > 0) {
       return penginapanDetail.map((p, idx) => {
         let namaDanAlamat = p.hotel || p.jenis || '-';
         
-        const labelNama = "Nama dan Alamat Penginapan";
-        const labelKamar = "Nomor kamar";
-        const labelTarif = "Tarif hotel";
-        
         return `
-          <div style="margin-bottom: 20px;">
-            <div style="margin-bottom: 5px; display: flex;">
-              <div style="width: 200px;"><strong>${labelNama}</strong></div>
-              <div style="flex: 1;">: ${namaDanAlamat}</div>
-            </div>
-            <div style="margin-bottom: 3px; display: flex;">
-              <div style="width: 200px;"><strong>${labelKamar}</strong></div>
-              <div style="flex: 1;">: -</div>
-            </div>
-            <div style="display: flex;">
-              <div style="width: 200px;"><strong>${labelTarif}</strong></div>
-              <div style="flex: 1;">: Rp ${formatRupiah(p.total)}/ hari</div>
-            </div>
+          <div style="margin-bottom: 15px; padding-bottom: 10px; ${idx !== penginapanDetail.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+              <tr>
+                <td style="width: 180px; padding: 4px 0;">Nama dan Alamat Penginapan</td>
+                <td style="width: 10px; padding: 4px 0;">:</td>
+                <td style="padding: 4px 0;"><strong>${namaDanAlamat}</strong></td>
+              </tr>
+              <tr>
+                <td style="width: 180px; padding: 4px 0;">Nomor kamar</td>
+                <td style="width: 10px; padding: 4px 0;">:</td>
+                <td style="padding: 4px 0;">-</td>
+              </tr>
+              <tr>
+                <td style="width: 180px; padding: 4px 0;">Tarif hotel</td>
+                <td style="width: 10px; padding: 4px 0;">:</td>
+                <td style="padding: 4px 0;">Rp ${formatRupiah(p.total)} / hari</td>
+              </tr>
+            </table>
           </div>
         `;
       }).join('');
     }
-    return '<div style="color: #999;">Tidak ada data penginapan</div>';
+    return '<div style="color: #999; text-align: center; padding: 20px;">Tidak ada data penginapan</div>';
   };
 
   const handlePrint = () => {
@@ -288,17 +416,12 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     const kegiatanText = kegiatan?.kegiatan || '-';
     const makText = kegiatan?.mak || '-';
 
-    const transportRows = transportDetail.map(t => `<div>${t.transport || t.trans || '-'}</div>`).join('');
-    const uangHarianRows = uangHarianDetail.map(u => `<div>${u.qty || 0} hari</div>`).join('');
-    const penginapanRows = penginapanDetail.map(p => `<div>${p.hotel || 'Hotel'}</div>`).join('');
-
     const hasSptjm = sptjmList && sptjmList.length > 0;
     
     // Generate tabel SPTJM Transport
     let sptjmTableRows = '';
     
     if (hasMultipleTransport) {
-      console.log('📋 Multiple transport detected, using nominatif data');
       transportDetail.forEach((t, idx) => {
         const itemTotal = Number(t.total) || 0;
         const uraian = t.transport || t.trans || '-';
@@ -311,7 +434,6 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         `;
       });
     } else if (hasSptjm && sptjmList.length > 0) {
-      console.log('📋 Single transport detected, using SPTJM data from input');
       sptjmList.forEach((sptjm, idx) => {
         let uraian = sptjm.jenis_transport || '-';
         if (sptjm.nama_maskapai) {
@@ -356,8 +478,8 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       `;
     }
 
-    // Generate SPTJM Penginapan rows
     const sptjmPenginapanRows = generateSptjmPenginapanRows();
+    const kwitansiRows = generateKwitansiRows();
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -413,14 +535,14 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           .bukti-kas { margin-top: 5px; padding-top: 3px; border-top: 1px dashed #000; font-weight: bold; font-size: 11px; }
           .title { text-align: center; font-size: 12px; font-weight: bold; margin: 15px 0 10px; }
           .lampiran { font-size: 11px; margin: 10px 0 5px; }
+          
           table { width: 100%; border-collapse: collapse; margin: 12px 0; }
           th, td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
           th { background-color: #f5f5f5; text-align: center; font-weight: bold; }
+          
           .text-right { text-align: right; }
           .text-center { text-align: center; }
           .text-left { text-align: left; }
-          .jumlah-total { text-align: right; font-weight: bold; margin-top: 8px; font-size: 11px; }
-          .terbilang { margin-top: 8px; font-size: 11px; }
           
           .signature-wrapper { margin-top: 40px; }
           .signature-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
@@ -480,227 +602,252 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
 
           <div class="title">${kegiatanText}</div>
 
-          <div class="lampiran">
-            Lampiran SPD Nomor  : ${noSpt}<br/>
-            Tanggal SPD         : ${tglSpd}<br/>
+          <div class="lampiran" style="margin: 10px 0 5px 0;">
+            <div style="display: flex; align-items: baseline; margin-bottom: 2px;">
+              <div style="width: 120px;">Lampiran SPD Nomor</div>
+              <div style="width: 15px;">:</div>
+              <div style="flex: 1;">${noSpt}</div>
+            </div>
+            <div style="display: flex; align-items: baseline;">
+              <div style="width: 120px;">Tanggal SPD</div>
+              <div style="width: 15px;">:</div>
+              <div style="flex: 1;">${tglSpd}</div>
+            </div>
           </div>
 
           <table>
             <thead>
-              <tr><th style="width:8%">NO</th><th style="width:47%">PERINCIAN BIAYA</th><th style="width:20%">JUMLAH</th><th style="width:25%">KETERANGAN</th></tr>
+              <tr>
+                <th style="width:8%">NO</th>
+                <th style="width:47%">PERINCIAN BIAYA</th>
+                <th style="width:20%">JUMLAH</th>
+                <th style="width:25%">KETERANGAN</th>
+              </tr>
             </thead>
             <tbody>
-              <tr><td class="text-center">1.</td><td class="text-left">Transport</td><td class="text-right">Rp ${formatRupiah(transportTotal)}</td><td class="text-left">${transportRows || '-'}</td></tr>
-              <tr><td class="text-center">2.</td><td class="text-left">Uang Harian<\/td><td class="text-right">Rp ${formatRupiah(uangHarianTotal)}<\/td><td class="text-left">${uangHarianRows || '-'}<\/td><\/tr>
-              <tr><td class="text-center">3.<\/td><td class="text-left">Penginapan<\/td><td class="text-right">Rp ${formatRupiah(penginapanTotal)}<\/td><td class="text-left">${penginapanRows || '-'}<\/td><\/tr>
-              <tr style="font-weight:bold;"><td colspan="2" class="text-right">JUMLAH<\/td><td class="text-right">Rp ${formatRupiah(totalBiaya)}<\/td><td class="text-left"><\/td><\/tr>
-            <\/tbody>
-          <\/table>
+              ${kwitansiRows}
+              <!-- BARIS JUMLAH - MERGE KE KIRI (colspan 2) -->
+              <tr style="font-weight:bold;">
+                <td colspan="2" class="text-center" style="border: 1px solid #000; padding: 6px;">JUMLAH</td>
+                <td class="text-right" style="border: 1px solid #000; padding: 6px;">${formatRupiah(totalBiaya)}</td>
+                <td style="border: 1px solid #000; padding: 6px;"></td>
+              </tr>
+              <!-- BARIS TERBILANG - FULL MERGE (colspan 4) -->
+              <tr>
+                <td colspan="4" style="border: 1px solid #000; padding: 8px; text-align: center;">
+                  <strong>Terbilang : ${terbilang(totalBiaya)}</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-          <div class="jumlah-total">JUMLAH : Rp ${formatRupiah(totalBiaya)}<\/div>
-          <div class="terbilang">Terbilang : "${terbilang(totalBiaya)}"<\/div>
+          
+              <div class="signature-wrapper" style="margin-top: 10px;">
+                <div class="signature-header" style="margin-bottom: 2px;">
+                  <div class="signature-header-left">
+                    &nbsp;
+                  </div>
+                  <div class="signature-header-right">
+                    Palangka Raya, ${todayFormatted}
+                  </div>
+                </div>
+                <div class="signature-header" style="margin-bottom: 2px;">
+                  <div class="signature-header-left">
+                    Telah Dibayar Sejumlah
+                  </div>
+                  <div class="signature-header-right">
+                    Telah menerima jumlah uang sebesar 
+                  </div>
+                </div>
+                <div class="signature-header" style="margin-bottom: 15px;">
+                  <div class="signature-header-left">
+                    Rp ${formatRupiah(totalBiaya)}
+                  </div>
+                  <div class="signature-header-right">
+                    Rp ${formatRupiah(totalBiaya)}
+                  </div>
+                </div>
 
-          <div class="signature-wrapper">
-            <div class="signature-header">
-              <div class="signature-header-left">
-                <div>Palangka Raya, ${todayFormatted}<\/div>
-                <div class="payment-amount">Telah Dibayar Sejumlah<\/div>
-                <div class="payment-amount">Rp ${formatRupiah(totalBiaya)}<\/div>
-              <\/div>
-              <div class="signature-header-right">
-                <div>Telah menerima jumlah uang sebesar<\/div>
-                <div class="payment-amount">Rp ${formatRupiah(totalBiaya)}<\/div>
-              <\/div>
-            <\/div>
+                <div class="signature-title" style="margin-bottom: 5px;">
+                  <div class="signature-title-left">Bendahara Pengeluaran,</div>
+                  <div class="signature-title-right">Yang Menerima,</div>
+                </div>
 
-            <div class="signature-title">
-              <div class="signature-title-left">Bendahara Pengeluaran,<\/div>
-              <div class="signature-title-right">Yang Menerima,<\/div>
-            <\/div>
+                <div class="signature-ttd" style="margin-bottom: 5px;">
+                  <div class="signature-ttd-left"><div class="signature-ttd-image" style="min-height: 50px;">${ttdBendaharaHtml}</div></div>
+                  <div class="signature-ttd-right"><div class="signature-ttd-image" style="min-height: 50px;">${ttdPegawaiHtml}</div></div>
+                </div>
 
-            <div class="signature-ttd">
-              <div class="signature-ttd-left"><div class="signature-ttd-image">${ttdBendaharaHtml}<\/div><\/div>
-              <div class="signature-ttd-right"><div class="signature-ttd-image">${ttdPegawaiHtml}<\/div><\/div>
-            <\/div>
+                <div class="signature-name" style="margin-bottom: 2px;">
+                  <div class="signature-name-left">${bendaharaNama}</div>
+                  <div class="signature-name-right">${pegawaiNama}</div>
+                </div>
 
-            <div class="signature-name">
-              <div class="signature-name-left">${bendaharaNama}<\/div>
-              <div class="signature-name-right">${pegawaiNama}<\/div>
-            <\/div>
+                <div class="signature-nip">
+                  <div class="signature-nip-left" style="font-size: 9px;">NIP. ${kegiatan?.bendahara_nip || '-'}</div>
+                  <div class="signature-nip-right" style="font-size: 9px;">NIP. ${pegawaiNip}</div>
+                </div>
+              </div>
 
-            <div class="signature-nip">
-              <div class="signature-nip-left">NIP. ${kegiatan?.bendahara_nip || '-'}<\/div>
-              <div class="signature-nip-right">NIP. ${pegawaiNip}<\/div>
-            <\/div>
-          <\/div>
+  <div style="border-top: 1px solid #000; margin: 20px 0 10px 0;"></div>
 
-          <div class="footer">
-            <div class="footer-box">
-              <div class="footer-row"><span>PERHITUNGAN SPD RAMPUNG<\/span><span class="total-amount">Rp ${formatRupiah(totalBiaya)}<\/span><\/div>
-              <div class="footer-row"><span>Ditetapkan sejumlah<\/span><span class="total-amount">Rp ${formatRupiah(totalBiaya)}<\/span><\/div>
-              <div class="footer-row"><span>Yang telah dibayarkan semula<\/span><span>-<\/span><\/div>
-              <div class="footer-row"><span>Sisa kurang/lebih<\/span><span class="total-amount">Rp ${formatRupiah(totalBiaya)}<\/span><\/div>
-            <\/div>
-          <\/div>
+        <div class="footer" style="display: flex; justify-content: center;">
+          <div style="width: 520px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span></span>
+              <span style="font-weight: bold;">PERHITUNGAN SPD RAMPUNG</span>
+              <span></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span>Ditetapkan sejumlah : <span style="letter-spacing: 2px;"></span></span>
+              <span>Rp ${formatRupiah(totalBiaya)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span>Yang telah dibayar semula : <span style="letter-spacing: 2px;"></span></span>
+              <span>-</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span>Sisa kurang/lebih : <span style="letter-spacing: 2px;"></span></span>
+              <span>Rp ${formatRupiah(totalBiaya)}</span>
+            </div>
+          </div>
+        </div>
 
-          <div class="ppk-wrapper">
-            <div class="ppk-label">An. KUASA PENGGUNA ANGGARAN<br\/>BALAI BESAR PENGAWAS OBAT DAN MAKANAN<br\/>DI PALANGKA RAYA<\/div>
-            <div class="ppk-label" style="margin-top: 15px;">Pembuat Komitmen,<\/div>
-            <div class="ppk-image">${ttdPpkHtml}<\/div>
-            <div class="ppk-line">${ppkNama}<\/div>
-            <div class="ppk-nip">NIP. ${kegiatan?.ppk_nip || '-'}<\/div>
-          <\/div>
-        <\/div>
+         <div class="ppk-wrapper" style="margin-top: 25px; text-align: center; width: 50%; margin-left: auto;">
+        <div class="ppk-label" style="font-size: 11px; margin-bottom: 5px;">
+          An. KUASA PENGGUNA ANGGARAN<br/>BALAI BESAR PENGAWAS OBAT DAN MAKANAN<br/>DI PALANGKA RAYA
+        </div>
+        <div class="ppk-label" style="font-size: 11px; margin-bottom: 5px; margin-top: 15px;">
+          Pembuat Komitmen,
+        </div>
+        <div class="ppk-image" style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 10px 0;">
+          ${ttdPpkHtml}
+        </div>
+        <div class="ppk-line" style="font-weight: normal; font-size: 11px; margin-top: 5px; border-top: none;">
+          ${ppkNama}
+        </div>
+        <div class="ppk-nip" style="font-size: 9px; margin-top: 3px;">
+          NIP. ${kegiatan?.ppk_nip || '-'}
+        </div>
+      </div>
+        </div>
 
         <!-- Page Break untuk halaman 2 - SPTJM Transport -->
-        <div class="page-break"><\/div>
+        <div class="page-break"></div>
 
-        <!-- Halaman 2: SPTJM Transport (Surat Pernyataan Tanggung Jawab Mutlak) -->
+        <!-- Halaman 2: SPTJM Transport -->
         <div class="sptjm-container">
-          <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK<\/div>
+          <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</div>
           
           <div class="sptjm-text">
             Yang bertandatangan dibawah ini saya :
-          <\/div>
+          </div>
           
           <table class="sptjm-data-table">
             <tbody>
-              <tr>
-                <td style="width: 180px;">Nama Lengkap<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiNama}<\/strong><\/td>
-              <\/tr>
-              <tr>
-                <td style="width: 180px;">NIP.<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiNip}<\/strong><\/td>
-              <\/tr>
-              <tr>
-                <td style="width: 180px;">Jabatan<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiJabatan}<\/strong><\/td>
-              <\/tr>
-            <\/tbody>
-          <\/table>
+              <tr><td style="width: 180px;">Nama Lengkap</td><td style="width: 20px; text-align: center;">:</td><td><strong>${pegawaiNama}</strong></td></tr>
+              <tr><td style="width: 180px;">NIP.</td><td style="width: 20px; text-align: center;">:</td><td><strong>${pegawaiNip}</strong></td></tr>
+              <tr><td style="width: 180px;">Jabatan</td><td style="width: 20px; text-align: center;">:</td><td><strong>${pegawaiJabatan}</strong></td></tr>
+            </tbody>
+          </table>
           
           <div class="sptjm-text">
-            Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}<\/strong> 
-            tanggal <strong>${tglSpd}<\/strong>, dengan ini menyatakan bahwa :
-          <\/div>
+            Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}</strong> 
+            tanggal <strong>${tglSpd}</strong>, dengan ini menyatakan bahwa :
+          </div>
           
           <div class="sptjm-text">
             1. Tiket yang saya sampaikan sebagai pertanggungjawaban adalah benar asli, dengan menggunakan penerbangan sebagai berikut :
-          <\/div>
+          </div>
           
           <table style="margin: 10px 0; width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr>
-                <th style="width: 8%; border: 1px solid #000; padding: 6px; text-align: center;">No<\/th>
-                <th style="width: 67%; border: 1px solid #000; padding: 6px; text-align: center;">Uraian<\/th>
-                <th style="width: 25%; border: 1px solid #000; padding: 6px; text-align: center;">Jumlah<\/th>
-              <\/tr>
-            <\/thead>
-            <tbody>
-              ${sptjmTableRows}
-            <\/tbody>
-          <\/table>
+            <thead><tr><th style="width:8%; border:1px solid #000; padding:6px;">No</th><th style="width:67%; border:1px solid #000; padding:6px;">Uraian</th><th style="width:25%; border:1px solid #000; padding:6px;">Jumlah</th></tr></thead>
+            <tbody>${sptjmTableRows}</tbody>
+          </table>
           
           <div class="sptjm-text">
             2. Jika dikemudian hari terdapat ketidaksesuaian, saya bersedia mempertanggungjawabkan dan mengembalikan ke Kas Negara.
-          <\/div>
+          </div>
           
           <div class="sptjm-text">
             Demikian surat pernyataan ini saya buat untuk dapat digunakan sebagaimana mestinya.
-          <\/div>
+          </div>
           
-          <div class="sptjm-signature">
-            <div class="sptjm-signature-box">
-              <div>Palangka Raya, ${todayFormatted}<\/div>
-              <div>Yang membuat pernyataan dan<\/div>
-              <div>melakukan Perjalanan Dinas<\/div>
-              <div style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 15px 0;">${ttdPegawaiHtml}<\/div>
-              <div class="sptjm-signature-line">${pegawaiNama}<\/div>
-              <div class="sptjm-signature-nip">NIP. ${pegawaiNip}<\/div>
-            <\/div>
-          <\/div>
-        <\/div>
+          <div class="sptjm-signature" style="margin-top: 40px; display: flex; justify-content: flex-end;">
+          <div class="sptjm-signature-box" style="text-align: center; width: 250px;">
+            <div>Palangka Raya, ${todayFormatted}</div>
+            <div>Yang membuat pernyataan dan</div>
+            <div>melakukan Perjalanan Dinas</div>
+            <div style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 15px 0;">${ttdPegawaiHtml}</div>
+            <div class="sptjm-signature-name" style="font-weight: bold; margin-top: 5px;">${pegawaiNama}</div>
+            <div class="sptjm-signature-nip" style="font-size: 9px; margin-top: 3px;">NIP. ${pegawaiNip}</div>
+          </div>
+        </div>
+        </div>
 
         <!-- Page Break untuk halaman 3 - SPTJM Penginapan -->
-        <div class="page-break"><\/div>
+        <div class="page-break"></div>
 
-        <!-- Halaman 3: SPTJM Penginapan (Surat Pernyataan Tanggung Jawab Mutlak untuk Penginapan) -->
+        <!-- Halaman 3: SPTJM Penginapan (Sudah Dirapikan) -->
         <div class="sptjm-container">
-          <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK<\/div>
+          <div class="sptjm-title">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</div>
           
           <div class="sptjm-text">
             Yang bertandatangan dibawah ini saya :
-          <\/div>
+          </div>
           
           <table class="sptjm-data-table">
             <tbody>
-              <tr>
-                <td style="width: 180px;">Nama Lengkap<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiNama}<\/strong><\/td>
-              <\/tr>
-              <tr>
-                <td style="width: 180px;">NIP.<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiNip}<\/strong><\/td>
-              <\/tr>
-              <tr>
-                <td style="width: 180px;">Jabatan<\/td>
-                <td style="width: 20px; text-align: center;">:<\/td>
-                <td><strong>${pegawaiJabatan}<\/strong><\/td>
-              <\/tr>
-            <\/tbody>
-          <\/table>
+              <tr><td style="width: 180px;">Nama Lengkap</td><td style="width: 20px;">:</td><td><strong>${pegawaiNama}</strong></td></tr>
+              <tr><td style="width: 180px;">NIP.</td><td style="width: 20px;">:</td><td><strong>${pegawaiNip}</strong></td></tr>
+              <tr><td style="width: 180px;">Jabatan</td><td style="width: 20px;">:</td><td><strong>${pegawaiJabatan}</strong></td></tr>
+            </tbody>
+          </table>
           
           <div class="sptjm-text">
-            Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}<\/strong> 
-            tanggal <strong>${tglSpd}<\/strong>, dengan ini menyatakan bahwa :
-          <\/div>
+            Sesuai dengan Surat Perintah Dinas (SPD) Nomor <strong>${noSpt}</strong> 
+            tanggal <strong>${tglSpd}</strong>, dengan ini menyatakan bahwa :
+          </div>
           
           <div class="sptjm-text">
             1. Bukti penginapan yang saya sampaikan sebagai pertanggungjawaban adalah benar asli, dengan tempat penginapan sebagai berikut:
-          <\/div>
+          </div>
           
-          <div style="margin: 15px 0 15px 0;">
+          
             ${sptjmPenginapanRows}
-          <\/div>
+          
           
           <div class="sptjm-text">
             2. Jika dikemudian hari terdapat ketidaksesuaian, saya bersedia mempertanggungjawabkan dan mengembalikan ke Kas Negara.
-          <\/div>
+          </div>
           
           <div class="sptjm-text">
             Demikian surat pernyataan ini saya buat untuk dapat digunakan sebagaimana mestinya.
-          <\/div>
+          </div>
           
-          <div class="sptjm-signature">
-            <div class="sptjm-signature-box">
-              <div>Palangka Raya, ${todayFormatted}<\/div>
-              <div>Yang membuat pernyataan dan<\/div>
-              <div>melakukan Perjalanan Dinas<\/div>
-              <div style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 15px 0;">${ttdPegawaiHtml}<\/div>
-              <div class="sptjm-signature-line">${pegawaiNama}<\/div>
-              <div class="sptjm-signature-nip">NIP. ${pegawaiNip}<\/div>
-            <\/div>
-          <\/div>
-        <\/div>
+          <div class="sptjm-signature" style="margin-top: 40px; display: flex; justify-content: flex-end;">
+            <div class="sptjm-signature-box" style="text-align: center; width: 250px;">
+              <div>Palangka Raya, ${todayFormatted}</div>
+              <div>Yang membuat pernyataan dan</div>
+              <div>melakukan Perjalanan Dinas</div>
+              <div style="min-height: 60px; display: flex; justify-content: center; align-items: center; margin: 15px 0;">${ttdPegawaiHtml}</div>
+              <div class="sptjm-signature-name" style="font-weight: bold; margin-top: 5px;">${pegawaiNama}</div>
+              <div class="sptjm-signature-nip" style="font-size: 9px; margin-top: 3px;">NIP. ${pegawaiNip}</div>
+            </div>
+          </div>
+        </div>
 
         <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">🖨️ Cetak<\/button>
-          <button onclick="window.close();" style="padding:10px 20px;cursor:pointer;">Tutup<\/button>
-        <\/div>
-      <\/body>
-      <\/html>
+          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">🖨️ Cetak</button>
+          <button onclick="window.close();" style="padding:10px 20px;cursor:pointer;">Tutup</button>
+        </div>
+      </body>
+      </html>
     `);
 
     printWindow.document.close();
   };
 
-  // ====== RENDER Preview ======
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4">
@@ -726,22 +873,10 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
               <p className="text-sm font-medium text-yellow-800">📄 Dokumen yang akan dicetak:</p>
               <ul className="text-xs text-yellow-700 mt-1 list-disc list-inside">
-                <li>Halaman 1: Kwitansi Perjalanan Dinas</li>
-                <li>Halaman 2: SPTJM Transport (Surat Pernyataan Tanggung Jawab Mutlak)</li>
-                <li>Halaman 3: SPTJM Penginapan (Surat Pernyataan Tanggung Jawab Mutlak)</li>
+                <li>Halaman 1: Kwitansi Perjalanan Dinas (tanpa garis bawah antar baris 1,2,3)</li>
+                <li>Halaman 2: SPTJM Transport</li>
+                <li>Halaman 3: SPTJM Penginapan (tabel rapi)</li>
               </ul>
-              <p className="text-xs text-yellow-700 mt-2">
-                {hasMultipleTransport 
-                  ? "✅ Data transport di SPTJM dari nominatif (multiple items)"
-                  : "⚠️ Data transport di SPTJM dari input kwitansi, nominal hanya di item pertama"}
-              </p>
-              <p className="text-xs text-yellow-700 mt-1">
-                {hasPenginapanSptjm 
-                  ? "✅ Data penginapan di SPTJM dari input kwitansi"
-                  : penginapanDetail.length > 0
-                    ? "⚠️ Data penginapan di SPTJM dari nominatif"
-                    : "⚠️ Tidak ada data penginapan"}
-              </p>
             </div>
           </div>
 

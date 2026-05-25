@@ -795,24 +795,45 @@ export default function KegiatanContainer({ session, status }) {
         setItemToDelete(null);
     };
 
+    // ============ PERBAIKAN: toggleDetail dengan endpoint yang benar ============
     const toggleDetail = async (id) => {
         const newDetailShown = { ...detailShown, [id]: !detailShown[id] };
         setDetailShown(newDetailShown);
 
         if (newDetailShown[id] && !detailData[id]) {
             try {
+                // Gunakan endpoint /kegiatan/${id}/detail (sudah benar)
                 const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${id}/detail`, {
                     headers: { 
                         Authorization: `Bearer ${session?.accessToken}` 
-                    }
+                    },
+                    timeout: 10000
                 });
+                
                 if (res.data.success) {
                     setDetailData(prev => ({ ...prev, [id]: res.data.data }));
+                } else {
+                    console.error('API returned success false:', res.data);
+                    setNotificationMessage(res.data.message || 'Gagal memuat detail kegiatan');
+                    setModalOpen(true);
                 }
             } catch (error) {
                 console.error('Error fetching detail:', error);
-                setNotificationMessage('Gagal memuat detail kegiatan');
+                
+                let errorMessage = 'Gagal memuat detail kegiatan';
+                if (error.response?.status === 404) {
+                    errorMessage = 'Endpoint API tidak ditemukan. Silakan hubungi administrator.';
+                } else if (error.response?.status === 401) {
+                    errorMessage = 'Session expired. Silakan refresh halaman.';
+                } else if (error.code === 'ECONNABORTED') {
+                    errorMessage = 'Timeout koneksi. Silakan coba lagi.';
+                }
+                
+                setNotificationMessage(errorMessage);
                 setModalOpen(true);
+                
+                // Reset detailShown agar tidak stuck
+                setDetailShown(prev => ({ ...prev, [id]: false }));
             }
         }
     };
@@ -838,6 +859,7 @@ export default function KegiatanContainer({ session, status }) {
                         headers: { 
                             Authorization: `Bearer ${session?.accessToken}` 
                         },
+                        timeout: 10000
                     });
                     if (res.data.success) {
                         data = res.data.data;
@@ -1155,7 +1177,7 @@ export default function KegiatanContainer({ session, status }) {
                 </div>
             </div>
 
-            {/* Table - Lanjutan di bawah karena panjang */}
+            {/* Table */}
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -1450,7 +1472,7 @@ export default function KegiatanContainer({ session, status }) {
                                                                             {pegawaiDetailShown[p.id] ? 'Hide' : 'Show'}
                                                                         </button>
                                                                     </td>
-                                                                </tr>
+                                                                 </tr>
 
                                                                 {pegawaiDetailShown[p.id] && p.biaya_list && p.biaya_list.length > 0 && (
                                                                     <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-50'}>
@@ -1535,15 +1557,15 @@ export default function KegiatanContainer({ session, status }) {
                                                                                     </div>
                                                                                 );
                                                                             })}
-                                                                        </td>
-                                                                    </tr>
+                                                                         </td>
+                                                                     </tr>
                                                                 )}
                                                             </React.Fragment>
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                            </td>
-                                        </tr>
+                                             </td>
+                                         </tr>
                                     )}
                                 </React.Fragment>
                             ))
@@ -1551,11 +1573,11 @@ export default function KegiatanContainer({ session, status }) {
                             <tr>
                                 <td colSpan={12} className="px-6 py-4 text-center text-gray-500">
                                     Tidak ada data kegiatan
-                                </td>
-                            </tr>
+                                 </td>
+                             </tr>
                         )}
                     </tbody>
-                </table>
+                 </table>
             </div>
 
             {/* Pagination */}
