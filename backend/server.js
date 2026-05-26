@@ -142,6 +142,7 @@ const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
 const keycloakRoutes = require('./routes/keycloak');
 const profileRoutes = require('./routes/profile');
+const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
 
 // ========== MOUNT ROUTES ==========
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -150,6 +151,7 @@ app.use('/api/kwitansi', kwitansiRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/keycloak', keycloakRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 
 // ========== AUTH ENDPOINTS ==========
 app.post('/api/login', async (req, res) => {
@@ -394,6 +396,8 @@ app.get('/api/health', (req, res) => {
                 'POST /api/kwitansi',
                 'PUT /api/kwitansi',
                 'DELETE /api/kwitansi',
+                'GET /api/lpd',  // TAMBAHKAN INI
+                'GET /api/lpd/kegiatan/:kegiatanId',  // TAMBAHKAN INI
                 'GET /api/userinfo',
                 'POST /api/refresh'
             ]
@@ -439,6 +443,13 @@ if (!fs.existsSync(uploadsDir)) {
     console.log('✅ Uploads directory created:', uploadsDir);
 }
 
+// ========== CREATE LPD UPLOADS DIRECTORY ==========
+const lpdUploadsDir = path.join(__dirname, 'public/uploads/lpd-dokumentasi');
+if (!fs.existsSync(lpdUploadsDir)) {
+    fs.mkdirSync(lpdUploadsDir, { recursive: true });
+    console.log('✅ LPD dokumentasi directory created:', lpdUploadsDir);
+}
+
 // ========== START SERVER ==========
 app.listen(PORT, () => {
     console.log(`
@@ -449,8 +460,10 @@ app.listen(PORT, () => {
     ✅ Routes:
        /api/kegiatan
        /api/kwitansi
+       /api/lpd
        /api/search
        /api/keycloak
+       /api/profile
        /uploads (static files)
     
     ✅ Authentication: Keycloak JWT
@@ -461,9 +474,13 @@ app.listen(PORT, () => {
     🔐 Login: POST /api/login
     📊 Kegiatan: GET /api/kegiatan
     🧾 Kwitansi: GET /api/kwitansi
+    📋 LPD: GET /api/lpd/daftar-kegiatan
+    📝 LPD Rincian: POST /api/lpd/rincian
+    📎 LPD Dokumentasi: POST /api/lpd/dokumentasi/:kegiatanId
     👤 User Info: GET /api/userinfo
     🔄 Refresh: POST /api/refresh
     📁 Files: GET /uploads/kwitansi/:filename
+    📁 LPD Files: GET /uploads/lpd-dokumentasi/:filename
     
     ============================================
     `);

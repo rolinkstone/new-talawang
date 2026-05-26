@@ -12,6 +12,7 @@ const kegiatanRoutes = require('./routes/kegiatan');
 const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
 const indexRoutes = require('./routes/index');
+const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
 
 const app = express();
 
@@ -66,7 +67,7 @@ passport.use(new KeycloakStrategy({
         firstName: profile.given_name || profile.firstName,
         lastName: profile.family_name || profile.lastName,
         fullName: profile.name,
-         nip: profile.nip,
+        nip: profile.nip,
         roles: profile.realm_access?.roles || [],
         accessToken: accessToken,
         refreshToken: refreshToken,
@@ -92,8 +93,9 @@ passport.deserializeUser((user, done) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/keycloak', keycloakRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
+app.use('/api/kwitansi', kwitansiRoutes);  // TAMBAHKAN INI (jika belum ada)
 app.use('/api/search', searchRoutes);
-
+app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -101,7 +103,16 @@ app.get('/api/health', (req, res) => {
         success: true,
         message: 'Server is running',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        endpoints: [
+            '/api/auth',
+            '/api/keycloak', 
+            '/api/kegiatan',
+            '/api/kwitansi',
+            '/api/search',
+            '/api/lpd',
+            '/api/health'
+        ]
     });
 });
 
@@ -130,4 +141,5 @@ app.listen(PORT, () => {
     console.log(`🔑 Keycloak configured for realm: ${KEYCLOAK_CONFIG.realm}`);
     console.log(`🌐 Backend URL: ${process.env.BACKEND_URL || 'http://localhost:5000'}`);
     console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+    console.log(`📋 LPD routes: /api/lpd`);
 });

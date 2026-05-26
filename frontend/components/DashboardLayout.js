@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { 
   FaHome, FaBox, FaUsers, FaShoppingCart, FaCog, FaSignOutAlt, 
   FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch,
-  FaTimesCircle, FaFileInvoice, FaReceipt  
+  FaTimesCircle, FaFileInvoice, FaReceipt, FaFileAlt, FaCamera, FaCalendarAlt  
 } from 'react-icons/fa';
 
 import { useSession, signOut } from 'next-auth/react';
@@ -60,6 +60,28 @@ export default function DashboardLayout({ children }) {
     }
     
     console.log("❌ User does NOT have PPK role");
+    return false;
+  };
+
+  // Fungsi untuk cek apakah user memiliki role Bendahara
+  const hasBendaharaRole = () => {
+    if (!session?.user) return false;
+    
+    if (session.user.role) {
+      const role = session.user.role.toLowerCase();
+      if (role.includes('bendahara')) {
+        return true;
+      }
+    }
+    
+    if (session.user.roles && Array.isArray(session.user.roles)) {
+      return session.user.roles.some(role => role.toLowerCase().includes('bendahara'));
+    }
+    
+    if (session.user.roles && typeof session.user.roles === 'string') {
+      return session.user.roles.toLowerCase().includes('bendahara');
+    }
+    
     return false;
   };
 
@@ -162,6 +184,13 @@ export default function DashboardLayout({ children }) {
                 icon: <FaReceipt />,
                 description: 'Input kuitansi perjalanan dinas'
             },
+            // Menu LPD - Laporan Perjalanan Dinas
+            { 
+                href: '/lpd', 
+                label: 'Laporan Perjadin', 
+                icon: <FaFileAlt />,
+                description: 'Laporan Perjalanan Dinas (LPD)'
+            },
             // Menu Cari/Batalkan - ditampilkan untuk role PPK dan ADMIN
             ...(hasPPKRole() || hasAdminRole() ? [
                 { 
@@ -185,6 +214,7 @@ export default function DashboardLayout({ children }) {
 
   const debugInfo = {
     hasPPK: hasPPKRole(),
+    hasBendahara: hasBendaharaRole(),
     hasAdmin: hasAdminRole(),
     userRole: session?.user?.role,
     userRoles: session?.user?.roles,
@@ -239,7 +269,7 @@ export default function DashboardLayout({ children }) {
                     className={`
                       flex items-center py-3 px-3 rounded-lg
                       transition-all duration-200
-                      ${router.pathname === item.href 
+                      ${router.pathname === item.href || router.pathname.startsWith(item.href + '/')
                         ? 'bg-blue-600 text-white' 
                         : 'hover:bg-gray-700'
                       }
@@ -249,7 +279,17 @@ export default function DashboardLayout({ children }) {
                     <span className="text-lg">{item.icon}</span>
                     {isSidebarOpen && (
                       <div className="ml-3">
-                        <span className="font-medium block">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium block">{item.label}</span>
+                          {item.badge && (
+                            <span className={`
+                              text-xs px-1.5 py-0.5 rounded
+                              ${item.badge === 'Admin' ? 'bg-red-500' : 'bg-yellow-500'}
+                            `}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
                         {item.description && (
                           <span className="text-xs text-gray-400 block">
                             {item.description}
@@ -270,6 +310,16 @@ export default function DashboardLayout({ children }) {
             <div className="mb-4 p-3 bg-gray-700 rounded-lg">
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                <span className={`inline-block px-2 py-0.5 rounded text-xs ${
+                  hasAdminRole() ? 'bg-red-600' :
+                  hasPPKRole() ? 'bg-yellow-600' :
+                  hasBendaharaRole() ? 'bg-green-600' :
+                  'bg-gray-600'
+                }`}>
+                  {getUserRoleDisplay()}
+                </span>
+              </p>
             </div>
           )}
           
@@ -306,9 +356,16 @@ export default function DashboardLayout({ children }) {
                 {router.pathname === '/' ? 'Dashboard' : 
                  router.pathname === '/kwitansi' ? 'Kwitansi Perjalanan Dinas' :
                  router.pathname === '/kegiatan' ? 'Nominatif Kegiatan' :
+                 router.pathname === '/lpd' ? 'Laporan Perjalanan Dinas (LPD)' :
                  router.pathname === '/search' ? 'Batalkan Nominatif' :
+                 router.pathname.startsWith('/lpd/') ? 'Laporan Perjalanan Dinas (LPD)' :
                  'Aplikasi Nominatif'}
               </h2>
+              {router.pathname.startsWith('/lpd/') && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Form Laporan Perjalanan Dinas
+                </p>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">
@@ -317,7 +374,7 @@ export default function DashboardLayout({ children }) {
                 <button 
                   onClick={() => {
                     console.log("🔍 DEBUG Session Info:", debugInfo);
-                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
+                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\nHas Bendahara: ${hasBendaharaRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
                   }}
                   className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
                 >
@@ -347,6 +404,7 @@ export default function DashboardLayout({ children }) {
                       <span className={`px-2 py-1 rounded ${
                         session.user.role.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
                         session.user.role.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
+                        session.user.role.toLowerCase().includes('bendahara') ? 'bg-green-100 text-green-800' :
                         session.user.role.toLowerCase().includes('kabalai') ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>

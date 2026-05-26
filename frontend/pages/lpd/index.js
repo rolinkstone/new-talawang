@@ -3,14 +3,14 @@ import React from 'react';
 import { useSession } from 'next-auth/react';
 import { getSession } from 'next-auth/react';
 import DashboardLayout from '../../components/DashboardLayout';
-import KwitansiContainer from '../../components/kwitansi/KwitansiContainer';
+import LpdContainer from '../../components/lpd/LpdContainer';
 
-export default function KwitansiPage() {
+export default function LpdPage() {
   const { data: session, status } = useSession();
 
   return (
     <DashboardLayout>
-      <KwitansiContainer session={session} status={status} />
+      <LpdContainer session={session} status={status} />
     </DashboardLayout>
   );
 }

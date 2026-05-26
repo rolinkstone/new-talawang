@@ -11,6 +11,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import { formatDateFn } from '../../utils/formatters';
 
 const ITEMS_PER_PAGE = 10;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function LpdContainer({ session, status }) {
     const router = useRouter();
@@ -87,18 +88,25 @@ export default function LpdContainer({ session, status }) {
             console.error('No access token available');
             setNotificationMessage('Token tidak ditemukan. Silakan login kembali.');
             setModalOpen(true);
-            router.push('/login');
+            setTimeout(() => {
+                router.push('/login');
+            }, 2000);
             return;
         }
 
         try {
             setLoading(true);
-            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/lpd/daftar-kegiatan`, {
+            const url = `${API_BASE_URL}/lpd/daftar-kegiatan`;
+            console.log('🌐 Fetching from:', url);
+            
+            const res = await axios.get(url, {
                 headers: { 
-                    Authorization: `Bearer ${session.accessToken}` 
+                    'Authorization': `Bearer ${session.accessToken}` 
                 },
                 timeout: 10000
             });
+            
+            console.log('📦 Response:', res.data);
             
             if (res.data.success && Array.isArray(res.data.data)) {
                 const sortedData = [...res.data.data].sort((a, b) => {
@@ -109,19 +117,29 @@ export default function LpdContainer({ session, status }) {
             } else {
                 setKegiatanList([]);
                 setFilteredKegiatan([]);
+                if (res.data.message) {
+                    setNotificationMessage(res.data.message);
+                    setModalOpen(true);
+                }
             }
         } catch (error) {
             console.error('Error fetching kegiatan:', error);
             
-            if (error.response?.status === 401) {
+            if (error.code === 'ECONNABORTED') {
+                setNotificationMessage('Timeout koneksi. Pastikan backend berjalan di ' + API_BASE_URL);
+            } else if (error.response?.status === 401) {
                 setNotificationMessage('Session expired. Silakan login kembali.');
-                setModalOpen(true);
-                await signOut({ callbackUrl: '/login' });
+                setTimeout(() => {
+                    signOut({ callbackUrl: '/login' });
+                }, 2000);
+            } else if (error.response?.status === 404) {
+                setNotificationMessage(`Endpoint API tidak ditemukan: ${API_BASE_URL}/lpd/daftar-kegiatan. Pastikan backend berjalan.`);
+            } else if (error.response?.status === 500) {
+                setNotificationMessage('Server error. Silakan coba lagi nanti.');
             } else {
-                setNotificationMessage('Gagal memuat data kegiatan. Silakan coba lagi.');
-                setModalOpen(true);
+                setNotificationMessage('Gagal memuat data kegiatan: ' + (error.response?.data?.message || error.message));
             }
-            
+            setModalOpen(true);
             setKegiatanList([]);
             setFilteredKegiatan([]);
         } finally {
@@ -132,9 +150,12 @@ export default function LpdContainer({ session, status }) {
     const fetchLpdData = async (kegiatanId) => {
         try {
             setLoading(true);
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/lpd/kegiatan/${kegiatanId}`, {
+            const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatanId}`;
+            console.log('🔍 Fetching LPD from:', url);
+            
+            const response = await axios.get(url, {
                 headers: { 
-                    Authorization: `Bearer ${session?.accessToken}`
+                    'Authorization': `Bearer ${session?.accessToken}`
                 }
             });
 
@@ -166,34 +187,45 @@ export default function LpdContainer({ session, status }) {
 
     // Filter effect
     useEffect(() => {
-        const filtered = kegiatanList.filter(item => {
-            const matchesSearch = 
+        let filtered = [...kegiatanList];
+        
+        if (searchTerm) {
+            filtered = filtered.filter(item => 
                 item.kegiatan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.no_st?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.mak?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.tempat?.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            const matchesStatus = !filterStatus || item.status === filterStatus;
-            const matchesMak = !filterMak || item.mak?.toLowerCase().includes(filterMak.toLowerCase());
-            const matchesLokasi = !filterLokasi || item.tempat?.toLowerCase().includes(filterLokasi.toLowerCase());
-            
-            let matchesDate = true;
-            if (filterDateFrom || filterDateTo) {
+                item.tempat?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+        
+        if (filterStatus) {
+            filtered = filtered.filter(item => item.status === filterStatus);
+        }
+        
+        if (filterMak) {
+            filtered = filtered.filter(item => item.mak?.toLowerCase().includes(filterMak.toLowerCase()));
+        }
+        
+        if (filterLokasi) {
+            filtered = filtered.filter(item => item.tempat?.toLowerCase().includes(filterLokasi.toLowerCase()));
+        }
+        
+        if (filterDateFrom || filterDateTo) {
+            filtered = filtered.filter(item => {
                 const itemDate = new Date(item.tgl_st || item.created_at);
                 const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
                 const toDate = filterDateTo ? new Date(filterDateTo) : null;
                 
                 if (fromDate && toDate) {
-                    matchesDate = itemDate >= fromDate && itemDate <= toDate;
+                    return itemDate >= fromDate && itemDate <= toDate;
                 } else if (fromDate) {
-                    matchesDate = itemDate >= fromDate;
+                    return itemDate >= fromDate;
                 } else if (toDate) {
-                    matchesDate = itemDate <= toDate;
+                    return itemDate <= toDate;
                 }
-            }
-            
-            return matchesSearch && matchesStatus && matchesMak && matchesLokasi && matchesDate;
-        });
+                return true;
+            });
+        }
         
         setFilteredKegiatan(filtered);
         
@@ -214,6 +246,7 @@ export default function LpdContainer({ session, status }) {
         setFilterDateTo('');
         setFilterMak('');
         setFilterLokasi('');
+        setSearchTerm('');
         setCurrentPage(1);
     };
 
@@ -258,12 +291,15 @@ export default function LpdContainer({ session, status }) {
 
     const handleSaveRincian = async (rincianList) => {
         try {
-            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/lpd/rincian`, {
+            const url = `${API_BASE_URL}/lpd/rincian`;
+            console.log('📝 Saving rincian to:', url);
+            
+            const response = await axios.post(url, {
                 kegiatan_id: parseInt(selectedKegiatan.kegiatan_id),
                 rincian_list: rincianList
             }, {
                 headers: { 
-                    Authorization: `Bearer ${session?.accessToken}`,
+                    'Authorization': `Bearer ${session?.accessToken}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -281,9 +317,10 @@ export default function LpdContainer({ session, status }) {
             }
         } catch (err) {
             console.error('Error saving rincian:', err);
-            setNotificationMessage('Gagal menyimpan rincian: ' + (err.response?.data?.message || err.message));
+            const errorMsg = err.response?.data?.message || err.message;
+            setNotificationMessage('Gagal menyimpan rincian: ' + errorMsg);
             setModalOpen(true);
-            return { success: false, message: err.message };
+            return { success: false, message: errorMsg };
         }
     };
 
@@ -304,9 +341,12 @@ export default function LpdContainer({ session, status }) {
             
             formData.append('keterangan_list', JSON.stringify(keteranganArray));
 
-            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/lpd/dokumentasi/${selectedKegiatan.kegiatan_id}`, formData, {
+            const url = `${API_BASE_URL}/lpd/dokumentasi/${selectedKegiatan.kegiatan_id}`;
+            console.log('📤 Uploading to:', url);
+            
+            const response = await axios.post(url, formData, {
                 headers: {
-                    Authorization: `Bearer ${session?.accessToken}`,
+                    'Authorization': `Bearer ${session?.accessToken}`,
                     'Content-Type': 'multipart/form-data'
                 }
             });
@@ -324,17 +364,21 @@ export default function LpdContainer({ session, status }) {
             }
         } catch (err) {
             console.error('Error uploading dokumentasi:', err);
-            setNotificationMessage('Gagal upload dokumentasi: ' + (err.response?.data?.message || err.message));
+            const errorMsg = err.response?.data?.message || err.message;
+            setNotificationMessage('Gagal upload dokumentasi: ' + errorMsg);
             setModalOpen(true);
-            return { success: false, message: err.message };
+            return { success: false, message: errorMsg };
         }
     };
 
     const handleDeleteDokumentasi = async (dokumentasiId) => {
         try {
-            const response = await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/lpd/dokumentasi/${dokumentasiId}`, {
+            const url = `${API_BASE_URL}/lpd/dokumentasi/${dokumentasiId}`;
+            console.log('🗑️ Deleting from:', url);
+            
+            const response = await axios.delete(url, {
                 headers: { 
-                    Authorization: `Bearer ${session?.accessToken}`
+                    'Authorization': `Bearer ${session?.accessToken}`
                 }
             });
 
@@ -351,9 +395,10 @@ export default function LpdContainer({ session, status }) {
             }
         } catch (err) {
             console.error('Error deleting dokumentasi:', err);
-            setNotificationMessage('Gagal menghapus dokumentasi: ' + (err.response?.data?.message || err.message));
+            const errorMsg = err.response?.data?.message || err.message;
+            setNotificationMessage('Gagal menghapus dokumentasi: ' + errorMsg);
             setModalOpen(true);
-            return { success: false, message: err.message };
+            return { success: false, message: errorMsg };
         }
     };
 
@@ -398,6 +443,7 @@ export default function LpdContainer({ session, status }) {
                 <LpdForm 
                     lpdData={selectedKegiatan}
                     session={session}
+                    apiBaseUrl={API_BASE_URL}
                     onRefresh={() => fetchLpdData(selectedKegiatan.kegiatan_id)}
                     onOpenModal={openModal}
                 />
@@ -450,7 +496,6 @@ export default function LpdContainer({ session, status }) {
                         Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
                     </p>
                     <p className="text-sm text-blue-600 mt-1">
-                        Satu Laporan per Kegiatan (mencakup semua pegawai yang melaksanakan)
                     </p>
                 </div>
                 <div className="flex space-x-2">
@@ -533,13 +578,16 @@ export default function LpdContainer({ session, status }) {
                             />
                         </div>
                     </div>
-                    <div className="mt-4 text-right">
+                    <div className="mt-4 flex justify-between items-center">
                         <button
                             onClick={resetFilter}
                             className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition"
                         >
                             Reset Filter
                         </button>
+                        <span className="text-sm text-gray-500">
+                            {filteredKegiatan.length} data ditemukan
+                        </span>
                     </div>
                 </div>
             )}
