@@ -89,12 +89,12 @@ const PegawaiForm = ({
         console.log('- Available suggestions:', availableSuggestions.length);
         console.log('- Current pegawaiList:', pegawaiList.length);
         console.log('- loadingPegawai:', loadingPegawai);
-        console.log('- Jenis SPM:', jenisSPM); // Debug jenis SPM
+        console.log('- Jenis SPM:', jenisSPM);
         
         if (availableSuggestions.length > 0) {
             console.log('📋 Available suggestions (first 5):');
             availableSuggestions.slice(0, 5).forEach((p, idx) => {
-                console.log(`${idx + 1}. Nama: ${p.nama}, NIP: ${p.nip}, Jabatan: ${p.jabatan}`);
+                console.log(`${idx + 1}. Nama: ${p.nama}, NIP: ${p.nip}, Pangkat: ${p.pangkat || '-'}, Jabatan: ${p.jabatan}`);
             });
         }
     }, [availableSuggestions, loadingPegawai, pegawaiList.length, pegawaiSuggestions?.length, jenisSPM]);
@@ -122,6 +122,7 @@ const PegawaiForm = ({
                     ...newList[index],
                     nama: value,
                     nip: '', // Reset NIP
+                    pangkat: '', // Reset pangkat
                     jabatan: '', // Reset jabatan
                     username: '', // Reset username
                     pegawai_id: '', // Reset ID
@@ -211,6 +212,7 @@ const PegawaiForm = ({
             ...newList[index],
             nama: pegawai.nama || '',
             nip: pegawai.nip || '',
+            pangkat: pegawai.pangkat || '',
             jabatan: pegawai.jabatan || '',
             username: pegawai.username || '',
             pegawai_id: pegawai.id || '',
@@ -237,6 +239,7 @@ const PegawaiForm = ({
         console.log(`📝 Pegawai ${index + 1} updated:`, {
             nama: pegawai.nama,
             nip: pegawai.nip,
+            pangkat: pegawai.pangkat,
             jabatan: pegawai.jabatan,
             id: pegawai.id,
             biaya: existingBiaya.length,
@@ -265,10 +268,11 @@ const PegawaiForm = ({
         const filtered = availableSuggestions.filter(pegawai => {
             const namaMatch = pegawai.nama?.toLowerCase().includes(searchTerm);
             const nipMatch = pegawai.nip?.toLowerCase().includes(searchTerm);
+            const pangkatMatch = pegawai.pangkat?.toLowerCase().includes(searchTerm);
             const usernameMatch = pegawai.username?.toLowerCase().includes(searchTerm);
             const jabatanMatch = pegawai.jabatan?.toLowerCase().includes(searchTerm);
             
-            return namaMatch || nipMatch || usernameMatch || jabatanMatch;
+            return namaMatch || nipMatch || pangkatMatch || usernameMatch || jabatanMatch;
         }).slice(0, 8); // Limit to 8 results
         
         console.log(`✅ Found ${filtered.length} filtered suggestions for index ${index + 1}`);
@@ -350,6 +354,7 @@ const PegawaiForm = ({
         const newPegawai = {
             nama: '',
             nip: '',
+            pangkat: '',
             jabatan: '',
             username: '',
             pegawai_id: '',
@@ -480,6 +485,7 @@ const PegawaiForm = ({
         newList[index] = {
             nama: '',
             nip: '',
+            pangkat: '',
             jabatan: '',
             username: '',
             pegawai_id: '',
@@ -601,7 +607,7 @@ const PegawaiForm = ({
                     </div>
 
                     {/* Data Diri Pegawai */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <div className="relative">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Nama *
@@ -703,6 +709,11 @@ const PegawaiForm = ({
                                                                 NIP: {suggestion.nip}
                                                             </span>
                                                         )}
+                                                        {suggestion.pangkat && (
+                                                            <span className="inline-block mr-2 px-2 py-0.5 bg-green-100 text-green-800 rounded">
+                                                                Pangkat: {suggestion.pangkat}
+                                                            </span>
+                                                        )}
                                                         {suggestion.jabatan && (
                                                             <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
                                                                 {suggestion.jabatan}
@@ -756,6 +767,33 @@ const PegawaiForm = ({
                                 type="text"
                                 value={pegawai.nip}
                                 onChange={(e) => handlePegawaiChange(pIndex, 'nip', e.target.value)}
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                                    pegawai.pegawai_id 
+                                        ? 'border-green-300 bg-green-50 focus:ring-green-500' 
+                                        : 'border-gray-300 focus:ring-indigo-500'
+                                }`}
+                                disabled={formLoading || pegawai.pegawai_id}
+                                placeholder={pegawai.pegawai_id ? "Terisi otomatis" : "Akan terisi otomatis"}
+                                readOnly={pegawai.pegawai_id}
+                            />
+                            {pegawai.pegawai_id && (
+                                <div className="mt-1 text-xs text-green-600 flex items-center">
+                                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                    Terisi dari sistem
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Pangkat
+                            </label>
+                            <input
+                                type="text"
+                                value={pegawai.pangkat}
+                                onChange={(e) => handlePegawaiChange(pIndex, 'pangkat', e.target.value)}
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                                     pegawai.pegawai_id 
                                         ? 'border-green-300 bg-green-50 focus:ring-green-500' 

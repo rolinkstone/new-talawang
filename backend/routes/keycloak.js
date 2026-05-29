@@ -495,6 +495,7 @@ router.get('/users/all-simple', keycloakAuth, async (req, res) => {
                     user_id: user.id,
                     nama: nama,
                     nip: getAttribute(user, 'nip') || '',
+                    pangkat: getAttribute(user, 'pangkat') || '',
                     jabatan: getAttribute(user, 'jabatan') || 'Staf',
                     username: user.username || '',
                     email: user.email || '',
@@ -505,6 +506,14 @@ router.get('/users/all-simple', keycloakAuth, async (req, res) => {
             .sort((a, b) => a.nama.localeCompare(b.nama));
         
         console.log(`✅ ${formattedUsers.length} users formatted`);
+        
+        // Log sample data untuk debug
+        if (formattedUsers.length > 0) {
+            console.log('📋 Sample user data (first 3):');
+            formattedUsers.slice(0, 3).forEach((user, idx) => {
+                console.log(`${idx + 1}. Nama: ${user.nama}, NIP: ${user.nip}, Pangkat: ${user.pangkat || '-'}`);
+            });
+        }
         
         return res.status(200).json({
             success: true,

@@ -42,10 +42,15 @@ const uploadLpd = multer({
     }
 });
 
-// Fungsi untuk membersihkan path file
+// Fungsi untuk membersihkan path file - PASTIKAN TIDAK ADA /api
 function cleanFilePath(filePath) {
     if (!filePath) return null;
+    // Hapus /api dan /public dari awal path
     let clean = filePath.replace(/^\/api/, '').replace(/^\/public/, '');
+    // Pastikan dimulai dengan /
+    if (!clean.startsWith('/')) {
+        clean = '/' + clean;
+    }
     return clean;
 }
 
@@ -98,18 +103,16 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 n.user_id,
                 n.rencana_tanggal_pelaksanaan as tgl_mulai,
                 n.rencana_tanggal_pelaksanaan_akhir as tgl_selesai,
-                n.created_at
+                n.created_at,
+                n.ppk_nama,
+                n.ppk_nip,
+                n.bendahara_nama,
+                n.bendahara_nip
             FROM nominatif_kegiatan n
             WHERE n.status = 'selesai'
-            AND UPPER(n.status_2) = 'SELESAI'
         `;
         
         const params = [];
-        
-        if (!roleInfo.isAdmin) {
-            query += ` AND n.user_id = ?`;
-            params.push(userId);
-        }
         
         query += ` ORDER BY n.created_at DESC`;
         
@@ -146,7 +149,12 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 status: kegiatan.status_2,
                 has_rincian: (rincianCheck[0]?.count || 0) > 0,
                 has_dokumentasi: (dokumentasiCheck[0]?.count || 0) > 0,
-                created_at: kegiatan.created_at
+                created_by_me: kegiatan.user_id === userId,
+                created_at: kegiatan.created_at,
+                ppk_nama: kegiatan.ppk_nama,
+                ppk_nip: kegiatan.ppk_nip,
+                bendahara_nama: kegiatan.bendahara_nama,
+                bendahara_nip: kegiatan.bendahara_nip
             });
         }
         
@@ -199,22 +207,10 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         
         const kegiatanData = kegiatan[0];
         
-        // Cek akses
-        let hasAccess = false;
-        if (roleInfo.isAdmin) {
-            hasAccess = true;
-            console.log('👑 Admin access granted');
-        } else if (roleInfo.isRegularUser && kegiatanData.user_id === userId) {
-            hasAccess = true;
-            console.log('✅ Access granted: User is the kegiatan creator');
-        }
+        // Izinkan semua user yang login untuk melihat detail LPD
+        let hasAccess = true;
         
-        if (!hasAccess) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Tidak memiliki akses untuk melihat LPD ini' 
-            });
-        }
+        console.log('✅ Access granted for user:', userId);
         
         // Ambil data pegawai (petugas pelaksana)
         const [pegawaiList] = await db.query(`
@@ -223,8 +219,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 p.nama,
                 p.nip,
                 p.pangkat,
-                p.jabatan,
-                p.golongan
+                p.jabatan
             FROM nominatif_pegawai p
             WHERE p.kegiatan_id = ?
             ORDER BY p.id ASC
@@ -242,7 +237,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             ORDER BY urutan ASC, tanggal ASC
         `, [kegiatanId]);
         
-        // Ambil data dokumentasi
+        // Ambil data dokumentasi - LANGSUNG return file_path tanpa modifikasi berlebihan
         const [dokumentasi] = await db.query(`
             SELECT 
                 id,
@@ -283,30 +278,25 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         const responseData = {
             kegiatan_id: parseInt(kegiatanId),
             nama_kegiatan: kegiatanData.nama_kegiatan,
-            // A. Dasar Pelaksanaan Kegiatan
             dasar_pelaksanaan: {
                 nomor_st: kegiatanData.no_st || '',
                 tanggal_st: formatTanggal(kegiatanData.tgl_st)
             },
-            // B. Petugas Pelaksana
             petugas_pelaksana: pegawaiList.map(p => ({
                 nama: p.nama,
                 nip: p.nip,
-                pangkat_golongan: p.pangkat && p.golongan ? `${p.pangkat} / ${p.golongan}` : (p.pangkat || p.golongan || ''),
+                pangkat_golongan: p.pangkat || '',
                 jabatan: p.jabatan
             })),
-            // C. Waktu dan Tempat Pelaksanaan
             waktu_tempat: {
                 lama_perjalanan: `${lamaPerjalanan} (hari)`,
                 tanggal_mulai: formatTanggal(kegiatanData.tgl_mulai),
                 tanggal_selesai: formatTanggal(kegiatanData.tgl_selesai),
                 tempat_pelaksanaan: kegiatanData.tempat_pelaksanaan || ''
             },
-            // D. Pembiayaan
             pembiayaan: {
                 mak: kegiatanData.mak || ''
             },
-            // E. Rincian Hasil Kegiatan
             rincian_kegiatan: rincianKegiatan.map((rk, index) => ({
                 id: rk.id,
                 no: index + 1,
@@ -314,10 +304,9 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 kegiatan: rk.kegiatan,
                 urutan: rk.urutan
             })),
-            // F. Dokumentasi Kegiatan
             dokumentasi: dokumentasi.map(doc => ({
                 id: doc.id,
-                file_path: cleanFilePath(doc.file_path),
+                file_path: doc.file_path, // LANGSUNG, tanpa cleanFilePath
                 file_name: doc.file_name,
                 file_type: doc.file_type,
                 file_size: doc.file_size,
@@ -325,7 +314,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 created_at: doc.created_at
             })),
             status: kegiatanData.status_2 || 'draft',
-            // Informasi tambahan untuk approval
+            can_edit: kegiatanData.user_id === userId || roleInfo.isAdmin,
             ppk_nama: kegiatanData.ppk_nama,
             ppk_nip: kegiatanData.ppk_nip,
             bendahara_nama: kegiatanData.bendahara_nama,
@@ -360,7 +349,6 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Kegiatan ID tidak boleh kosong' });
         }
         
-        // Cek akses
         const [kegiatan] = await db.query(`
             SELECT user_id FROM nominatif_kegiatan WHERE id = ?
         `, [kegiatan_id]);
@@ -381,7 +369,7 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
         if (!hasAccess) {
             return res.status(403).json({ 
                 success: false, 
-                message: 'Tidak memiliki akses untuk mengubah rincian kegiatan ini' 
+                message: 'Tidak memiliki akses untuk mengubah rincian kegiatan ini. Hanya pembuat kegiatan yang dapat mengedit.' 
             });
         }
         
@@ -389,10 +377,8 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
         await connection.beginTransaction();
         
         try {
-            // Hapus rincian lama
             await connection.query('DELETE FROM lpd_rincian_kegiatan WHERE kegiatan_id = ?', [kegiatan_id]);
             
-            // Insert rincian baru
             if (rincian_list && Array.isArray(rincian_list) && rincian_list.length > 0) {
                 for (let i = 0; i < rincian_list.length; i++) {
                     const item = rincian_list[i];
@@ -446,7 +432,6 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
                 roleInfo
             });
             
-            // Cek akses
             const [kegiatan] = await db.query(`
                 SELECT user_id FROM nominatif_kegiatan WHERE id = ?
             `, [kegiatanId]);
@@ -467,11 +452,10 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
             if (!hasAccess) {
                 return res.status(403).json({ 
                     success: false, 
-                    message: 'Tidak memiliki akses untuk upload dokumentasi' 
+                    message: 'Tidak memiliki akses untuk upload dokumentasi. Hanya pembuat kegiatan yang dapat upload.' 
                 });
             }
             
-            // Parse keterangan list
             let keteranganList = [];
             if (keterangan_list) {
                 try {
@@ -487,6 +471,7 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
             if (req.files && req.files.length > 0) {
                 for (let i = 0; i < req.files.length; i++) {
                     const file = req.files[i];
+                    // PERBAIKAN: Simpan path dengan format yang benar (tanpa /api)
                     const filePath = `/uploads/lpd-dokumentasi/${file.filename}`;
                     let keterangan = '';
                     
@@ -506,7 +491,7 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
                     
                     savedFiles.push({
                         id: result.insertId,
-                        file_path: cleanFilePath(filePath),
+                        file_path: filePath, // Kembalikan path yang benar
                         file_name: file.originalname,
                         file_type: file.mimetype,
                         file_size: file.size,
@@ -546,7 +531,6 @@ router.delete('/dokumentasi/:dokumentasiId', keycloakAuth, async (req, res) => {
             roleInfo
         });
         
-        // Ambil informasi file
         const [dokumentasi] = await db.query(`
             SELECT d.*, k.user_id 
             FROM lpd_dokumentasi d
@@ -574,14 +558,12 @@ router.delete('/dokumentasi/:dokumentasiId', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Hapus file fisik
         const filePath = path.join(__dirname, '../public', dokumentasi[0].file_path);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
             console.log(`🗑️ Deleted file: ${filePath}`);
         }
         
-        // Hapus dari database
         await db.query('DELETE FROM lpd_dokumentasi WHERE id = ?', [dokumentasiId]);
         
         console.log(`✅ Dokumentasi ${dokumentasiId} deleted`);

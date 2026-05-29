@@ -1,350 +1,335 @@
 // components/lpd/LpdModal.js
-import React, { useState, useRef } from 'react';
-import { 
-  FaTimes, 
-  FaPlus, 
-  FaTrash, 
-  FaUpload, 
-  FaFile, 
-  FaImage,
-  FaFilePdf,
-  FaFileWord
-} from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-export default function LpdModal({ 
-  isOpen, 
-  onClose, 
-  type, 
-  title, 
-  kegiatanId, 
-  existingData = [], 
-  selectedItem = null,
-  onSave, 
-  onDelete 
-}) {
-  const [rincianList, setRincianList] = useState(
-    existingData.length > 0 
-      ? existingData.map((item, index) => ({
-          id: item.id,
-          tanggal: item.tanggal,
-          kegiatan: item.kegiatan,
-          no: item.no,
-          urutan: item.urutan || index + 1
-        }))
-      : [{ id: null, tanggal: '', kegiatan: '', urutan: 1 }]
-  );
-  const [files, setFiles] = useState([]);
-  const [keteranganList, setKeteranganList] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const fileInputRef = useRef(null);
+const BACKEND_URL = 'http://localhost:5000';
 
-  const formatTanggalInput = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toISOString().split('T')[0];
-  };
+export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, existingData, onSave, onDelete, selectedItem }) {
+    const [loading, setLoading] = useState(false);
+    const [rincianList, setRincianList] = useState([]);
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [keteranganList, setKeteranganList] = useState([]);
+    const [previewUrls, setPreviewUrls] = useState([]);
 
-  const handleAddRincian = () => {
-    setRincianList([...rincianList, { id: null, tanggal: '', kegiatan: '', urutan: rincianList.length + 1 }]);
-  };
-
-  const handleRemoveRincian = (index) => {
-    const newList = rincianList.filter((_, i) => i !== index);
-    // Update urutan
-    newList.forEach((item, idx) => {
-      item.urutan = idx + 1;
-      item.no = idx + 1;
-    });
-    setRincianList(newList);
-  };
-
-  const handleRincianChange = (index, field, value) => {
-    const newList = [...rincianList];
-    newList[index][field] = value;
-    setRincianList(newList);
-  };
-
-  const handleFileSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFiles(selectedFiles);
-    setKeteranganList(selectedFiles.map(() => ''));
-  };
-
-  const handleKeteranganChange = (index, value) => {
-    const newList = [...keteranganList];
-    newList[index] = value;
-    setKeteranganList(newList);
-  };
-
-  const handleRemoveFile = (index) => {
-    const newFiles = files.filter((_, i) => i !== index);
-    const newKeterangan = keteranganList.filter((_, i) => i !== index);
-    setFiles(newFiles);
-    setKeteranganList(newKeterangan);
-  };
-
-  const handleSaveRincian = async () => {
-    // Validasi
-    const invalidItems = rincianList.filter(item => !item.tanggal || !item.kegiatan);
-    if (invalidItems.length > 0) {
-      alert('Harap isi semua tanggal dan kegiatan');
-      return;
-    }
-
-    setSaving(true);
-    const result = await onSave(rincianList);
-    setSaving(false);
-
-    if (result.success) {
-      onClose();
-    } else {
-      alert(result.message || 'Gagal menyimpan data');
-    }
-  };
-
-  const handleUploadDokumentasi = async () => {
-    if (files.length === 0) {
-        alert('Pilih file terlebih dahulu');
-        return;
-    }
-
-    setUploading(true);
-    
-    // Format keterangan dengan benar
-    const keteranganData = keteranganList.map((k, index) => ({
-        index: index,
-        keterangan: k || ''
-    }));
-    
-    const result = await onSave(files, keteranganData);
-    setUploading(false);
-
-    if (result.success) {
-        setFiles([]);
-        setKeteranganList([]);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+    // Format tanggal untuk input (YYYY-MM-DD) - PERBAIKAN UNTUK BERBAGAI FORMAT
+    const formatTanggalInput = (date) => {
+        if (!date) return '';
+        
+        try {
+            // Jika sudah dalam format YYYY-MM-DD
+            if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                return date;
+            }
+            
+            // Jika dalam format DD-MM-YYYY
+            if (typeof date === 'string' && date.match(/^\d{2}-\d{2}-\d{4}$/)) {
+                const [day, month, year] = date.split('-');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Jika dalam format DD/MM/YYYY
+            if (typeof date === 'string' && date.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+                const [day, month, year] = date.split('/');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Coba parse dengan Date object
+            const d = new Date(date);
+            if (!isNaN(d.getTime())) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            console.warn('Could not parse date:', date);
+            return '';
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return '';
         }
-        onClose();
-    } else {
-        alert(result.message || 'Gagal upload dokumentasi');
-    }
-};
+    };
 
-  const handleDeleteDokumentasi = async () => {
-    if (!selectedItem) return;
+    // Inisialisasi data untuk modal rincian
+    useEffect(() => {
+        if (type === 'rincian') {
+            if (existingData && existingData.length > 0) {
+                const formattedData = existingData.map(item => ({
+                    id: item.id,
+                    tanggal: formatTanggalInput(item.tanggal),
+                    kegiatan: item.kegiatan || '',
+                    urutan: item.urutan || 0
+                }));
+                setRincianList(formattedData);
+            } else {
+                setRincianList([{ tanggal: '', kegiatan: '', urutan: 1 }]);
+            }
+        }
+    }, [type, existingData, isOpen]);
 
-    setDeleting(true);
-    const result = await onDelete(selectedItem.id);
-    setDeleting(false);
+    // Handle untuk rincian
+    const handleAddRincian = () => {
+        setRincianList([...rincianList, { tanggal: '', kegiatan: '', urutan: rincianList.length + 1 }]);
+    };
 
-    if (result.success) {
-      onClose();
-    } else {
-      alert(result.message || 'Gagal menghapus dokumentasi');
-    }
-  };
+    const handleRemoveRincian = (index) => {
+        const newList = rincianList.filter((_, i) => i !== index);
+        setRincianList(newList);
+    };
 
-  const getFileIcon = (fileName) => {
-    const ext = fileName?.split('.').pop()?.toLowerCase();
-    if (ext === 'pdf') return <FaFilePdf className="text-red-500" />;
-    if (ext === 'doc' || ext === 'docx') return <FaFileWord className="text-blue-500" />;
-    if (ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'gif') return <FaImage className="text-green-500" />;
-    return <FaFile className="text-gray-500" />;
-  };
+    const handleRincianChange = (index, field, value) => {
+        const newList = [...rincianList];
+        newList[index][field] = value;
+        setRincianList(newList);
+    };
 
-  if (!isOpen) return null;
+    // Handle untuk dokumentasi
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        setSelectedFiles(files);
+        
+        // Generate preview URLs
+        const urls = files.map(file => URL.createObjectURL(file));
+        setPreviewUrls(urls);
+        
+        // Initialize keterangan list
+        setKeteranganList(files.map(() => ''));
+    };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        {/* Background overlay */}
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
+    const handleKeteranganChange = (index, value) => {
+        const newList = [...keteranganList];
+        newList[index] = value;
+        setKeteranganList(newList);
+    };
 
-        {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          {/* Header */}
-          <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-500 transition-colors"
-            >
-              <FaTimes />
-            </button>
-          </div>
+    const handleRemoveFile = (index) => {
+        const newFiles = selectedFiles.filter((_, i) => i !== index);
+        setSelectedFiles(newFiles);
+        
+        // Revoke URL to avoid memory leak
+        if (previewUrls[index]) {
+            URL.revokeObjectURL(previewUrls[index]);
+        }
+        const newUrls = previewUrls.filter((_, i) => i !== index);
+        setPreviewUrls(newUrls);
+        
+        const newKeterangan = keteranganList.filter((_, i) => i !== index);
+        setKeteranganList(newKeterangan);
+    };
 
-          {/* Body */}
-          <div className="px-6 py-4">
-            {type === 'rincian' && (
-              <div className="space-y-4">
-                <div className="max-h-96 overflow-y-auto space-y-3">
-                  {rincianList.map((item, index) => (
-                    <div key={index} className="border rounded-lg p-4 relative">
-                      <div className="absolute top-2 right-2">
-                        {rincianList.length > 1 && (
-                          <button
-                            onClick={() => handleRemoveRincian(index)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <FaTrash size={14} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="mb-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tanggal
-                        </label>
-                        <input
-                          type="date"
-                          value={formatTanggalInput(item.tanggal)}
-                          onChange={(e) => handleRincianChange(index, 'tanggal', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Kegiatan
-                        </label>
-                        <textarea
-                          value={item.kegiatan}
-                          onChange={(e) => handleRincianChange(index, 'kegiatan', e.target.value)}
-                          rows="2"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Deskripsi kegiatan..."
-                        />
-                      </div>
+    // Handle save
+    const handleSave = async () => {
+        if (type === 'rincian') {
+            // Filter out empty rows
+            const validRincian = rincianList.filter(item => item.tanggal && item.kegiatan);
+            if (validRincian.length === 0) {
+                alert('Minimal satu rincian kegiatan harus diisi');
+                return;
+            }
+            
+            const result = await onSave(validRincian);
+            if (result?.success) {
+                onClose();
+            }
+        } else if (type === 'dokumentasi') {
+            if (selectedFiles.length === 0) {
+                alert('Pilih file terlebih dahulu');
+                return;
+            }
+            
+            const result = await onSave(selectedFiles, keteranganList);
+            if (result?.success) {
+                onClose();
+            }
+        }
+    };
+
+    // Handle delete
+    const handleDelete = async () => {
+        if (selectedItem && onDelete) {
+            const result = await onDelete(selectedItem.id);
+            if (result?.success) {
+                onClose();
+            }
+        }
+    };
+
+    // Render preview foto untuk dokumentasi
+    const renderPreviewImage = (url, index) => {
+        const file = selectedFiles[index];
+        const isImage = file?.type?.startsWith('image/');
+        
+        if (isImage) {
+            return (
+                <img 
+                    src={url}
+                    alt={`Preview ${index + 1}`}
+                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                />
+            );
+        } else {
+            const fileExtension = file?.name?.split('.').pop()?.toUpperCase() || 'FILE';
+            return (
+                <div className="w-20 h-20 bg-blue-50 rounded-lg flex flex-col items-center justify-center border border-blue-200">
+                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-xs text-blue-600 font-medium mt-1">{fileExtension}</span>
+                </div>
+            );
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
+
+                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    {/* Header */}
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
                     </div>
-                  ))}
+
+                    {/* Body */}
+                    <div className="px-6 py-4">
+                        {type === 'rincian' && (
+                            <div>
+                                <div className="space-y-4 max-h-96 overflow-y-auto">
+                                    {rincianList.map((item, index) => (
+                                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h4 className="text-sm font-medium text-gray-700">Rincian {index + 1}</h4>
+                                                {rincianList.length > 1 && (
+                                                    <button
+                                                        onClick={() => handleRemoveRincian(index)}
+                                                        className="text-red-600 hover:text-red-800"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Tanggal</label>
+                                                    <input
+                                                        type="date"
+                                                        value={item.tanggal || ''}
+                                                        onChange={(e) => handleRincianChange(index, 'tanggal', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Kegiatan</label>
+                                                    <textarea
+                                                        value={item.kegiatan || ''}
+                                                        onChange={(e) => handleRincianChange(index, 'kegiatan', e.target.value)}
+                                                        rows="3"
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        placeholder="Deskripsi kegiatan..."
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleAddRincian}
+                                    className="mt-4 w-full px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:text-indigo-600 hover:border-indigo-300 transition"
+                                >
+                                    + Tambah Rincian
+                                </button>
+                            </div>
+                        )}
+
+                        {type === 'dokumentasi' && (
+                            <div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Pilih File (Gambar, PDF, Word)</label>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*,.pdf,.doc,.docx"
+                                        onChange={handleFileChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Maksimal 20 file, masing-masing maksimal 10MB</p>
+                                </div>
+
+                                {selectedFiles.length > 0 && (
+                                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                                        {selectedFiles.map((file, index) => (
+                                            <div key={index} className="border border-gray-200 rounded-lg p-3">
+                                                <div className="flex items-start space-x-3">
+                                                    {renderPreviewImage(previewUrls[index], index)}
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+                                                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                                                        <textarea
+                                                            placeholder="Keterangan (opsional)"
+                                                            value={keteranganList[index] || ''}
+                                                            onChange={(e) => handleKeteranganChange(index, e.target.value)}
+                                                            rows="2"
+                                                            className="mt-2 w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveFile(index)}
+                                                        className="text-red-600 hover:text-red-800"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {type === 'delete' && (
+                            <div className="text-center">
+                                <svg className="mx-auto h-12 w-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Apakah Anda yakin ingin menghapus dokumentasi "{selectedItem?.file_name}"?
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={type === 'delete' ? handleDelete : handleSave}
+                            disabled={loading}
+                            className={`px-4 py-2 rounded-md text-white transition ${
+                                type === 'delete' 
+                                    ? 'bg-red-600 hover:bg-red-700' 
+                                    : 'bg-indigo-600 hover:bg-indigo-700'
+                            } disabled:opacity-50`}
+                        >
+                            {loading ? 'Memproses...' : (type === 'delete' ? 'Hapus' : 'Simpan')}
+                        </button>
+                    </div>
                 </div>
-                <button
-                  onClick={handleAddRincian}
-                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
-                >
-                  <FaPlus size={14} />
-                  <span>Tambah Baris</span>
-                </button>
-              </div>
-            )}
-
-            {type === 'dokumentasi' && (
-              <div className="space-y-4">
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <FaUpload className="text-3xl text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600">Klik atau drag file untuk upload</p>
-                  <p className="text-xs text-gray-400 mt-1">Maksimal 10MB per file (JPG, PNG, PDF, DOC, DOCX)</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </div>
-
-                {files.length > 0 && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    <h4 className="font-medium text-gray-700">File yang dipilih:</h4>
-                    {files.map((file, index) => (
-                      <div key={index} className="border rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            {getFileIcon(file.name)}
-                            <span className="text-sm text-gray-600 truncate">{file.name}</span>
-                            <span className="text-xs text-gray-400">
-                              ({(file.size / 1024).toFixed(1)} KB)
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveFile(index)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <FaTrash size={14} />
-                          </button>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">
-                            Keterangan (opsional)
-                          </label>
-                          <input
-                            type="text"
-                            value={keteranganList[index] || ''}
-                            onChange={(e) => handleKeteranganChange(index, e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md"
-                            placeholder="Deskripsi foto/dokumen..."
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {type === 'delete' && selectedItem && (
-              <div className="text-center py-4">
-                <div className="mb-4">
-                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                    <FaTrash className="h-6 w-6 text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Hapus Dokumentasi
-                  </h3>
-                  <p className="text-gray-500">
-                    Apakah Anda yakin ingin menghapus dokumentasi "{selectedItem.file_name}"?
-                  </p>
-                  <p className="text-xs text-red-500 mt-2">
-                    Tindakan ini tidak dapat dibatalkan.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="bg-gray-50 px-6 py-4 border-t flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              Batal
-            </button>
-            {type === 'rincian' && (
-              <button
-                onClick={handleSaveRincian}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Menyimpan...' : 'Simpan'}
-              </button>
-            )}
-            {type === 'dokumentasi' && (
-              <button
-                onClick={handleUploadDokumentasi}
-                disabled={uploading || files.length === 0}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-              >
-                {uploading ? 'Mengupload...' : 'Upload'}
-              </button>
-            )}
-            {type === 'delete' && (
-              <button
-                onClick={handleDeleteDokumentasi}
-                disabled={deleting}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                {deleting ? 'Menghapus...' : 'Hapus'}
-              </button>
-            )}
-          </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }

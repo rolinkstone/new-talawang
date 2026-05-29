@@ -18,6 +18,8 @@ const Home = () => {
     userId: '',
     fullName: '',
     jabatan: '',
+    pangkat: '',
+    golongan: '',
     loginTime: '',
     email: '',
     roles: [],
@@ -52,6 +54,16 @@ const Home = () => {
       return rawNip;
     }
     return rawNip;
+  };
+
+  // Format pangkat dan golongan
+  const formatPangkatGolongan = (pangkat, golongan) => {
+    if (pangkat && golongan) {
+      return `${pangkat} (${golongan})`;
+    }
+    if (pangkat) return pangkat;
+    if (golongan) return golongan;
+    return '-';
   };
 
   const calculateSessionTime = (expiresDate) => {
@@ -125,7 +137,7 @@ const Home = () => {
       const fullName = tokenPayload.name || user.name || username;
       const userRole = user.role || 'User';
       
-      // ========== EKSTRAKSI NIP (dengan spasi) - PRIORITAS dari preferred_username ==========
+      // ========== EKSTRAKSI NIP (dengan spasi) ==========
       let nip = 'Tidak tersedia';
       let nipSource = 'Not found';
       let rawNip = null;
@@ -134,67 +146,117 @@ const Home = () => {
       console.log("🔍 preferred_username:", tokenPayload.preferred_username);
       console.log("🔍 username:", tokenPayload.username);
       
-      // SUMBER 1: preferred_username (prioritas utama)
       if (tokenPayload.preferred_username) {
         rawNip = tokenPayload.preferred_username;
         nipSource = 'token.preferred_username';
-        console.log("🔍 Raw NIP from preferred_username:", rawNip);
-        
-        // Format NIP dengan spasi
         const formattedNip = formatNipWithSpasi(rawNip);
         if (formattedNip) {
           nip = formattedNip;
           nipSource = 'token.preferred_username (formatted)';
-          console.log("✅ NIP formatted:", nip);
         } else {
           nip = rawNip;
         }
-      }
-      // SUMBER 2: username
-      else if (tokenPayload.username) {
+      } else if (tokenPayload.username) {
         rawNip = tokenPayload.username;
         nipSource = 'token.username';
-        console.log("🔍 Raw NIP from username:", rawNip);
-        
         const formattedNip = formatNipWithSpasi(rawNip);
         if (formattedNip) {
           nip = formattedNip;
           nipSource = 'token.username (formatted)';
-          console.log("✅ NIP formatted:", nip);
         } else {
           nip = rawNip;
         }
-      }
-      // SUMBER 3: atribut "nip" dari Keycloak
-      else if (tokenPayload.nip) {
+      } else if (tokenPayload.nip) {
         rawNip = tokenPayload.nip;
         nipSource = 'token.nip';
         const formattedNip = formatNipWithSpasi(rawNip);
         nip = formattedNip || rawNip;
         if (formattedNip) nipSource += ' (formatted)';
-        console.log("✅ NIP from token.nip:", nip);
-      }
-      // SUMBER 4: dari user session
-      else if (user.nip) {
+      } else if (user.nip) {
         rawNip = user.nip;
         nipSource = 'session.user.nip';
         const formattedNip = formatNipWithSpasi(rawNip);
         nip = formattedNip || rawNip;
-        console.log("✅ NIP from session.user.nip:", nip);
       }
       
       console.log("🏁 FINAL NIP:", nip);
-      console.log("📌 NIP Source:", nipSource);
       
-      // Jabatan
+      // ========== EKSTRAKSI PANGKAT DAN GOLONGAN ==========
+      let pangkat = '-';
+      let golongan = '-';
+      let pangkatSource = 'Not found';
+      
+      console.log("🔍 Mencari pangkat/golongan di token payload...");
+      console.log("🔍 tokenPayload.pangkat:", tokenPayload.pangkat);
+      console.log("🔍 tokenPayload.golongan:", tokenPayload.golongan);
+      console.log("🔍 tokenPayload.attributes:", tokenPayload.attributes);
+      
+      // SUMBER 1: Langsung dari token payload
+      if (tokenPayload.pangkat) {
+        pangkat = tokenPayload.pangkat;
+        pangkatSource = 'token.pangkat';
+        console.log("✅ Pangkat from token.pangkat:", pangkat);
+      }
+      
+      if (tokenPayload.golongan) {
+        golongan = tokenPayload.golongan;
+        pangkatSource += ', token.golongan';
+        console.log("✅ Golongan from token.golongan:", golongan);
+      }
+      
+      // SUMBER 2: Dari attributes di Keycloak
+      if (tokenPayload.attributes) {
+        if (tokenPayload.attributes.pangkat && tokenPayload.attributes.pangkat[0]) {
+          pangkat = tokenPayload.attributes.pangkat[0];
+          pangkatSource = 'token.attributes.pangkat';
+          console.log("✅ Pangkat from attributes:", pangkat);
+        }
+        if (tokenPayload.attributes.golongan && tokenPayload.attributes.golongan[0]) {
+          golongan = tokenPayload.attributes.golongan[0];
+          pangkatSource += ', token.attributes.golongan';
+          console.log("✅ Golongan from attributes:", golongan);
+        }
+        if (tokenPayload.attributes.pangkat_golongan && tokenPayload.attributes.pangkat_golongan[0]) {
+          const pangkatGolongan = tokenPayload.attributes.pangkat_golongan[0];
+          console.log("✅ Pangkat Golongan from attributes:", pangkatGolongan);
+          // Coba pisahkan jika formatnya "Pangkat (Golongan)"
+          const match = pangkatGolongan.match(/^(.+?)\s*\((.+?)\)$/);
+          if (match) {
+            pangkat = match[1];
+            golongan = match[2];
+            console.log("✅ Parsed pangkat:", pangkat, "golongan:", golongan);
+          } else {
+            pangkat = pangkatGolongan;
+          }
+        }
+      }
+      
+      // SUMBER 3: Dari user session
+      if (user.pangkat) {
+        pangkat = user.pangkat;
+        pangkatSource = 'session.user.pangkat';
+      }
+      if (user.golongan) {
+        golongan = user.golongan;
+        pangkatSource += ', session.user.golongan';
+      }
+      
+      console.log("🏁 FINAL Pangkat:", pangkat);
+      console.log("🏁 FINAL Golongan:", golongan);
+      
+      // ========== JABATAN ==========
       let jabatan = 'Pegawai';
       let jabatanSource = 'Default';
+      
       if (tokenPayload.jabatan) {
         jabatan = tokenPayload.jabatan;
         jabatanSource = 'token.jabatan';
       } else if (tokenPayload.position) {
         jabatan = tokenPayload.position;
         jabatanSource = 'token.position';
+      } else if (tokenPayload.attributes?.jabatan?.[0]) {
+        jabatan = tokenPayload.attributes.jabatan[0];
+        jabatanSource = 'token.attributes.jabatan';
       } else {
         switch(userRole.toLowerCase()) {
           case 'admin': jabatan = 'Administrator Sistem'; jabatanSource = 'role-based'; break;
@@ -221,13 +283,14 @@ const Home = () => {
       }
       
       setUserInfo({
-        username, email, role: userRole, userId, fullName, jabatan, nip,
+        username, email, role: userRole, userId, fullName, jabatan, 
+        pangkat, golongan, nip,
         loginTime, roles: allRoles, nipSource, jabatanSource,
         department: 'Balai Besar Pengawasan Obat dan Makanan di Palangka Raya',
         sessionExpires, sessionRemaining, sessionPercentage, isSessionExpiring
       });
       
-      console.log("✅ User Info Loaded:", { fullName, nip, jabatan });
+      console.log("✅ User Info Loaded:", { fullName, nip, pangkat, golongan, jabatan });
       
     } catch (error) {
       console.error('Error:', error);
@@ -267,6 +330,8 @@ const Home = () => {
 
   if (!session) return null;
 
+  const pangkatGolonganDisplay = formatPangkatGolongan(userInfo.pangkat, userInfo.golongan);
+
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50">
@@ -279,7 +344,7 @@ const Home = () => {
                 <p className="text-gray-500 mt-1">Sistem Pengelolaan Kegiatan dan Perjalanan Dinas</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleColor(userInfo.role)}`}>
                   {userInfo.role}
                 </div>
               </div>
@@ -299,19 +364,24 @@ const Home = () => {
         </div>
 
         <div className="p-6">
-          {/* Welcome Banner dengan NIP */}
+          {/* Welcome Banner dengan NIP dan Pangkat/Golongan */}
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 mb-6 text-white">
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-2xl font-bold">Selamat Datang, {userInfo.fullName}!</h2>
                 <p className="text-blue-100 mt-1">Anda telah berhasil login ke sistem</p>
-                <div className="flex gap-3 mt-3">
+                <div className="flex flex-wrap gap-3 mt-3">
                   <div className="bg-white/20 rounded-lg px-3 py-1 text-sm">
                     NIP: <span className="font-mono font-bold">{userInfo.nip}</span>
                   </div>
                   <div className="bg-white/20 rounded-lg px-3 py-1 text-sm">
                     {userInfo.jabatan}
                   </div>
+                  {pangkatGolonganDisplay !== '-' && (
+                    <div className="bg-white/20 rounded-lg px-3 py-1 text-sm">
+                      Pangkat/Golongan: <span className="font-medium">{pangkatGolonganDisplay}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="bg-white/20 rounded-lg px-4 py-2">
@@ -341,6 +411,10 @@ const Home = () => {
                 <div className="flex justify-between pb-2 border-b">
                   <span className="text-gray-500">NIP</span>
                   <span className="font-mono font-bold text-blue-600 text-lg">{userInfo.nip}</span>
+                </div>
+                <div className="flex justify-between pb-2 border-b">
+                  <span className="text-gray-500">Pangkat / Golongan</span>
+                  <span className="font-medium">{pangkatGolonganDisplay}</span>
                 </div>
                 <div className="flex justify-between pb-2 border-b">
                   <span className="text-gray-500">Jabatan</span>
@@ -417,6 +491,10 @@ const Home = () => {
                 <div className="font-medium text-green-700">Kwitansi Perjadin</div>
                 <p className="text-xs text-gray-500 mt-1">Input kwitansi</p>
               </a>
+              <a href="/lpd" className="bg-yellow-50 hover:bg-yellow-100 rounded-lg p-4 text-center transition border border-yellow-200">
+                <div className="font-medium text-yellow-700">Laporan Perjalanan Dinas</div>
+                <p className="text-xs text-gray-500 mt-1">Buat & kelola LPD</p>
+              </a>
               <a href="/profile" className="bg-purple-50 hover:bg-purple-100 rounded-lg p-4 text-center transition border border-purple-200">
                 <div className="font-medium text-purple-700">Profil Saya</div>
                 <p className="text-xs text-gray-500 mt-1">Kelola profil</p>
@@ -430,7 +508,7 @@ const Home = () => {
 
           {/* Footer */}
           <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Sistem Nominatif Kegiatan v1.0 • {userInfo.fullName} • NIP: <span className="font-mono font-bold text-blue-600">{userInfo.nip}</span> • {userInfo.jabatan}</p>
+            <p>Sistem Nominatif Kegiatan v1.0 • {userInfo.fullName} • NIP: <span className="font-mono font-bold text-blue-600">{userInfo.nip}</span> • {pangkatGolonganDisplay !== '-' ? pangkatGolonganDisplay + ' • ' : ''}{userInfo.jabatan}</p>
             <p className="text-xs text-gray-400 mt-1">Hak akses: {userInfo.role} • Session: {userInfo.sessionRemaining}</p>
           </div>
         </div>

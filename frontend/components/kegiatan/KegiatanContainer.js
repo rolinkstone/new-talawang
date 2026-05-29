@@ -51,6 +51,7 @@ export default function KegiatanContainer({ session, status }) {
         {
             nama: '',
             nip: '',
+            pangkat: '',
             jabatan: '',
             total_biaya: 0,
             biaya: [{
@@ -553,6 +554,7 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
+    // ========== PERBAIKAN UTAMA: handleSubmit dengan pangkat ==========
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         
@@ -579,11 +581,13 @@ export default function KegiatanContainer({ session, status }) {
                 return;
             }
 
+            // 🔥 PERBAIKAN: Tambahkan field pangkat ke setiap pegawai
             const payload = {
                 ...formData,
                 pegawai: pegawaiList.map(pegawai => ({
                     nama: pegawai.nama || '',
                     nip: pegawai.nip || '',
+                    pangkat: pegawai.pangkat || '',  // ← TAMBAHKAN INI
                     jabatan: pegawai.jabatan || '',
                     total_biaya: pegawai.total_biaya || 0,
                     biaya: pegawai.biaya.map(biaya => ({
@@ -648,6 +652,7 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
+    // ========== PERBAIKAN: loadDataForEdit dengan pangkat ==========
     const loadDataForEdit = async (id) => {
         try {
             setFormLoading(true);
@@ -691,6 +696,7 @@ export default function KegiatanContainer({ session, status }) {
                         id: p.id,
                         nama: p.nama || '',
                         nip: p.nip || '',
+                        pangkat: p.pangkat || '',  // ← TAMBAHKAN INI
                         jabatan: p.jabatan || '',
                         total_biaya: p.total_biaya || 0,
                         biaya: p.biaya && p.biaya.length > 0 ? p.biaya.map(b => {
@@ -795,14 +801,13 @@ export default function KegiatanContainer({ session, status }) {
         setItemToDelete(null);
     };
 
-    // ============ PERBAIKAN: toggleDetail dengan endpoint yang benar ============
+    // toggleDetail dengan endpoint yang benar
     const toggleDetail = async (id) => {
         const newDetailShown = { ...detailShown, [id]: !detailShown[id] };
         setDetailShown(newDetailShown);
 
         if (newDetailShown[id] && !detailData[id]) {
             try {
-                // Gunakan endpoint /kegiatan/${id}/detail (sudah benar)
                 const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${id}/detail`, {
                     headers: { 
                         Authorization: `Bearer ${session?.accessToken}` 
@@ -832,7 +837,6 @@ export default function KegiatanContainer({ session, status }) {
                 setNotificationMessage(errorMessage);
                 setModalOpen(true);
                 
-                // Reset detailShown agar tidak stuck
                 setDetailShown(prev => ({ ...prev, [id]: false }));
             }
         }
@@ -929,7 +933,6 @@ export default function KegiatanContainer({ session, status }) {
         
         setFilteredKegiatan(filtered);
         
-        // Reset ke halaman 1 hanya jika filter berubah
         const currentFilterString = JSON.stringify({
             searchTerm, filterStatus, filterJenisSpm, filterDateFrom, filterDateTo,
             filterMak, filterLokasi, filterStatus2, filterCatatanStatus2
@@ -1055,7 +1058,7 @@ export default function KegiatanContainer({ session, status }) {
                 filterDateFrom={filterDateFrom}
                 setFilterDateFrom={setFilterDateFrom}
                 filterDateTo={filterDateTo}
-                setFilterDateTo={setFilterDateTo}
+                setFilterDateTo={filterDateTo}
                 filterMak={filterMak}
                 setFilterMak={setFilterMak}
                 filterLokasi={filterLokasi}
@@ -1448,6 +1451,7 @@ export default function KegiatanContainer({ session, status }) {
                                                             <th className="px-4 py-2 text-left">ID</th>
                                                             <th className="px-4 py-2 text-left">Nama</th>
                                                             <th className="px-4 py-2 text-left">NIP</th>
+                                                            <th className="px-4 py-2 text-left">Pangkat</th>
                                                             <th className="px-4 py-2 text-left">Jabatan</th>
                                                             <th className="px-4 py-2 text-left">Total Biaya</th>
                                                             <th className="px-4 py-2 text-left">Rincian Biaya</th>
@@ -1460,6 +1464,7 @@ export default function KegiatanContainer({ session, status }) {
                                                                     <td className="px-4 py-2">{p.id}</td>
                                                                     <td className="px-4 py-2">{p.nama}</td>
                                                                     <td className="px-4 py-2">{p.nip}</td>
+                                                                    <td className="px-4 py-2">{p.pangkat || '-'}</td>
                                                                     <td className="px-4 py-2">{p.jabatan}</td>
                                                                     <td className="px-4 py-2 font-semibold text-green-700">
                                                                         Rp {formatRupiah(p.total_biaya)}
@@ -1472,11 +1477,11 @@ export default function KegiatanContainer({ session, status }) {
                                                                             {pegawaiDetailShown[p.id] ? 'Hide' : 'Show'}
                                                                         </button>
                                                                     </td>
-                                                                 </tr>
+                                                                </tr>
 
                                                                 {pegawaiDetailShown[p.id] && p.biaya_list && p.biaya_list.length > 0 && (
                                                                     <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-50'}>
-                                                                        <td colSpan={6} className="px-4 py-2">
+                                                                        <td colSpan={7} className="px-4 py-2">
                                                                             {p.biaya_list.map((b, idx) => {
                                                                                 const totalTransport = (b.transportasi || []).reduce(
                                                                                     (sum, t) => sum + Number(t.total || 0), 0
@@ -1557,15 +1562,15 @@ export default function KegiatanContainer({ session, status }) {
                                                                                     </div>
                                                                                 );
                                                                             })}
-                                                                         </td>
-                                                                     </tr>
+                                                                          </td>
+                                                                      </tr>
                                                                 )}
                                                             </React.Fragment>
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                             </td>
-                                         </tr>
+                                              </td>
+                                          </tr>
                                     )}
                                 </React.Fragment>
                             ))
@@ -1573,11 +1578,11 @@ export default function KegiatanContainer({ session, status }) {
                             <tr>
                                 <td colSpan={12} className="px-6 py-4 text-center text-gray-500">
                                     Tidak ada data kegiatan
-                                 </td>
-                             </tr>
+                                  </td>
+                              </tr>
                         )}
                     </tbody>
-                 </table>
+                  </table>
             </div>
 
             {/* Pagination */}

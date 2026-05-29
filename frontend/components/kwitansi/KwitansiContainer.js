@@ -617,7 +617,7 @@ export default function KwitansiContainer() {
         <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto" key={refreshKey}>
             <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900">KWITANSI PERJALANAN DINAS</h2>
+                    <h2 className="text-3xl font-bold text-gray-900">KUITANSI PERJALANAN DINAS</h2>
                     <p className="text-gray-600 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | Role: {userRole || 'User'}
                         {userType.isAdmin && <span className="ml-2 text-blue-600">(Admin - Melihat Semua Data)</span>}
@@ -944,15 +944,7 @@ export default function KwitansiContainer() {
                                                                         >
                                                                             🖨️ Cetak
                                                                         </button>
-                                                                        {(userType.isAdmin || pegawai.isCurrentUser || kegiatan.isCreator) && (
-                                                                            <button 
-                                                                                onClick={() => handleDelete(kegiatan.id, pegawai.id, pegawai.kwitansi_id)} 
-                                                                                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm" 
-                                                                                disabled={deletingId === pegawai.kwitansi_id}
-                                                                            >
-                                                                                Hapus
-                                                                            </button>
-                                                                        )}
+                                                                       
                                                                     </>
                                                                 )}
                                                             </div>

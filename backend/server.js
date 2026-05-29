@@ -22,6 +22,11 @@ app.use(express.json());
 
 // ========== STATIC FILES ==========
 // Serve static files from uploads directory (tanpa auth)
+// Untuk kwitansi
+app.use('/uploads/kwitansi', express.static(path.join(__dirname, 'public/uploads/kwitansi')));
+// Untuk lpd dokumentasi
+app.use('/uploads/lpd-dokumentasi', express.static(path.join(__dirname, 'public/uploads/lpd-dokumentasi')));
+// General uploads folder
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // ========== KEYCLOAK CONFIG ==========
@@ -207,7 +212,6 @@ app.post('/api/login', async (req, res) => {
                 username: decoded.preferred_username || username,
                 email: decoded.email || '',
                 name: decoded.name || decoded.preferred_username || username,
-                nip: decoded.preferred_username,
                 nip: nip  // Tambahkan NIP ke response
             }
         });
@@ -267,7 +271,7 @@ app.post('/api/login', async (req, res) => {
                         username: decoded.preferred_username || username,
                         email: decoded.email || '',
                         name: decoded.name || decoded.preferred_username || username,
-                        nip: nip  // Tambahkan NIP ke response
+                        nip: nip
                     }
                 });
                 
@@ -396,8 +400,12 @@ app.get('/api/health', (req, res) => {
                 'POST /api/kwitansi',
                 'PUT /api/kwitansi',
                 'DELETE /api/kwitansi',
-                'GET /api/lpd',  // TAMBAHKAN INI
-                'GET /api/lpd/kegiatan/:kegiatanId',  // TAMBAHKAN INI
+                'GET /api/lpd/daftar-kegiatan',
+                'GET /api/lpd/kegiatan/:kegiatanId',
+                'POST /api/lpd/rincian',
+                'POST /api/lpd/dokumentasi/:kegiatanId',
+                'DELETE /api/lpd/dokumentasi/:dokumentasiId',
+                'GET /api/lpd/dokumentasi/:dokumentasiId/download',
                 'GET /api/userinfo',
                 'POST /api/refresh'
             ]
@@ -469,7 +477,9 @@ app.listen(PORT, () => {
     ✅ Authentication: Keycloak JWT
     ✅ SSL Verification: ENABLED
     ✅ Database: MySQL
-    ✅ Static Files: /uploads
+    ✅ Static Files: 
+       /uploads/kwitansi
+       /uploads/lpd-dokumentasi
     
     🔐 Login: POST /api/login
     📊 Kegiatan: GET /api/kegiatan
@@ -477,9 +487,11 @@ app.listen(PORT, () => {
     📋 LPD: GET /api/lpd/daftar-kegiatan
     📝 LPD Rincian: POST /api/lpd/rincian
     📎 LPD Dokumentasi: POST /api/lpd/dokumentasi/:kegiatanId
+    🗑️ LPD Hapus Dokumentasi: DELETE /api/lpd/dokumentasi/:dokumentasiId
+    📥 LPD Download: GET /api/lpd/dokumentasi/:dokumentasiId/download
     👤 User Info: GET /api/userinfo
     🔄 Refresh: POST /api/refresh
-    📁 Files: GET /uploads/kwitansi/:filename
+    📁 Kwitansi Files: GET /uploads/kwitansi/:filename
     📁 LPD Files: GET /uploads/lpd-dokumentasi/:filename
     
     ============================================

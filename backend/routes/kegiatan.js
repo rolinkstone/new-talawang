@@ -320,12 +320,13 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
 
         const kegiatanData = kegiatanRows[0];
 
-        // Ambil data pegawai untuk kegiatan ini
+        // Ambil data pegawai untuk kegiatan ini - TAMBAHKAN pangkat
         const pegawaiQuery = `
             SELECT 
                 p.id,
                 p.nama,
                 p.nip,
+                p.pangkat,
                 p.jabatan,
                 p.total_biaya
             FROM accounting.nominatif_pegawai p
@@ -452,7 +453,6 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
 });
 
 // GET DETAIL KEGIATAN + PEGAWAI + BIAYA
-// GET DETAIL KEGIATAN + PEGAWAI + BIAYA
 router.get('/:id/detail', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
@@ -569,12 +569,13 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
         const kegiatanData = kegiatanRows[0];
         console.log(`✅ Kegiatan ditemukan: ${kegiatanData.kegiatan}`);
 
-        // Ambil pegawai dengan biaya_list
+        // Ambil pegawai dengan biaya_list - TAMBAHKAN pangkat
         const pegawaiQuery = `
             SELECT 
                 p.id,
                 p.nama,
                 p.nip,
+                p.pangkat,
                 p.jabatan,
                 p.total_biaya
             FROM accounting.nominatif_pegawai p
@@ -668,13 +669,16 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
 });
 
 // POST - Insert kegiatan
-
 router.post('/', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     const userId = getUserId(req.user);
     
     console.log('=== MENERIMA REQUEST CREATE KEGIATAN ===');
     console.log(`👤 User: ${username} (ID: ${userId})`);
+    
+    // DEBUG: Log seluruh body request
+    console.log('=== FULL REQUEST BODY ===');
+    console.log(JSON.stringify(req.body, null, 2));
     
     if (!req.user.isRegularUser) {
         return res.status(403).json({
@@ -703,6 +707,25 @@ router.post('/', keycloakAuth, async (req, res) => {
         bendahara_nip,
         pegawai = []
     } = req.body;
+
+    // DEBUG: Log data pegawai yang diterima
+    console.log('=== DATA PEGAWAI YANG DITERIMA ===');
+    console.log(`Jumlah pegawai: ${pegawai.length}`);
+    if (pegawai && pegawai.length > 0) {
+        pegawai.forEach((p, idx) => {
+            console.log(`\n--- Pegawai ${idx + 1} ---`);
+            console.log(`  nama: ${p.nama}`);
+            console.log(`  nip: ${p.nip}`);
+            console.log(`  pangkat: ${p.pangkat}`);
+            console.log(`  jabatan: ${p.jabatan}`);
+            console.log(`  total_biaya: ${p.total_biaya}`);
+            console.log(`  semua field:`, Object.keys(p));
+            console.log(`  apakah pangkat ada? ${p.hasOwnProperty('pangkat')}`);
+            console.log(`  tipe pangkat: ${typeof p.pangkat}`);
+        });
+    } else {
+        console.log('Tidak ada data pegawai');
+    }
 
     if (!kegiatanNama || !mak) {
         return res.status(400).json({ 
@@ -749,6 +772,7 @@ router.post('/', keycloakAuth, async (req, res) => {
 
         const [kegiatanResult] = await connection.execute(kegiatanQuery, kegiatanValues);
         const kegiatanId = kegiatanResult.insertId;
+        console.log(`✅ Kegiatan inserted with ID: ${kegiatanId}`);
 
         let totalPegawai = 0;
         let totalBiaya = 0;
@@ -757,19 +781,33 @@ router.post('/', keycloakAuth, async (req, res) => {
             for (const p of pegawai) {
                 if (!p.nama) continue;
 
+                console.log(`\n📝 Inserting pegawai: ${p.nama}`);
+                console.log(`   NIP: ${p.nip}`);
+                console.log(`   Pangkat dari request: ${p.pangkat || '(kosong)'}`);
+                console.log(`   Jabatan: ${p.jabatan}`);
+
+                // TAMBAHKAN pangkat ke query insert
                 const pegawaiQuery = `
                     INSERT INTO accounting.nominatif_pegawai 
-                    (kegiatan_id, nama, nip, jabatan, total_biaya) 
-                    VALUES (?, ?, ?, ?, ?)
+                    (kegiatan_id, nama, nip, pangkat, jabatan, total_biaya) 
+                    VALUES (?, ?, ?, ?, ?, ?)
                 `;
                 
                 const pegawaiValues = [
-                    kegiatanId, p.nama, p.nip || null,
-                    p.jabatan || null, parseFloat(p.total_biaya) || 0
+                    kegiatanId, 
+                    p.nama, 
+                    p.nip || null,
+                    p.pangkat || null, 
+                    p.jabatan || null, 
+                    parseFloat(p.total_biaya) || 0
                 ];
+
+                console.log('   Query VALUES:', pegawaiValues);
 
                 const [pegawaiResult] = await connection.execute(pegawaiQuery, pegawaiValues);
                 const pegawaiId = pegawaiResult.insertId;
+                console.log(`   ✅ Pegawai inserted with ID: ${pegawaiId}`);
+                
                 totalPegawai++;
                 totalBiaya += parseFloat(p.total_biaya) || 0;
 
@@ -822,10 +860,27 @@ router.post('/', keycloakAuth, async (req, res) => {
             }
         }
 
+        // DEBUG: Verifikasi data yang tersimpan di database
+        console.log('\n=== VERIFIKASI DATA TERSIMPAN ===');
+        const [savedPegawai] = await db.query(`
+            SELECT id, nama, nip, pangkat, jabatan, total_biaya 
+            FROM accounting.nominatif_pegawai 
+            WHERE kegiatan_id = ?
+        `, [kegiatanId]);
+        
+        console.log(`Data pegawai tersimpan (${savedPegawai.length} record):`);
+        savedPegawai.forEach((p, idx) => {
+            console.log(`  ${idx + 1}. Nama: ${p.nama}`);
+            console.log(`     NIP: ${p.nip}`);
+            console.log(`     Pangkat: ${p.pangkat || '(NULL)'}`);
+            console.log(`     Jabatan: ${p.jabatan}`);
+        });
+
         await connection.commit();
         connection.release();
 
-        console.log(`✅ Kegiatan berhasil disimpan dengan bendahara: ${bendahara_nama || 'Tidak ada'}`);
+        console.log(`\n✅ Kegiatan berhasil disimpan dengan bendahara: ${bendahara_nama || 'Tidak ada'}`);
+        console.log(`📊 Total pegawai: ${totalPegawai}, Total biaya: ${totalBiaya}`);
 
         res.status(201).json({
             success: true,
@@ -837,7 +892,8 @@ router.post('/', keycloakAuth, async (req, res) => {
                 total_pegawai: totalPegawai,
                 total_biaya: totalBiaya,
                 bendahara_nama: bendahara_nama || null,
-                bendahara_nip: bendahara_nip || null
+                bendahara_nip: bendahara_nip || null,
+                saved_pegawai: savedPegawai // Kirim balik data yang tersimpan untuk verifikasi
             }
         });
 
@@ -956,8 +1012,7 @@ router.delete('/:id', keycloakAuth, async (req, res) => {
     }
 });
 
-// PUT - Update lengkap kegiatan
-// PUT - Update lengkap kegiatan (DENGAN PENAMBAHAN BENDAHARA)
+// PUT - Update lengkap kegiatan (DENGAN PENAMBAHAN BENDAHARA DAN PANGKAT)
 router.put('/:id', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
@@ -1086,7 +1141,7 @@ router.put('/:id', keycloakAuth, async (req, res) => {
             await connection.query(`DELETE FROM accounting.nominatif_pegawai WHERE id IN (${placeholders})`, oldPegawaiIds);
         }
         
-        // Insert data pegawai baru
+        // Insert data pegawai baru - TAMBAHKAN pangkat
         let totalPegawai = 0;
         
         if (pegawai && pegawai.length > 0) {
@@ -1095,13 +1150,13 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 
                 const insertPegawaiQuery = `
                     INSERT INTO accounting.nominatif_pegawai 
-                    (kegiatan_id, nama, nip, jabatan, total_biaya) 
-                    VALUES (?, ?, ?, ?, ?)
+                    (kegiatan_id, nama, nip, pangkat, jabatan, total_biaya) 
+                    VALUES (?, ?, ?, ?, ?, ?)
                 `;
                 
                 const [pegawaiResult] = await connection.execute(insertPegawaiQuery, [
                     id, p.nama, p.nip || null,
-                    p.jabatan || null, p.total_biaya || 0
+                    p.pangkat || null, p.jabatan || null, p.total_biaya || 0
                 ]);
                 const pegawaiId = pegawaiResult.insertId;
                 totalPegawai++;
@@ -1393,7 +1448,6 @@ router.post('/:id/approve', keycloakAuth, async (req, res) => {
     }
 });
 
-
 // POST - PPK menolak/mengembalikan pengajuan (REJECT PPK)
 router.post('/:id/reject-ppk', keycloakAuth, async (req, res) => {
     const { id } = req.params;
@@ -1509,7 +1563,6 @@ router.post('/:id/reject-ppk', keycloakAuth, async (req, res) => {
 });
 
 // routes/kegiatan.js - Endpoint reject-kabalai
-
 router.post('/:id/reject-kabalai', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
@@ -1638,7 +1691,6 @@ router.post('/:id/reject-kabalai', keycloakAuth, async (req, res) => {
 });
 
 // routes/kegiatan.js - Endpoint menyetujui (DIPERBAIKI)
-
 router.post('/:id/menyetujui', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
@@ -2110,7 +2162,5 @@ router.put('/:id/bendahara', keycloakAuth, async (req, res) => {
         });
     }
 });
-
-
 
 module.exports = router;

@@ -12,6 +12,7 @@ import { formatDateFn } from '../../utils/formatters';
 
 const ITEMS_PER_PAGE = 10;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const BACKEND_URL = 'http://localhost:5000'; // URL absolut untuk static files
 
 export default function LpdContainer({ session, status }) {
     const router = useRouter();
@@ -49,6 +50,13 @@ export default function LpdContainer({ session, status }) {
         isKabalai: false,
         isRegularUser: false
     });
+    
+    // State untuk tab
+    const [activeTab, setActiveTab] = useState('milik_saya');
+    const [userNip, setUserNip] = useState('');
+    const [pegawaiInfo, setPegawaiInfo] = useState({});
+    const [expandedPegawai, setExpandedPegawai] = useState({});
+    const [dokumentasiPreview, setDokumentasiPreview] = useState({});
 
     const previousFilterString = useRef('');
 
@@ -56,6 +64,8 @@ export default function LpdContainer({ session, status }) {
     useEffect(() => {
         if (session) {
             const userData = session.user || {};
+            const nip = userData.nip || userData.NIP || '';
+            setUserNip(nip);
             
             let roles = [];
             if (userData.role) {
@@ -97,7 +107,6 @@ export default function LpdContainer({ session, status }) {
         try {
             setLoading(true);
             const url = `${API_BASE_URL}/lpd/daftar-kegiatan`;
-            console.log('🌐 Fetching from:', url);
             
             const res = await axios.get(url, {
                 headers: { 
@@ -106,14 +115,16 @@ export default function LpdContainer({ session, status }) {
                 timeout: 10000
             });
             
-            console.log('📦 Response:', res.data);
-            
             if (res.data.success && Array.isArray(res.data.data)) {
                 const sortedData = [...res.data.data].sort((a, b) => {
                     return new Date(b.created_at || b.id) - new Date(a.created_at || a.id);
                 });
                 setKegiatanList(sortedData);
-                setFilteredKegiatan(sortedData);
+                
+                await Promise.all([
+                    fetchPegawaiInfoForKegiatan(sortedData),
+                    fetchDokumentasiPreviewForKegiatan(sortedData)
+                ]);
             } else {
                 setKegiatanList([]);
                 setFilteredKegiatan([]);
@@ -147,11 +158,72 @@ export default function LpdContainer({ session, status }) {
         }
     };
 
+    // Fetch informasi pegawai untuk setiap kegiatan
+    const fetchPegawaiInfoForKegiatan = async (kegiatanData) => {
+        const pegawaiMap = {};
+        
+        for (const kegiatan of kegiatanData) {
+            try {
+                const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatan.id}`;
+                const response = await axios.get(url, {
+                    headers: { 
+                        'Authorization': `Bearer ${session?.accessToken}`
+                    }
+                });
+                
+                if (response.data.success && response.data.data.petugas_pelaksana) {
+                    pegawaiMap[kegiatan.id] = response.data.data.petugas_pelaksana;
+                } else {
+                    pegawaiMap[kegiatan.id] = [];
+                }
+            } catch (error) {
+                console.error(`Error fetching pegawai for kegiatan ${kegiatan.id}:`, error);
+                pegawaiMap[kegiatan.id] = [];
+            }
+        }
+        
+        setPegawaiInfo(pegawaiMap);
+    };
+
+    // Fetch dokumentasi preview untuk setiap kegiatan
+    const fetchDokumentasiPreviewForKegiatan = async (kegiatanData) => {
+        const previewMap = {};
+        
+        for (const kegiatan of kegiatanData) {
+            try {
+                const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatan.id}`;
+                const response = await axios.get(url, {
+                    headers: { 
+                        'Authorization': `Bearer ${session?.accessToken}`
+                    }
+                });
+                
+                if (response.data.success && response.data.data.dokumentasi && response.data.data.dokumentasi.length > 0) {
+                    const imageDocs = response.data.data.dokumentasi.filter(doc => 
+                        doc.file_type && doc.file_type.startsWith('image/')
+                    );
+                    
+                    if (imageDocs.length > 0) {
+                        previewMap[kegiatan.id] = imageDocs[0];
+                    } else {
+                        previewMap[kegiatan.id] = response.data.data.dokumentasi[0];
+                    }
+                } else {
+                    previewMap[kegiatan.id] = null;
+                }
+            } catch (error) {
+                console.error(`Error fetching dokumentasi for kegiatan ${kegiatan.id}:`, error);
+                previewMap[kegiatan.id] = null;
+            }
+        }
+        
+        setDokumentasiPreview(previewMap);
+    };
+
     const fetchLpdData = async (kegiatanId) => {
         try {
             setLoading(true);
             const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatanId}`;
-            console.log('🔍 Fetching LPD from:', url);
             
             const response = await axios.get(url, {
                 headers: { 
@@ -185,9 +257,15 @@ export default function LpdContainer({ session, status }) {
         }
     }, [session]);
 
-    // Filter effect
+    // Filter effect dengan tab
     useEffect(() => {
         let filtered = [...kegiatanList];
+        
+        if (activeTab === 'milik_saya') {
+            filtered = filtered.filter(item => item.created_by_me === true);
+        } else if (activeTab === 'pegawai_lain') {
+            filtered = filtered.filter(item => item.created_by_me === false);
+        }
         
         if (searchTerm) {
             filtered = filtered.filter(item => 
@@ -227,10 +305,22 @@ export default function LpdContainer({ session, status }) {
             });
         }
         
+        if (sortConfig.key) {
+            filtered.sort((a, b) => {
+                if (a[sortConfig.key] < b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (a[sortConfig.key] > b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        
         setFilteredKegiatan(filtered);
         
         const currentFilterString = JSON.stringify({
-            searchTerm, filterStatus, filterDateFrom, filterDateTo, filterMak, filterLokasi
+            activeTab, searchTerm, filterStatus, filterDateFrom, filterDateTo, filterMak, filterLokasi
         });
         
         if (previousFilterString.current !== currentFilterString) {
@@ -238,7 +328,7 @@ export default function LpdContainer({ session, status }) {
             previousFilterString.current = currentFilterString;
         }
         
-    }, [searchTerm, kegiatanList, filterStatus, filterDateFrom, filterDateTo, filterMak, filterLokasi]);
+    }, [activeTab, searchTerm, kegiatanList, filterStatus, filterDateFrom, filterDateTo, filterMak, filterLokasi, sortConfig]);
 
     const resetFilter = () => {
         setFilterStatus('');
@@ -256,13 +346,6 @@ export default function LpdContainer({ session, status }) {
             direction = 'descending';
         }
         setSortConfig({ key, direction });
-        const sorted = [...filteredKegiatan].sort((a, b) => {
-            if (a[key] < b[key]) return direction === 'ascending' ? -1 : 1;
-            if (a[key] > b[key]) return direction === 'ascending' ? 1 : -1;
-            return 0;
-        });
-        setFilteredKegiatan(sorted);
-        setCurrentPage(1);
     };
 
     const handleBackToList = () => {
@@ -292,7 +375,6 @@ export default function LpdContainer({ session, status }) {
     const handleSaveRincian = async (rincianList) => {
         try {
             const url = `${API_BASE_URL}/lpd/rincian`;
-            console.log('📝 Saving rincian to:', url);
             
             const response = await axios.post(url, {
                 kegiatan_id: parseInt(selectedKegiatan.kegiatan_id),
@@ -342,7 +424,6 @@ export default function LpdContainer({ session, status }) {
             formData.append('keterangan_list', JSON.stringify(keteranganArray));
 
             const url = `${API_BASE_URL}/lpd/dokumentasi/${selectedKegiatan.kegiatan_id}`;
-            console.log('📤 Uploading to:', url);
             
             const response = await axios.post(url, formData, {
                 headers: {
@@ -374,7 +455,6 @@ export default function LpdContainer({ session, status }) {
     const handleDeleteDokumentasi = async (dokumentasiId) => {
         try {
             const url = `${API_BASE_URL}/lpd/dokumentasi/${dokumentasiId}`;
-            console.log('🗑️ Deleting from:', url);
             
             const response = await axios.delete(url, {
                 headers: { 
@@ -414,6 +494,118 @@ export default function LpdContainer({ session, status }) {
         }
     };
 
+    const toggleExpandPegawai = (kegiatanId) => {
+        setExpandedPegawai(prev => ({
+            ...prev,
+            [kegiatanId]: !prev[kegiatanId]
+        }));
+    };
+
+    const formatPegawaiList = (kegiatanId, isExpanded) => {
+        const pegawai = pegawaiInfo[kegiatanId] || [];
+        if (pegawai.length === 0) return '-';
+        
+        if (isExpanded) {
+            return (
+                <div className="space-y-2">
+                    {pegawai.map((p, idx) => (
+                        <div key={idx} className="text-sm border-b border-gray-100 pb-1 last:border-0">
+                            <div className="font-medium text-gray-800">{p.nama || '-'}</div>
+                            {p.nip && <div className="text-xs text-gray-500">NIP: {p.nip}</div>}
+                            {p.jabatan && <div className="text-xs text-gray-500">{p.jabatan}</div>}
+                            {p.pangkat_golongan && <div className="text-xs text-gray-400">{p.pangkat_golongan}</div>}
+                        </div>
+                    ))}
+                    <button
+                        onClick={() => toggleExpandPegawai(kegiatanId)}
+                        className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                    >
+                        Sembunyikan
+                    </button>
+                </div>
+            );
+        } else {
+            const previewCount = Math.min(3, pegawai.length);
+            const previewNames = pegawai.slice(0, previewCount).map(p => p.nama).filter(n => n);
+            const remainingCount = pegawai.length - previewCount;
+            
+            return (
+                <div>
+                    <div className="space-y-1">
+                        {previewNames.map((name, idx) => (
+                            <div key={idx} className="text-sm text-gray-700">{name}</div>
+                        ))}
+                        {remainingCount > 0 && (
+                            <div className="text-sm text-blue-600">
+                                + {remainingCount} pegawai lainnya
+                            </div>
+                        )}
+                    </div>
+                    {pegawai.length > 3 && (
+                        <button
+                            onClick={() => toggleExpandPegawai(kegiatanId)}
+                            className="text-xs text-blue-600 hover:text-blue-800 mt-2"
+                        >
+                            Lihat semua ({pegawai.length} orang)
+                        </button>
+                    )}
+                </div>
+            );
+        }
+    };
+
+    // Render preview foto dokumentasi dengan URL ABSOLUT
+    const renderDokumentasiPreview = (kegiatanId) => {
+        const preview = dokumentasiPreview[kegiatanId];
+        
+        if (!preview || !preview.file_path) {
+            return (
+                <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+            );
+        }
+
+        // Ambil filename dari path (contoh: /uploads/lpd-dokumentasi/nama_file.jpg -> nama_file.jpg)
+        const filename = preview.file_path.split('/').pop();
+        
+        // Gunakan URL ABSOLUT ke server backend (LEWATI proxy Next.js)
+        const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
+        
+        const isImage = preview.file_type?.startsWith('image/');
+        
+        if (isImage) {
+            return (
+                <img 
+                    src={imageUrl}
+                    alt={preview.keterangan || preview.file_name || 'Preview'}
+                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-75 transition"
+                    onClick={() => window.open(imageUrl, '_blank')}
+                    onError={(e) => {
+                        console.error(`Image failed to load: ${imageUrl}`);
+                        e.target.onerror = null;
+                        e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%23999"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /%3E%3C/svg%3E';
+                    }}
+                />
+            );
+        } else {
+            const fileExtension = preview.file_name?.split('.').pop()?.toUpperCase() || 'FILE';
+            return (
+                <div 
+                    className="w-16 h-16 bg-blue-50 rounded-lg flex flex-col items-center justify-center border border-blue-200 cursor-pointer hover:bg-blue-100 transition"
+                    onClick={() => window.open(imageUrl, '_blank')}
+                >
+                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-xs text-blue-600 font-medium mt-1">{fileExtension}</span>
+                </div>
+            );
+        }
+    };
+
     if (status === 'loading') {
         return <LoadingSpinner />;
     }
@@ -426,7 +618,6 @@ export default function LpdContainer({ session, status }) {
     const paginatedItems = filteredKegiatan.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
     const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
-    // Tampilkan form jika ada kegiatan yang dipilih
     if (showForm && selectedKegiatan) {
         return (
             <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto">
@@ -483,7 +674,9 @@ export default function LpdContainer({ session, status }) {
         );
     }
 
-    // Tampilkan daftar kegiatan
+    const myKegiatanCount = kegiatanList.filter(item => item.created_by_me === true).length;
+    const otherKegiatanCount = kegiatanList.filter(item => item.created_by_me === false).length;
+
     return (
         <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto">
             {/* Header */}
@@ -495,8 +688,9 @@ export default function LpdContainer({ session, status }) {
                         Role: {userRole || 'User'} | 
                         Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
                     </p>
-                    <p className="text-sm text-blue-600 mt-1">
-                    </p>
+                    {userNip && (
+                        <p className="text-sm text-gray-500 mt-1">NIP: {userNip}</p>
+                    )}
                 </div>
                 <div className="flex space-x-2">
                     <button
@@ -521,6 +715,58 @@ export default function LpdContainer({ session, status }) {
                         </svg>
                         Refresh
                     </button>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-gray-200 mb-6">
+                <nav className="-mb-px flex space-x-8">
+                    <button
+                        onClick={() => setActiveTab('milik_saya')}
+                        className={`
+                            py-2 px-1 border-b-2 font-medium text-sm
+                            ${activeTab === 'milik_saya' 
+                                ? 'border-blue-500 text-blue-600' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                        `}
+                    >
+                        Kegiatan Saya
+                        {myKegiatanCount > 0 && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600">
+                                {myKegiatanCount}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('pegawai_lain')}
+                        className={`
+                            py-2 px-1 border-b-2 font-medium text-sm
+                            ${activeTab === 'pegawai_lain' 
+                                ? 'border-blue-500 text-blue-600' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                        `}
+                    >
+                        Nominatif Dari Pegawai Lain
+                        {otherKegiatanCount > 0 && (
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600">
+                                {otherKegiatanCount}
+                            </span>
+                        )}
+                    </button>
+                </nav>
+            </div>
+
+            {/* Info Tab */}
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center text-sm">
+                    <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                        {activeTab === 'milik_saya' 
+                            ? ' Menampilkan kegiatan yang Anda buat. Anda dapat mengisi dan mengedit LPD untuk kegiatan ini.'
+                            : ' Menampilkan kegiatan yang dibuat oleh pegawai lain. Anda hanya dapat melihat LPD, tidak dapat mengedit.'}
+                    </div>
                 </div>
             </div>
 
@@ -603,18 +849,6 @@ export default function LpdContainer({ session, status }) {
                 />
             </div>
 
-            {/* Informasi role user */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center text-sm">
-                    <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                        <span className="font-medium">Informasi:</span> Satu Laporan Perjalanan Dinas (LPD) mencakup semua pegawai yang melaksanakan kegiatan.
-                    </div>
-                </div>
-            </div>
-
             {/* Table */}
             {loading ? (
                 <div className="flex justify-center py-12">
@@ -629,8 +863,12 @@ export default function LpdContainer({ session, status }) {
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id')}>
                                         ID
                                     </th>
+                                    
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('kegiatan')}>
                                         Kegiatan & MAK
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight">
+                                        Pegawai Pelaksana
                                     </th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tempat')}>
                                         Lokasi & Tanggal
@@ -647,19 +885,30 @@ export default function LpdContainer({ session, status }) {
                                 {paginatedItems.length > 0 ? (
                                     paginatedItems.map(item => {
                                         const status = getStatusBadge(item);
+                                        const isMine = item.created_by_me === true;
+                                        const isExpanded = expandedPegawai[item.id] || false;
                                         return (
                                             <tr key={item.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-4">{item.id}</td>
-                                                <td className="px-4 py-4">
+                                                <td className="px-4 py-4 align-top">{item.id}</td>
+                                                
+                                                <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
                                                         <div className="font-medium text-gray-900">{item.kegiatan || '-'}</div>
                                                         <div className="text-sm text-gray-600">MAK: {item.mak || '-'}</div>
                                                         {item.no_st && (
                                                             <div className="text-xs text-gray-500">No ST: {item.no_st}</div>
                                                         )}
+                                                        {!isMine && activeTab === 'pegawai_lain' && (
+                                                            <div className="text-xs text-purple-600 mt-1">
+                                                                Dibuat oleh: {item.created_by_name || 'Pegawai Lain'}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-4">
+                                                <td className="px-4 py-4 align-top">
+                                                    {formatPegawaiList(item.id, isExpanded)}
+                                                </td>
+                                                <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
                                                         <div className="text-sm">{item.tempat || '-'}</div>
                                                         <div className="text-xs text-gray-500">
@@ -673,32 +922,49 @@ export default function LpdContainer({ session, status }) {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-4 text-center">
+                                                <td className="px-4 py-4 text-center align-top">
                                                     <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>
                                                         {status.text}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-4 text-center">
-                                                    <button
-                                                        onClick={() => fetchLpdData(item.id)}
-                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-2 mx-auto"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                        </svg>
-                                                        {status.text === 'Lengkap' ? 'Lihat & Edit' : 'Isi Laporan'}
-                                                    </button>
+                                                <td className="px-4 py-4 text-center align-top">
+                                                    {isMine || userType.isAdmin ? (
+                                                        <button
+                                                            onClick={() => fetchLpdData(item.id)}
+                                                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-2 mx-auto"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                            {status.text === 'Lengkap' ? 'Lihat & Edit' : 'Isi Laporan'}
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => fetchLpdData(item.id)}
+                                                            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition flex items-center gap-2 mx-auto"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            Lihat Laporan
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
-                                            <p>Belum ada kegiatan yang tersedia untuk LPD</p>
+                                            <p>
+                                                {activeTab === 'milik_saya' 
+                                                    ? 'Belum ada kegiatan yang Anda buat dengan status Selesai' 
+                                                    : 'Belum ada kegiatan dari pegawai lain dengan status Selesai'}
+                                            </p>
                                             <p className="text-sm text-gray-400 mt-1">
                                                 Kegiatan dengan status "Selesai" akan muncul di sini
                                             </p>

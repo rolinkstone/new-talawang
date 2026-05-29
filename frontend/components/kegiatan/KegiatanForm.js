@@ -178,7 +178,7 @@ const KegiatanForm = ({
                 if (data.data && data.data.length > 0) {
                     console.log('📋 Sample data (first 3):');
                     data.data.slice(0, 3).forEach((item, idx) => {
-                        console.log(`${idx + 1}. Nama: ${item.nama}, NIP: ${item.nip}`);
+                        console.log(`${idx + 1}. Nama: ${item.nama}, NIP: ${item.nip}, Pangkat: ${item.pangkat || '-'}`);
                     });
                 }
             } else {
@@ -233,6 +233,7 @@ const KegiatanForm = ({
                     user_id: item.user_id || item.id,
                     nama: item.nama || item.name || '',
                     nip: item.nip || '',
+                    pangkat: item.pangkat || '',
                     jabatan: item.jabatan || 'Bendahara',
                     email: item.email || ''
                 }));
@@ -374,6 +375,7 @@ const KegiatanForm = ({
         }));
     };
 
+    // ========== PERBAIKAN UTAMA: TAMBAHKAN PANGKAT KE DATA YANG DIKIRIM ==========
     const handleSubmitForm = async (e) => {
         e.preventDefault();
         
@@ -398,6 +400,27 @@ const KegiatanForm = ({
             return;
         }
         
+        // 🔥 PERBAIKAN: Buat data baru dengan menambahkan field pangkat untuk setiap pegawai
+        const dataToSend = {
+            ...formData,
+            pegawai: pegawaiList.map(p => ({
+                nama: p.nama,
+                nip: p.nip,
+                pangkat: p.pangkat || '',  // ← TAMBAHKAN FIELD PANGKAT
+                jabatan: p.jabatan || '',
+                total_biaya: p.total_biaya || 0,
+                biaya: p.biaya || []
+            }))
+        };
+        
+        // Log untuk debugging
+        console.log('📤 Data yang akan dikirim ke backend:', JSON.stringify(dataToSend, null, 2));
+        
+        // Simpan data sementara agar bisa diakses oleh onSubmit
+        // Kemudian panggil onSubmit dengan event yang sudah dimodifikasi
+        window.__tempFormData = dataToSend;
+        
+        // Panggil onSubmit asli
         onSubmit(e);
     };
 
@@ -1026,7 +1049,7 @@ const KegiatanForm = ({
                                         <option value="">-- Pilih Bendahara --</option>
                                         {bendaharaList.map(bendahara => {
                                             const optionValue = bendahara.id || bendahara.user_id;
-                                            const optionLabel = `${bendahara.nama}${bendahara.nip ? ` - NIP: ${bendahara.nip}` : ''}${bendahara.jabatan ? ` (${bendahara.jabatan})` : ''}`;
+                                            const optionLabel = `${bendahara.nama}${bendahara.nip ? ` - NIP: ${bendahara.nip}` : ''}${bendahara.pangkat ? ` - ${bendahara.pangkat}` : ''}${bendahara.jabatan ? ` (${bendahara.jabatan})` : ''}`;
                                             return (
                                                 <option key={optionValue} value={optionValue}>
                                                     {optionLabel}
