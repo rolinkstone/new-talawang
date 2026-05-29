@@ -8,11 +8,17 @@ import LpdForm from './LpdForm';
 import LpdModal from './LpdModal';
 import NotificationModal from '../common/NotificationModal';
 import LoadingSpinner from '../common/LoadingSpinner';
+import KirimKeKatimModal from './modals/KirimKeKatimModal';
+import PersetujuanKatimModal from './modals/PersetujuanKatimModal';
+import PersetujuanKabalaiModal from './modals/PersetujuanKabalaiModal';
+import LihatLPDModal from './modals/LihatLPDModal';
 import { formatDateFn } from '../../utils/formatters';
+import { printLPD } from './lpdPrint';
+
 
 const ITEMS_PER_PAGE = 10;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-const BACKEND_URL = 'http://localhost:5000'; // URL absolut untuk static files
+const BACKEND_URL = 'http://localhost:5000';
 
 export default function LpdContainer({ session, status }) {
     const router = useRouter();
@@ -42,12 +48,25 @@ export default function LpdContainer({ session, status }) {
     const [modalType, setModalType] = useState('');
     const [selectedItem, setSelectedItem] = useState(null);
     
+    // State untuk modal persetujuan LPD
+    const [showKirimKeKatimModal, setShowKirimKeKatimModal] = useState(false);
+    const [selectedKegiatanForKirim, setSelectedKegiatanForKirim] = useState(null);
+    const [showPersetujuanKatimModal, setShowPersetujuanKatimModal] = useState(false);
+    const [selectedKegiatanForKatim, setSelectedKegiatanForKatim] = useState(null);
+    const [showPersetujuanKabalaiModal, setShowPersetujuanKabalaiModal] = useState(false);
+    const [selectedKegiatanForKabalai, setSelectedKegiatanForKabalai] = useState(null);
+    
+    // State untuk modal Lihat LPD
+    const [showLihatLPDModal, setShowLihatLPDModal] = useState(false);
+    const [selectedKegiatanForLihat, setSelectedKegiatanForLihat] = useState(null);
+    
     // State user role
     const [userRole, setUserRole] = useState('');
     const [userType, setUserType] = useState({
         isAdmin: false,
         isPPK: false,
         isKabalai: false,
+        isKatim: false,
         isRegularUser: false
     });
     
@@ -81,12 +100,14 @@ export default function LpdContainer({ session, status }) {
             const isAdmin = roles.some(role => role.toLowerCase() === 'admin');
             const isPPK = roles.some(role => role.toLowerCase() === 'ppk');
             const isKabalai = roles.some(role => role.toLowerCase().includes('kabalai'));
-            const isRegularUser = !isAdmin && !isPPK && !isKabalai;
+            const isKatim = roles.some(role => role.toLowerCase().includes('katim') || role.toLowerCase().includes('kabag'));
+            const isRegularUser = !isAdmin && !isPPK && !isKabalai && !isKatim;
             
             setUserType({
                 isAdmin,
                 isPPK,
                 isKabalai,
+                isKatim,
                 isRegularUser
             });
         }
@@ -249,6 +270,9 @@ export default function LpdContainer({ session, status }) {
 
     const refreshData = async () => {
         await fetchKegiatanList();
+        if (selectedKegiatan) {
+            await fetchLpdData(selectedKegiatan.kegiatan_id);
+        }
     };
 
     useEffect(() => {
@@ -263,8 +287,22 @@ export default function LpdContainer({ session, status }) {
         
         if (activeTab === 'milik_saya') {
             filtered = filtered.filter(item => item.created_by_me === true);
-        } else if (activeTab === 'pegawai_lain') {
-            filtered = filtered.filter(item => item.created_by_me === false);
+        } 
+        else if (activeTab === 'pegawai_lain') {
+            filtered = filtered.filter(item => 
+                item.is_pegawai_in_kegiatan === true && 
+                item.created_by_me !== true
+            );
+        } 
+        else if (activeTab === 'approval_katim') {
+            filtered = filtered.filter(item => 
+                item.lpd_status === 'menunggu_katim' || item.lpd_status === 'menunggu_kabalai'
+            );
+        } 
+        else if (activeTab === 'approval_kabalai') {
+            filtered = filtered.filter(item => 
+                item.lpd_status === 'menunggu_kabalai' || item.lpd_status === 'selesai'
+            );
         }
         
         if (searchTerm) {
@@ -370,6 +408,44 @@ export default function LpdContainer({ session, status }) {
     const closeNotificationModal = () => {
         setModalOpen(false);
         setNotificationMessage('');
+    };
+
+    // Handler untuk kirim ke Katim
+    const handleKirimKeKatim = (kegiatan) => {
+        setSelectedKegiatanForKirim(kegiatan);
+        setShowKirimKeKatimModal(true);
+    };
+
+    // Handler untuk persetujuan Katim
+    const handlePersetujuanKatim = (kegiatan) => {
+        setSelectedKegiatanForKatim(kegiatan);
+        setShowPersetujuanKatimModal(true);
+    };
+
+    // Handler untuk persetujuan Kabalai
+    const handlePersetujuanKabalai = (kegiatan) => {
+        setSelectedKegiatanForKabalai(kegiatan);
+        setShowPersetujuanKabalaiModal(true);
+    };
+
+    // Handler untuk Lihat LPD
+    const handleLihatLPD = (kegiatan) => {
+        setSelectedKegiatanForLihat(kegiatan);
+        setShowLihatLPDModal(true);
+    };
+
+    // Handler untuk cetak LPD
+    const handlePrintLPD = async (kegiatan) => {
+        try {
+            setLoading(true);
+            await printLPD(kegiatan.id, kegiatan, session, API_BASE_URL);
+        } catch (error) {
+            console.error('Error printing LPD:', error);
+            setNotificationMessage('Gagal mencetak LPD: ' + (error.message || 'Terjadi kesalahan'));
+            setModalOpen(true);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSaveRincian = async (rincianList) => {
@@ -483,12 +559,24 @@ export default function LpdContainer({ session, status }) {
     };
 
     const getStatusBadge = (kegiatan) => {
-        if (kegiatan.has_rincian && kegiatan.has_dokumentasi) {
-            return { text: 'Lengkap', color: 'bg-green-100 text-green-800' };
+        const lpdStatus = kegiatan.lpd_status || 'draft';
+        
+        if (lpdStatus === 'selesai') {
+            return { text: 'Selesai', color: 'bg-green-100 text-green-800' };
+        } else if (lpdStatus === 'menunggu_kabalai') {
+            return { text: 'Menunggu Kabalai', color: 'bg-purple-100 text-purple-800' };
+        } else if (lpdStatus === 'menunggu_katim') {
+            return { text: 'Menunggu Katim', color: 'bg-yellow-100 text-yellow-800' };
+        } else if (lpdStatus === 'ditolak_katim') {
+            return { text: 'Ditolak Katim - Perbaiki', color: 'bg-red-100 text-red-800' };
+        } else if (lpdStatus === 'ditolak_kabalai') {
+            return { text: 'Ditolak Kabalai - Perbaiki', color: 'bg-red-100 text-red-800' };
+        } else if (kegiatan.has_rincian && kegiatan.has_dokumentasi) {
+            return { text: 'Siap Kirim', color: 'bg-blue-100 text-blue-800' };
         } else if (kegiatan.has_rincian) {
             return { text: 'Rincian Ada', color: 'bg-yellow-100 text-yellow-800' };
         } else if (kegiatan.has_dokumentasi) {
-            return { text: 'Dokumentasi Ada', color: 'bg-blue-100 text-blue-800' };
+            return { text: 'Dokumentasi Ada', color: 'bg-cyan-100 text-cyan-800' };
         } else {
             return { text: 'Belum Diisi', color: 'bg-gray-100 text-gray-600' };
         }
@@ -554,7 +642,7 @@ export default function LpdContainer({ session, status }) {
         }
     };
 
-    // Render preview foto dokumentasi dengan URL ABSOLUT
+    // Render preview foto dokumentasi
     const renderDokumentasiPreview = (kegiatanId) => {
         const preview = dokumentasiPreview[kegiatanId];
         
@@ -568,12 +656,8 @@ export default function LpdContainer({ session, status }) {
             );
         }
 
-        // Ambil filename dari path (contoh: /uploads/lpd-dokumentasi/nama_file.jpg -> nama_file.jpg)
         const filename = preview.file_path.split('/').pop();
-        
-        // Gunakan URL ABSOLUT ke server backend (LEWATI proxy Next.js)
         const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
-        
         const isImage = preview.file_type?.startsWith('image/');
         
         if (isImage) {
@@ -675,7 +759,23 @@ export default function LpdContainer({ session, status }) {
     }
 
     const myKegiatanCount = kegiatanList.filter(item => item.created_by_me === true).length;
-    const otherKegiatanCount = kegiatanList.filter(item => item.created_by_me === false).length;
+    
+    const otherKegiatanCount = kegiatanList.filter(item => 
+        item.is_pegawai_in_kegiatan === true && 
+        item.created_by_me !== true
+    ).length;
+    
+    const pendingKatimCount = kegiatanList.filter(item => 
+        item.lpd_status === 'menunggu_katim'
+    ).length;
+    
+    const pendingKabalaiCount = kegiatanList.filter(item => 
+        item.lpd_status === 'menunggu_kabalai'
+    ).length;
+    
+    const totalKabalaiData = kegiatanList.filter(item => 
+        item.lpd_status === 'menunggu_kabalai' || item.lpd_status === 'selesai'
+    ).length;
 
     return (
         <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto">
@@ -686,7 +786,7 @@ export default function LpdContainer({ session, status }) {
                     <p className="text-gray-600 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | 
                         Role: {userRole || 'User'} | 
-                        Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
+                        Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKatim ? 'Katim/Kabag TU' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
                     </p>
                     {userNip && (
                         <p className="text-sm text-gray-500 mt-1">NIP: {userNip}</p>
@@ -718,17 +818,34 @@ export default function LpdContainer({ session, status }) {
                 </div>
             </div>
 
+            {/* Info Box */}
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center text-sm">
+                    <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-2v-2h2v2zm0-4h-2V7h2v6z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                        <span className="font-medium text-green-800">Alur Persetujuan LPD:</span>
+                        <p className="text-green-700 mt-1">
+                            1. Isi Rincian Kegiatan dan Upload Dokumentasi → 
+                            2. Kirim ke Katim/Kabag TU → 
+                            3. Katim/Kabag TU Setujui → 
+                            4. Kabalai Setujui → Selesai
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Tabs */}
             <div className="border-b border-gray-200 mb-6">
-                <nav className="-mb-px flex space-x-8">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('milik_saya')}
-                        className={`
-                            py-2 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'milik_saya' 
+                        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                            activeTab === 'milik_saya' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
                         Kegiatan Saya
                         {myKegiatanCount > 0 && (
@@ -737,35 +854,77 @@ export default function LpdContainer({ session, status }) {
                             </span>
                         )}
                     </button>
+                    
                     <button
                         onClick={() => setActiveTab('pegawai_lain')}
-                        className={`
-                            py-2 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'pegawai_lain' 
-                                ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                            activeTab === 'pegawai_lain' 
+                                ? 'border-teal-500 text-teal-600' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
-                        Nominatif Dari Pegawai Lain
+                        Kegiatan Pegawai Lain
                         {otherKegiatanCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600">
+                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-600">
                                 {otherKegiatanCount}
                             </span>
                         )}
                     </button>
+                    
+                    {(userType.isKatim || userType.isAdmin) && (
+                        <button
+                            onClick={() => setActiveTab('approval_katim')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                                activeTab === 'approval_katim' 
+                                    ? 'border-yellow-500 text-yellow-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            📋 Persetujuan Kabag TU/Katim
+                            {pendingKatimCount > 0 && (
+                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-600">
+                                    {pendingKatimCount}
+                                </span>
+                            )}
+                        </button>
+                    )}
+                    
+                    {(userType.isKabalai || userType.isAdmin) && (
+                        <button
+                            onClick={() => setActiveTab('approval_kabalai')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                                activeTab === 'approval_kabalai' 
+                                    ? 'border-purple-500 text-purple-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            👔 Persetujuan Kabalai
+                            {pendingKabalaiCount > 0 && (
+                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-600">
+                                    {pendingKabalaiCount}
+                                </span>
+                            )}
+                            {totalKabalaiData > pendingKabalaiCount && pendingKabalaiCount === 0 && totalKabalaiData > 0 && (
+                                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
+                                    {totalKabalaiData}
+                                </span>
+                            )}
+                        </button>
+                    )}
                 </nav>
             </div>
 
             {/* Info Tab */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="mb-4 p-3 rounded-md bg-blue-50 border border-blue-200">
                 <div className="flex items-center text-sm">
                     <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     <div>
-                        {activeTab === 'milik_saya' 
-                            ? ' Menampilkan kegiatan yang Anda buat. Anda dapat mengisi dan mengedit LPD untuk kegiatan ini.'
-                            : ' Menampilkan kegiatan yang dibuat oleh pegawai lain. Anda hanya dapat melihat LPD, tidak dapat mengedit.'}
+                        {activeTab === 'milik_saya' && ' Menampilkan kegiatan yang Anda buat. Anda dapat mengisi dan mengedit LPD untuk kegiatan ini.'}
+                        {activeTab === 'pegawai_lain' && ' Menampilkan kegiatan dari pegawai lain di mana Anda terdaftar sebagai pelaksana.'}
+                        {activeTab === 'approval_katim' && ' Menampilkan kegiatan yang menunggu persetujuan Anda sebagai Katim/Kabag TU.'}
+                        {activeTab === 'approval_kabalai' && ' Menampilkan kegiatan yang menunggu persetujuan Anda sebagai Kabalai dan riwayat kegiatan yang sudah selesai.'}
                     </div>
                 </div>
             </div>
@@ -775,7 +934,7 @@ export default function LpdContainer({ session, status }) {
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status LPD</label>
                             <select 
                                 value={filterStatus} 
                                 onChange={(e) => setFilterStatus(e.target.value)}
@@ -783,6 +942,8 @@ export default function LpdContainer({ session, status }) {
                             >
                                 <option value="">Semua</option>
                                 <option value="selesai">Selesai</option>
+                                <option value="menunggu_katim">Menunggu Katim</option>
+                                <option value="menunggu_kabalai">Menunggu Kabalai</option>
                             </select>
                         </div>
                         <div>
@@ -825,15 +986,10 @@ export default function LpdContainer({ session, status }) {
                         </div>
                     </div>
                     <div className="mt-4 flex justify-between items-center">
-                        <button
-                            onClick={resetFilter}
-                            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition"
-                        >
+                        <button onClick={resetFilter} className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition">
                             Reset Filter
                         </button>
-                        <span className="text-sm text-gray-500">
-                            {filteredKegiatan.length} data ditemukan
-                        </span>
+                        <span className="text-sm text-gray-500">{filteredKegiatan.length} data ditemukan</span>
                     </div>
                 </div>
             )}
@@ -860,25 +1016,12 @@ export default function LpdContainer({ session, status }) {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300">
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id')}>
-                                        ID
-                                    </th>
-                                    
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('kegiatan')}>
-                                        Kegiatan & MAK
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight">
-                                        Pegawai Pelaksana
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tempat')}>
-                                        Lokasi & Tanggal
-                                    </th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('has_rincian')}>
-                                        Status LPD
-                                    </th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-tight bg-gradient-to-r from-blue-600 to-blue-700">
-                                        Aksi
-                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id')}>ID</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('kegiatan')}>Kegiatan & MAK</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight">Pegawai Pelaksana</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tempat')}>Lokasi & Tanggal</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('lpd_status')}>Status LPD</th>
+                                    <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-tight bg-gradient-to-r from-blue-600 to-blue-700">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -887,6 +1030,13 @@ export default function LpdContainer({ session, status }) {
                                         const status = getStatusBadge(item);
                                         const isMine = item.created_by_me === true;
                                         const isExpanded = expandedPegawai[item.id] || false;
+                                        const lpdStatus = item.lpd_status || 'draft';
+                                        const isReadyToSend = item.has_rincian && item.has_dokumentasi && 
+                                            (lpdStatus === 'draft' || lpdStatus === null || lpdStatus === 'ditolak_katim' || lpdStatus === 'ditolak_kabalai');
+                                        const isWaitingKatim = lpdStatus === 'menunggu_katim';
+                                        const isWaitingKabalai = lpdStatus === 'menunggu_kabalai';
+                                        const isSelesai = lpdStatus === 'selesai';
+                                        
                                         return (
                                             <tr key={item.id} className="hover:bg-gray-50">
                                                 <td className="px-4 py-4 align-top">{item.id}</td>
@@ -895,25 +1045,19 @@ export default function LpdContainer({ session, status }) {
                                                     <div className="space-y-1">
                                                         <div className="font-medium text-gray-900">{item.kegiatan || '-'}</div>
                                                         <div className="text-sm text-gray-600">MAK: {item.mak || '-'}</div>
-                                                        {item.no_st && (
-                                                            <div className="text-xs text-gray-500">No ST: {item.no_st}</div>
-                                                        )}
-                                                        {!isMine && activeTab === 'pegawai_lain' && (
-                                                            <div className="text-xs text-purple-600 mt-1">
-                                                                Dibuat oleh: {item.created_by_name || 'Pegawai Lain'}
-                                                            </div>
+                                                        {item.no_st && <div className="text-xs text-gray-500">No ST: {item.no_st}</div>}
+                                                        {!isMine && (activeTab === 'pegawai_lain' || activeTab === 'approval_katim' || activeTab === 'approval_kabalai') && (
+                                                            <div className="text-xs text-purple-600 mt-1">Dibuat oleh: Pegawai Lain</div>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-4 align-top">
-                                                    {formatPegawaiList(item.id, isExpanded)}
-                                                </td>
+                                                
+                                                <td className="px-4 py-4 align-top">{formatPegawaiList(item.id, isExpanded)}</td>
+                                                
                                                 <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
                                                         <div className="text-sm">{item.tempat || '-'}</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {item.tgl_st && `ST: ${formatDateFn(item.tgl_st)}`}
-                                                        </div>
+                                                        <div className="text-xs text-gray-500">{item.tgl_st && `ST: ${formatDateFn(item.tgl_st)}`}</div>
                                                         {(item.tgl_mulai || item.tgl_selesai) && (
                                                             <div className="text-xs text-gray-500">
                                                                 Pelaksanaan: {item.tgl_mulai && formatDateFn(item.tgl_mulai)}
@@ -922,51 +1066,144 @@ export default function LpdContainer({ session, status }) {
                                                         )}
                                                     </div>
                                                 </td>
+                                                
                                                 <td className="px-4 py-4 text-center align-top">
-                                                    <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>
-                                                        {status.text}
-                                                    </span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>{status.text}</span>
+                                                        {lpdStatus === 'menunggu_katim' && item.katim_nama && <span className="text-xs text-gray-500">Kepada: {item.katim_nama}</span>}
+                                                        {lpdStatus === 'menunggu_kabalai' && item.kabalai_nama && <span className="text-xs text-gray-500">Kepada: {item.kabalai_nama}</span>}
+                                                    </div>
                                                 </td>
+                                                
                                                 <td className="px-4 py-4 text-center align-top">
-                                                    {isMine || userType.isAdmin ? (
-                                                        <button
-                                                            onClick={() => fetchLpdData(item.id)}
-                                                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-2 mx-auto"
+                                                    <div className="flex flex-col gap-2">
+                                                        {/* TOMBOL LIHAT LPD */}
+                                                        <button 
+                                                            onClick={() => handleLihatLPD(item)} 
+                                                            className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center gap-1 mx-auto text-sm"
+                                                            title="Lihat detail LPD"
                                                         >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                            </svg>
-                                                            {status.text === 'Lengkap' ? 'Lihat & Edit' : 'Isi Laporan'}
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => fetchLpdData(item.id)}
-                                                            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition flex items-center gap-2 mx-auto"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                             </svg>
-                                                            Lihat Laporan
+                                                            Lihat LPD
                                                         </button>
-                                                    )}
+                                                        
+                                                        {/* TOMBOL CETAK LPD */}
+                                                        <button 
+                                                            onClick={() => handlePrintLPD(item)} 
+                                                            className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center gap-1 mx-auto text-sm"
+                                                            title="Cetak LPD"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                                            </svg>
+                                                            Cetak LPD
+                                                        </button>
+                                                        
+                                                        {(activeTab === 'milik_saya' || activeTab === 'pegawai_lain') && (isMine || userType.isAdmin || item.is_pegawai_in_kegiatan) ? (
+                                                            <>
+                                                                {lpdStatus !== 'menunggu_katim' && (
+                                                                    <button onClick={() => fetchLpdData(item.id)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                        </svg>
+                                                                        {isSelesai ? 'Lihat Laporan' : (isReadyToSend ? 'Isi LPD' : 'Lanjutkan Isi')}
+                                                                    </button>
+                                                                )}
+                                                                
+                                                                {isReadyToSend && lpdStatus !== 'menunggu_katim' && (
+                                                                    <button onClick={() => handleKirimKeKatim(item)} className="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                                        </svg>
+                                                                        Kirim ke Katim
+                                                                    </button>
+                                                                )}
+                                                                
+                                                                {lpdStatus === 'menunggu_katim' && (
+                                                                    <div className="text-center text-sm text-yellow-600 bg-yellow-50 px-2 py-1 rounded-md">
+                                                                        ⏳ Menunggu Persetujuan Katim
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : (activeTab === 'milik_saya' || activeTab === 'pegawai_lain') ? (
+                                                            <button onClick={() => fetchLpdData(item.id)} className="px-3 py-1.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition flex items-center gap-1 mx-auto text-sm">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                                Lihat Laporan
+                                                            </button>
+                                                        ) : null}
+                                                        
+                                                        {activeTab === 'approval_katim' && item.lpd_status === 'menunggu_katim' && (
+                                                            <button onClick={() => handlePersetujuanKatim(item)} className="px-3 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                                Setujui / Tolak LPD (Katim)
+                                                            </button>
+                                                        )}
+
+                                                        {activeTab === 'approval_katim' && item.lpd_status === 'menunggu_kabalai' && (
+                                                            <div className="text-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                                                                ✓ Sudah disetujui, menunggu Kabalai
+                                                            </div>
+                                                        )}
+
+                                                        {activeTab === 'approval_katim' && item.lpd_status === 'selesai' && (
+                                                            <div className="text-center text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                                                ✓ LPD Selesai
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {activeTab === 'approval_kabalai' && item.lpd_status === 'menunggu_kabalai' && (
+                                                            <button onClick={() => handlePersetujuanKabalai(item)} className="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                                Setujui / Tolak LPD (Kabalai)
+                                                            </button>
+                                                        )}
+
+                                                        {activeTab === 'approval_kabalai' && item.lpd_status === 'selesai' && (
+                                                            <div className="text-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-md mx-auto">
+                                                                <div className="flex items-center gap-1 justify-center">
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                    ✓ LPD Selesai
+                                                                </div>
+                                                                {item.kabalai_tgl_ttd && (
+                                                                    <div className="text-xs text-gray-500 mt-1">
+                                                                        Disetujui: {formatDateFn(item.kabalai_tgl_ttd)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                            <svg className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             <p>
-                                                {activeTab === 'milik_saya' 
-                                                    ? 'Belum ada kegiatan yang Anda buat dengan status Selesai' 
-                                                    : 'Belum ada kegiatan dari pegawai lain dengan status Selesai'}
+                                                {activeTab === 'milik_saya' && 'Belum ada kegiatan yang Anda buat dengan status Selesai'}
+                                                {activeTab === 'pegawai_lain' && 'Belum ada kegiatan dari pegawai lain di mana Anda terdaftar sebagai pelaksana.'}
+                                                {activeTab === 'approval_katim' && 'Tidak ada kegiatan yang menunggu persetujuan Katim'}
+                                                {activeTab === 'approval_kabalai' && 'Tidak ada kegiatan yang menunggu persetujuan Kabalai'}
                                             </p>
                                             <p className="text-sm text-gray-400 mt-1">
-                                                Kegiatan dengan status "Selesai" akan muncul di sini
+                                                {activeTab === 'approval_katim' && 'Kegiatan yang sudah dikirim akan muncul di sini (menunggu_katim).'}
+                                                {activeTab === 'approval_kabalai' && 'Kegiatan yang sudah disetujui Katim akan muncul di sini.'}
+                                                {(activeTab === 'milik_saya' || activeTab === 'pegawai_lain') && 'Kegiatan dengan status "Selesai" akan muncul di sini setelah LPD diisi.'}
                                             </p>
                                         </td>
                                     </tr>
@@ -982,28 +1219,74 @@ export default function LpdContainer({ session, status }) {
                                 Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} dari {totalItems} kegiatan
                             </div>
                             <div className="space-x-2">
-                                <button 
-                                    onClick={() => setCurrentPage(currentPage - 1)} 
-                                    disabled={currentPage === 1} 
-                                    className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Previous
-                                </button>
-                                <span className="px-3 py-2">
-                                    Halaman {currentPage} dari {totalPages}
-                                </span>
-                                <button 
-                                    onClick={() => setCurrentPage(currentPage + 1)} 
-                                    disabled={currentPage * ITEMS_PER_PAGE >= totalItems} 
-                                    className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Next
-                                </button>
+                                <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Previous</button>
+                                <span className="px-3 py-2">Halaman {currentPage} dari {totalPages}</span>
+                                <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Next</button>
                             </div>
                         </div>
                     )}
                 </>
             )}
+
+            {/* Modals */}
+            <LihatLPDModal
+                show={showLihatLPDModal}
+                onClose={() => {
+                    setShowLihatLPDModal(false);
+                    setSelectedKegiatanForLihat(null);
+                }}
+                kegiatanId={selectedKegiatanForLihat?.id}
+                kegiatanNama={selectedKegiatanForLihat?.kegiatan}
+                session={session}
+            />
+
+            <KirimKeKatimModal
+                show={showKirimKeKatimModal}
+                onClose={() => {
+                    setShowKirimKeKatimModal(false);
+                    setSelectedKegiatanForKirim(null);
+                }}
+                kegiatanId={selectedKegiatanForKirim?.id}
+                kegiatanNama={selectedKegiatanForKirim?.kegiatan}
+                onSuccess={(message) => {
+                    setNotificationMessage(message);
+                    setModalOpen(true);
+                    refreshData();
+                }}
+                session={session}
+            />
+
+            <PersetujuanKatimModal
+                show={showPersetujuanKatimModal}
+                onClose={() => {
+                    setShowPersetujuanKatimModal(false);
+                    setSelectedKegiatanForKatim(null);
+                }}
+                kegiatanId={selectedKegiatanForKatim?.id}
+                kegiatanNama={selectedKegiatanForKatim?.kegiatan}
+                onSuccess={(message) => {
+                    setNotificationMessage(message);
+                    setModalOpen(true);
+                    refreshData();
+                }}
+                session={session}
+            />
+
+            <PersetujuanKabalaiModal
+                show={showPersetujuanKabalaiModal}
+                onClose={() => {
+                    setShowPersetujuanKabalaiModal(false);
+                    setSelectedKegiatanForKabalai(null);
+                }}
+                kegiatanId={selectedKegiatanForKabalai?.id}
+                kegiatanNama={selectedKegiatanForKabalai?.kegiatan}
+                onSuccess={(message) => {
+                    setNotificationMessage(message);
+                    setModalOpen(true);
+                    refreshData();
+                }}
+                session={session}
+            />
 
             <NotificationModal show={modalOpen} message={notificationMessage} onClose={closeNotificationModal} />
         </div>

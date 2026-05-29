@@ -171,17 +171,19 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN lpd_status l ON n.id = l.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
+                AND UPPER(n.status_2) = 'SELESAI'
+                AND l.lpd_status = 'selesai'
                 AND (
                     n.user_id = ?
                     OR REPLACE(p.nip, ' ', '') = ?
                 )
-                AND UPPER(n.status_2) = 'SELESAI'
                 ORDER BY n.created_at DESC
             `;
             queryParams = [userId, normalizedUserNip];
-            console.log('👤 Regular user mode: melihat data sendiri (creator atau pegawai)');
+            console.log('👤 Regular user mode: melihat data sendiri (creator atau pegawai) dengan LPD selesai');
         } else if (roleInfo.isAdmin) {
             kegiatanQuery = `
                 SELECT DISTINCT 
@@ -196,12 +198,15 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN lpd_status l ON n.id = l.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
+                AND UPPER(n.status_2) = 'SELESAI'
+                AND l.lpd_status = 'selesai'
                 ORDER BY n.created_at DESC
             `;
             queryParams = [];
-            console.log('👑 Admin mode: melihat semua data kwitansi');
+            console.log('👑 Admin mode: melihat semua data kwitansi dengan LPD selesai');
         } else if (roleInfo.isPPK) {
             kegiatanQuery = `
                 SELECT DISTINCT 
@@ -216,16 +221,18 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN lpd_status l ON n.id = l.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
+                AND UPPER(n.status_2) = 'SELESAI'
+                AND l.lpd_status = 'selesai'
                 AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
                 AND k.status_pegawai = 'sudah'
                 AND k.status_ppk = 'belum'
-                AND UPPER(n.status_2) = 'SELESAI'
                 ORDER BY n.created_at DESC
             `;
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
-            console.log('📋 PPK mode: melihat data yang menunggu approve PPK');
+            console.log('📋 PPK mode: melihat data yang menunggu approve PPK dengan LPD selesai');
         } else if (roleInfo.isBendahara) {
             kegiatanQuery = `
                 SELECT DISTINCT 
@@ -240,17 +247,19 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.rencana_tanggal_pelaksanaan_akhir
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN lpd_status l ON n.id = l.kegiatan_id
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
+                AND UPPER(n.status_2) = 'SELESAI'
+                AND l.lpd_status = 'selesai'
                 AND (n.bendahara_id = ? OR n.bendahara_nip = ? OR n.bendahara_nama = ?)
                 AND k.status_pegawai = 'sudah'
                 AND k.status_ppk = 'sudah'
                 AND k.status_bendahara = 'belum'
-                AND UPPER(n.status_2) = 'SELESAI'
                 ORDER BY n.created_at DESC
             `;
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
-            console.log('💰 Bendahara mode: melihat data yang menunggu approve Bendahara');
+            console.log('💰 Bendahara mode: melihat data yang menunggu approve Bendahara dengan LPD selesai');
         }
         
         console.log('📝 Query:', kegiatanQuery);

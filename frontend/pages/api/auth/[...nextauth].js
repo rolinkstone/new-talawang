@@ -45,6 +45,10 @@ export const authOptions = {
             role = 'admin';
           } else if (profile.realm_access.roles.includes('kabalai')) {
             role = 'kabalai';
+          } else if (profile.realm_access.roles.includes('kabag_tu')) {
+            role = 'kabag_tu';
+          } else if (profile.realm_access.roles.includes('katim')) {
+            role = 'katim';
           } else if (profile.realm_access.roles.includes('ppk')) {
             role = 'ppk';
           } else if (profile.realm_access.roles.includes('bendahara')) {
@@ -129,6 +133,7 @@ export const authOptions = {
       }
       
       console.log("💼 SESSION - NIP_raw value:", session.user?.nip_raw);
+      console.log("💼 SESSION - Role:", session.user?.role);
       
       return session;
     },

@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 const BACKEND_URL = 'http://localhost:5000';
 
 export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpenModal }) {
-    const [activeTab, setActiveTab] = useState('pegawai'); // Ubah default ke 'pegawai'
+    const [activeTab, setActiveTab] = useState('pegawai');
     const [dokumentasiList, setDokumentasiList] = useState([]);
     const [rincianList, setRincianList] = useState([]);
 
-    // Update state ketika lpdData berubah (setelah upload)
+    // Update state ketika lpdData berubah
     useEffect(() => {
         if (lpdData) {
             setDokumentasiList(lpdData.dokumentasi || []);
@@ -16,7 +16,36 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
         }
     }, [lpdData]);
 
-    // Format tanggal untuk ditampilkan
+    // 🔥 PERBAIKAN: canEdit true jika status draft ATAU ditolak_katim ATAU ditolak_kabalai
+    const canEdit = lpdData?.can_edit === true || 
+                    lpdData?.lpd_status === 'ditolak_katim' || 
+                    lpdData?.lpd_status === 'ditolak_kabalai';
+    
+    // Status badge untuk ditolak
+    const getStatusBadge = () => {
+        const status = lpdData?.lpd_status;
+        if (status === 'ditolak_katim') {
+            return { text: 'Ditolak Katim/Kabag TU', color: 'bg-red-100 text-red-800 border-red-200' };
+        }
+        if (status === 'ditolak_kabalai') {
+            return { text: 'Ditolak Kabalai', color: 'bg-red-100 text-red-800 border-red-200' };
+        }
+        if (status === 'menunggu_katim') {
+            return { text: 'Menunggu Persetujuan Katim/Kabag TU', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+        }
+        if (status === 'menunggu_kabalai') {
+            return { text: 'Menunggu Persetujuan Kabalai', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+        }
+        if (status === 'selesai') {
+            return { text: 'Selesai', color: 'bg-green-100 text-green-800 border-green-200' };
+        }
+        return null;
+    };
+
+    const statusBadge = getStatusBadge();
+    const isRejected = lpdData?.lpd_status === 'ditolak_katim' || lpdData?.lpd_status === 'ditolak_kabalai';
+
+    // Format tanggal
     const formatTanggal = (dateStr) => {
         if (!dateStr) return '-';
         return dateStr;
@@ -34,9 +63,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
             );
         }
 
-        // Ambil filename dari path
         const filename = dokumentasi.file_path.split('/').pop();
-        // Build URL absolut
         const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
         const isImage = dokumentasi.file_type?.startsWith('image/');
 
@@ -72,6 +99,40 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
 
     return (
         <div className="bg-white rounded-lg shadow">
+            {/* Status Banner jika ditolak */}
+            {isRejected && (
+                <div className="p-4 bg-red-50 border-b border-red-200">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <h4 className="font-medium text-red-800">LPD Ditolak</h4>
+                            <p className="text-sm text-red-700 mt-1">
+                                {lpdData?.lpd_status === 'ditolak_katim' 
+                                    ? `Ditolak oleh Katim/Kabag TU: ${lpdData?.katim?.catatan || 'Tidak ada catatan'}`
+                                    : `Ditolak oleh Kabalai: ${lpdData?.kabalai?.catatan || 'Tidak ada catatan'}`
+                                }
+                            </p>
+                            <p className="text-sm text-red-600 mt-2">
+                                Silakan perbaiki rincian kegiatan dan/atau upload ulang dokumentasi, lalu kirim ulang ke Katim/Kabag TU.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Status Banner jika menunggu */}
+            {statusBadge && !isRejected && (
+                <div className={`p-3 border-b ${statusBadge.color.replace('text', 'bg').replace('800', '50')}`}>
+                    <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge.color}`}>
+                            {statusBadge.text}
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Informasi Kegiatan */}
             <div className="p-6 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Informasi Kegiatan</h3>
@@ -109,39 +170,36 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                 </div>
             </div>
 
-            {/* Tabs - Urutan baru: Petugas Pelaksana, Rincian Kegiatan, Dokumentasi */}
+            {/* Tabs */}
             <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-8 px-6">
                     <button
                         onClick={() => setActiveTab('pegawai')}
-                        className={`
-                            py-4 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'pegawai' 
+                        className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                            activeTab === 'pegawai' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
                         Petugas Pelaksana
                     </button>
                     <button
                         onClick={() => setActiveTab('rincian')}
-                        className={`
-                            py-4 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'rincian' 
+                        className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                            activeTab === 'rincian' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
                         Rincian Kegiatan
                     </button>
                     <button
                         onClick={() => setActiveTab('dokumentasi')}
-                        className={`
-                            py-4 px-1 border-b-2 font-medium text-sm
-                            ${activeTab === 'dokumentasi' 
+                        className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                            activeTab === 'dokumentasi' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                        `}
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                     >
                         Dokumentasi
                     </button>
@@ -192,7 +250,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <h4 className="text-md font-medium text-gray-900">Rincian Hasil Kegiatan</h4>
-                            {lpdData?.can_edit && (
+                            {canEdit && (
                                 <button
                                     onClick={() => onOpenModal('rincian')}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-2"
@@ -229,7 +287,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         ) : (
                             <div className="text-center py-8 text-gray-500">
                                 <p>Belum ada rincian kegiatan</p>
-                                {lpdData?.can_edit && (
+                                {canEdit && (
                                     <button
                                         onClick={() => onOpenModal('rincian')}
                                         className="mt-2 text-indigo-600 hover:text-indigo-800"
@@ -247,7 +305,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <h4 className="text-md font-medium text-gray-900">Dokumentasi Kegiatan</h4>
-                            {lpdData?.can_edit && (
+                            {canEdit && (
                                 <button
                                     onClick={() => onOpenModal('dokumentasi')}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-2"
@@ -271,7 +329,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                                         {doc.keterangan && (
                                             <p className="text-xs text-gray-500 text-center mt-1">{doc.keterangan}</p>
                                         )}
-                                        {lpdData?.can_edit && (
+                                        {canEdit && (
                                             <button
                                                 onClick={() => onOpenModal('delete', doc)}
                                                 className="mt-2 w-full text-xs text-red-600 hover:text-red-800"
@@ -285,7 +343,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         ) : (
                             <div className="text-center py-8 text-gray-500">
                                 <p>Belum ada dokumentasi</p>
-                                {lpdData?.can_edit && (
+                                {canEdit && (
                                     <button
                                         onClick={() => onOpenModal('dokumentasi')}
                                         className="mt-2 text-indigo-600 hover:text-indigo-800"

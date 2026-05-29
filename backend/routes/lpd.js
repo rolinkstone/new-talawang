@@ -42,12 +42,10 @@ const uploadLpd = multer({
     }
 });
 
-// Fungsi untuk membersihkan path file - PASTIKAN TIDAK ADA /api
+// Fungsi untuk membersihkan path file
 function cleanFilePath(filePath) {
     if (!filePath) return null;
-    // Hapus /api dan /public dari awal path
     let clean = filePath.replace(/^\/api/, '').replace(/^\/public/, '');
-    // Pastikan dimulai dengan /
     if (!clean.startsWith('/')) {
         clean = '/' + clean;
     }
@@ -74,21 +72,116 @@ function getUserRoleInfo(user) {
         isPPK: normalizedRoles.includes('ppk'),
         isBendahara: normalizedRoles.includes('bendahara'),
         isKabalai: normalizedRoles.some(r => r.includes('kabalai')),
-        isRegularUser: !normalizedRoles.includes('admin') && !normalizedRoles.includes('ppk') && !normalizedRoles.includes('bendahara')
+        isKabagTu: normalizedRoles.some(r => r.includes('kabag_tu')),
+        isKatim: normalizedRoles.some(r => r.includes('katim')),
+        isRegularUser: !normalizedRoles.includes('admin') && 
+                       !normalizedRoles.includes('ppk') && 
+                       !normalizedRoles.includes('bendahara') && 
+                       !normalizedRoles.some(r => r.includes('katim')) &&
+                       !normalizedRoles.some(r => r.includes('kabag_tu')) &&
+                       !normalizedRoles.some(r => r.includes('kabalai'))
     };
 }
 
-// ============ GET daftar kegiatan untuk LPD ============
+// Ambil TTD dari profile berdasarkan NIP
+async function getTtdByNip(nip) {
+    try {
+        if (!nip) return null;
+        const cleanNip = normalizeNip(nip);
+        const [profile] = await db.query(`
+            SELECT ttd_path FROM user_profiles 
+            WHERE REPLACE(nip, ' ', '') = ? OR nip = ?
+        `, [cleanNip, nip]);
+        return profile.length > 0 ? profile[0].ttd_path : null;
+    } catch (error) {
+        console.error('Error getting TTD by NIP:', error);
+        return null;
+    }
+}
+
+// Ambil TTD dari profile berdasarkan user_id
+async function getTtdByUserId(userId) {
+    try {
+        if (!userId) return null;
+        const [profile] = await db.query(`
+            SELECT ttd_path FROM user_profiles WHERE user_id = ?
+        `, [userId]);
+        return profile.length > 0 ? profile[0].ttd_path : null;
+    } catch (error) {
+        console.error('Error getting TTD by user_id:', error);
+        return null;
+    }
+}
+
+// Ambil TTD dari user (gabungan dari user_id dan NIP)
+async function getTtdByUser(user) {
+    try {
+        const userId = getUserId(user);
+        const userNip = user?.nip || '';
+        
+        let ttdPath = await getTtdByUserId(userId);
+        if (ttdPath) {
+            console.log(`✅ TTD ditemukan untuk user_id: ${userId}`);
+            return ttdPath;
+        }
+        
+        ttdPath = await getTtdByNip(userNip);
+        if (ttdPath) {
+            console.log(`✅ TTD ditemukan untuk NIP: ${userNip}`);
+            return ttdPath;
+        }
+        
+        console.log(`⚠️ TTD tidak ditemukan untuk user: ${getUsername(user)}`);
+        return null;
+    } catch (error) {
+        console.error('Error getting TTD by user:', error);
+        return null;
+    }
+}
+
+// Helper untuk cek apakah user adalah pegawai dalam kegiatan
+async function isUserInKegiatan(kegiatanId, userId, userNip) {
+    try {
+        const cleanNip = normalizeNip(userNip);
+        console.log(`🔍 Checking if user ${userId} (NIP: ${cleanNip}) is in kegiatan ${kegiatanId}`);
+        
+        const [result] = await db.query(`
+            SELECT p.id 
+            FROM nominatif_pegawai p
+            JOIN nominatif_kegiatan k ON p.kegiatan_id = k.id
+            WHERE p.kegiatan_id = ? 
+            AND (
+                REPLACE(p.nip, ' ', '') = ? 
+                OR p.user_id = ?
+            )
+            LIMIT 1
+        `, [kegiatanId, cleanNip, userId]);
+        
+        const isPegawai = result.length > 0;
+        console.log(`✅ User is in kegiatan: ${isPegawai}`);
+        return isPegawai;
+    } catch (error) {
+        console.error('Error checking user in kegiatan:', error);
+        return false;
+    }
+}
+
 router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
         const userId = getUserId(user);
+        const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
+        const cleanUserNip = normalizeNip(userNip);
         
         console.log('👤 User info for daftar-kegiatan:', {
             userId: userId,
+            userNip: userNip,
+            cleanUserNip: cleanUserNip,
             isAdmin: roleInfo.isAdmin,
-            isRegularUser: roleInfo.isRegularUser
+            isKatim: roleInfo.isKatim,
+            isKabagTu: roleInfo.isKabagTu,
+            isKabalai: roleInfo.isKabalai
         });
         
         let query = `
@@ -107,24 +200,90 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 n.ppk_nama,
                 n.ppk_nip,
                 n.bendahara_nama,
-                n.bendahara_nip
+                n.bendahara_nip,
+                COALESCE(l.lpd_status, 'draft') as lpd_status,
+                l.katim_id,
+                l.katim_nama,
+                l.katim_nip,
+                l.katim_tgl_ttd,
+                l.katim_ttd_path,
+                l.kabalai_id,
+                l.kabalai_nama,
+                l.kabalai_nip,
+                l.kabalai_tgl_ttd,
+                l.kabalai_ttd_path,
+                l.submitted_at
             FROM nominatif_kegiatan n
+            LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
             WHERE n.status = 'selesai'
         `;
         
         const params = [];
         
-        query += ` ORDER BY n.created_at DESC`;
+        // 🔥 Filter berdasarkan role
+        if (roleInfo.isAdmin) {
+            // Admin melihat semua kegiatan
+            console.log('👑 Admin mode: melihat semua kegiatan');
+        } 
+        else if (roleInfo.isKatim || roleInfo.isKabagTu) {
+            // 🔥 Katim/Kabag TU: melihat kegiatan dengan status LPD 'menunggu_katim' dan 'menunggu_kabalai'
+            query += ` AND COALESCE(l.lpd_status, 'draft') IN ('menunggu_katim', 'menunggu_kabalai')`;
+            console.log('📋 Katim/Kabag TU mode: melihat kegiatan dengan status menunggu_katim dan menunggu_kabalai');
+        } 
+        else if (roleInfo.isKabalai) {
+            // 🔥 PERBAIKAN: Kabalai melihat:
+            // 1. Kegiatan yang menunggu persetujuan mereka (status 'menunggu_kabalai')
+            // 2. Kegiatan yang sudah disetujui mereka (status 'selesai') - untuk riwayat
+            query += ` AND COALESCE(l.lpd_status, 'draft') IN ('menunggu_kabalai', 'selesai')`;
+            console.log('👔 Kabalai mode: melihat kegiatan dengan status menunggu_kabalai (untuk persetujuan) dan selesai (untuk riwayat)');
+        } 
+        else {
+            // 🔥 User biasa (pegawai): hanya melihat kegiatan yang NIP mereka terdaftar sebagai pegawai
+            // ATAU kegiatan yang mereka buat (creator)
+            query += ` AND (
+                n.user_id = ? 
+                OR EXISTS (
+                    SELECT 1 FROM nominatif_pegawai p 
+                    WHERE p.kegiatan_id = n.id 
+                    AND REPLACE(p.nip, ' ', '') = ?
+                )
+            )`;
+            params.push(userId, cleanUserNip);
+            console.log('👤 Regular user mode: hanya melihat kegiatan yang dibuat atau NIP terdaftar sebagai pegawai');
+        }
         
-        console.log('📝 Query:', query);
+        query += ` ORDER BY 
+            CASE 
+                WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai' THEN 1
+                WHEN COALESCE(l.lpd_status, 'draft') = 'selesai' THEN 2
+                ELSE 3
+            END,
+            n.created_at DESC`;
+        
+        console.log('📝 Final Query:', query);
         console.log('📝 Params:', params);
         
         const [kegiatanList] = await db.query(query, params);
         console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
         
+        // Debug status distribution
+        const statusCount = {};
+        kegiatanList.forEach(k => {
+            statusCount[k.lpd_status] = (statusCount[k.lpd_status] || 0) + 1;
+        });
+        console.log('📊 Status distribution:', statusCount);
+        
         const result = [];
         
         for (const kegiatan of kegiatanList) {
+            // Cek apakah user terdaftar sebagai pegawai dalam kegiatan ini
+            const [pegawaiCheck] = await db.query(`
+                SELECT p.id FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+            `, [kegiatan.id, cleanUserNip]);
+            
+            const isPegawaiInKegiatan = pegawaiCheck.length > 0;
+            
             // Cek apakah ada rincian kegiatan
             const [rincianCheck] = await db.query(
                 'SELECT COUNT(*) as count FROM lpd_rincian_kegiatan WHERE kegiatan_id = ?',
@@ -136,6 +295,8 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 'SELECT COUNT(*) as count FROM lpd_dokumentasi WHERE kegiatan_id = ?',
                 [kegiatan.id]
             );
+            
+            const isSubmitted = kegiatan.lpd_status && kegiatan.lpd_status !== 'draft' && kegiatan.lpd_status !== null;
             
             result.push({
                 id: kegiatan.id,
@@ -150,6 +311,15 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 has_rincian: (rincianCheck[0]?.count || 0) > 0,
                 has_dokumentasi: (dokumentasiCheck[0]?.count || 0) > 0,
                 created_by_me: kegiatan.user_id === userId,
+                is_pegawai_in_kegiatan: isPegawaiInKegiatan,
+                is_submitted: isSubmitted,
+                lpd_status: kegiatan.lpd_status || 'draft',
+                katim_nama: kegiatan.katim_nama,
+                kabalai_nama: kegiatan.kabalai_nama,
+                katim_tgl_ttd: kegiatan.katim_tgl_ttd,
+                kabalai_tgl_ttd: kegiatan.kabalai_tgl_ttd,
+                katim_ttd_path: kegiatan.katim_ttd_path,
+                kabalai_ttd_path: kegiatan.kabalai_ttd_path,
                 created_at: kegiatan.created_at,
                 ppk_nama: kegiatan.ppk_nama,
                 ppk_nip: kegiatan.ppk_nip,
@@ -173,13 +343,56 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         const { kegiatanId } = req.params;
         const user = req.user;
         const userId = getUserId(user);
+        const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
+        const cleanUserNip = normalizeNip(userNip);
         
         console.log('👤 User info for kegiatan detail:', {
             kegiatanId,
             userId,
-            isAdmin: roleInfo.isAdmin
+            userNip,
+            cleanUserNip,
+            isAdmin: roleInfo.isAdmin,
+            isKatim: roleInfo.isKatim,
+            isKabagTu: roleInfo.isKabagTu,
+            isKabalai: roleInfo.isKabalai
         });
+        
+        // 🔥 Cek akses
+        let hasAccess = false;
+        
+        if (roleInfo.isAdmin) {
+            hasAccess = true;
+            console.log('👑 Admin access granted');
+        } else if (roleInfo.isKatim || roleInfo.isKabagTu) {
+            hasAccess = true;
+            console.log('📋 Katim/Kabag TU access granted');
+        } else if (roleInfo.isKabalai) {
+            hasAccess = true;
+            console.log('👔 Kabalai access granted');
+        } else {
+            const [creatorCheck] = await db.query(
+                'SELECT id FROM nominatif_kegiatan WHERE id = ? AND user_id = ?',
+                [kegiatanId, userId]
+            );
+            const isCreator = creatorCheck.length > 0;
+            
+            const [pegawaiCheck] = await db.query(`
+                SELECT p.id FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+            `, [kegiatanId, cleanUserNip]);
+            const isPegawaiInKegiatan = pegawaiCheck.length > 0;
+            
+            hasAccess = isCreator || isPegawaiInKegiatan;
+            console.log(`🔍 Regular user access: isCreator=${isCreator}, isPegawai=${isPegawaiInKegiatan}, hasAccess=${hasAccess}`);
+        }
+        
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Anda tidak memiliki akses ke LPD ini.'
+            });
+        }
         
         // Ambil data kegiatan
         const [kegiatan] = await db.query(`
@@ -196,8 +409,24 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 n.ppk_nama,
                 n.ppk_nip,
                 n.bendahara_nama,
-                n.bendahara_nip
+                n.bendahara_nip,
+                n.user_id as kegiatan_creator_id,
+                l.lpd_status,
+                l.katim_id,
+                l.katim_nama,
+                l.katim_nip,
+                l.katim_tgl_ttd,
+                l.katim_ttd_path,
+                l.kabalai_id,
+                l.kabalai_nama,
+                l.kabalai_nip,
+                l.kabalai_tgl_ttd,
+                l.kabalai_ttd_path,
+                l.catatan_katim,
+                l.catatan_kabalai,
+                l.submitted_at
             FROM nominatif_kegiatan n
+            LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
             WHERE n.id = ?
         `, [kegiatanId]);
         
@@ -207,12 +436,27 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         
         const kegiatanData = kegiatan[0];
         
-        // Izinkan semua user yang login untuk melihat detail LPD
-        let hasAccess = true;
+        const [pegawaiCheck] = await db.query(`
+            SELECT p.id FROM nominatif_pegawai p 
+            WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+        `, [kegiatanId, cleanUserNip]);
         
-        console.log('✅ Access granted for user:', userId);
+        const isPegawaiInKegiatan = pegawaiCheck.length > 0;
+        const lpdStatus = kegiatanData.lpd_status || 'draft';
         
-        // Ambil data pegawai (petugas pelaksana)
+        // 🔥 PERBAIKAN: canEdit hanya jika status 'draft' atau null, dan user adalah creator/pegawai
+        const canEdit = (lpdStatus === 'draft' || lpdStatus === null) && 
+                        (roleInfo.isAdmin || kegiatanData.kegiatan_creator_id === userId || isPegawaiInKegiatan);
+        
+        // 🔥 PERBAIKAN: canApproveKatim hanya untuk role yang sesuai
+        const canApproveKatim = (roleInfo.isKatim || roleInfo.isKabagTu) && 
+                                 lpdStatus === 'menunggu_katim' && 
+                                 kegiatanData.katim_id === userId;
+        
+        const canApproveKabalai = roleInfo.isKabalai && lpdStatus === 'menunggu_kabalai';
+        
+        console.log(`✅ Access: canEdit=${canEdit}, canApproveKatim=${canApproveKatim}, canApproveKabalai=${canApproveKabalai}, lpdStatus=${lpdStatus}`);
+        
         const [pegawaiList] = await db.query(`
             SELECT 
                 p.id,
@@ -225,7 +469,6 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             ORDER BY p.id ASC
         `, [kegiatanId]);
         
-        // Ambil data rincian kegiatan (LPD items)
         const [rincianKegiatan] = await db.query(`
             SELECT 
                 id,
@@ -237,7 +480,6 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             ORDER BY urutan ASC, tanggal ASC
         `, [kegiatanId]);
         
-        // Ambil data dokumentasi - LANGSUNG return file_path tanpa modifikasi berlebihan
         const [dokumentasi] = await db.query(`
             SELECT 
                 id,
@@ -252,7 +494,6 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             ORDER BY created_at ASC
         `, [kegiatanId]);
         
-        // Format tanggal helper
         const formatTanggal = (date) => {
             if (!date) return null;
             const d = new Date(date);
@@ -262,7 +503,6 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             return `${tgl}-${bln}-${thn}`;
         };
         
-        // Hitung lama perjalanan jika belum ada
         let lamaPerjalanan = kegiatanData.lama_perjalanan;
         if (!lamaPerjalanan || lamaPerjalanan <= 0) {
             if (kegiatanData.tgl_mulai && kegiatanData.tgl_selesai) {
@@ -274,7 +514,6 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             }
         }
         
-        // Data response sesuai template
         const responseData = {
             kegiatan_id: parseInt(kegiatanId),
             nama_kegiatan: kegiatanData.nama_kegiatan,
@@ -283,6 +522,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 tanggal_st: formatTanggal(kegiatanData.tgl_st)
             },
             petugas_pelaksana: pegawaiList.map(p => ({
+                id: p.id,
                 nama: p.nama,
                 nip: p.nip,
                 pangkat_golongan: p.pangkat || '',
@@ -306,7 +546,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             })),
             dokumentasi: dokumentasi.map(doc => ({
                 id: doc.id,
-                file_path: doc.file_path, // LANGSUNG, tanpa cleanFilePath
+                file_path: doc.file_path,
                 file_name: doc.file_name,
                 file_type: doc.file_type,
                 file_size: doc.file_size,
@@ -314,14 +554,34 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 created_at: doc.created_at
             })),
             status: kegiatanData.status_2 || 'draft',
-            can_edit: kegiatanData.user_id === userId || roleInfo.isAdmin,
+            lpd_status: lpdStatus,
+            can_edit: canEdit,
+            can_approve_katim: canApproveKatim,
+            can_approve_kabalai: canApproveKabalai,
             ppk_nama: kegiatanData.ppk_nama,
             ppk_nip: kegiatanData.ppk_nip,
             bendahara_nama: kegiatanData.bendahara_nama,
-            bendahara_nip: kegiatanData.bendahara_nip
+            bendahara_nip: kegiatanData.bendahara_nip,
+            katim: {
+                id: kegiatanData.katim_id,
+                nama: kegiatanData.katim_nama,
+                nip: kegiatanData.katim_nip,
+                tgl_ttd: kegiatanData.katim_tgl_ttd,
+                ttd_path: kegiatanData.katim_ttd_path,
+                catatan: kegiatanData.catatan_katim
+            },
+            kabalai: {
+                id: kegiatanData.kabalai_id,
+                nama: kegiatanData.kabalai_nama,
+                nip: kegiatanData.kabalai_nip,
+                tgl_ttd: kegiatanData.kabalai_tgl_ttd,
+                ttd_path: kegiatanData.kabalai_ttd_path,
+                catatan: kegiatanData.catatan_kabalai
+            },
+            submitted_at: kegiatanData.submitted_at
         };
         
-        console.log(`✅ Sending LPD data for kegiatan ${kegiatanId}`);
+        console.log(`✅ Sending LPD data for kegiatan ${kegiatanId}, lpd_status: ${lpdStatus}, can_edit: ${canEdit}`);
         
         res.status(200).json({ success: true, data: responseData });
     } catch (error) {
@@ -331,18 +591,20 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
 });
 
 // ============ POST create/update rincian kegiatan LPD ============
+// routes/lpd.js - Perbaiki endpoint /rincian dan /dokumentasi/:kegiatanId
+
+// ============ POST create/update rincian kegiatan LPD ============
 router.post('/rincian', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
         const userId = getUserId(user);
+        const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
         const { kegiatan_id, rincian_list } = req.body;
         
         console.log('📝 Saving rincian kegiatan with data:', {
             kegiatan_id,
-            rincian_count: rincian_list?.length || 0,
-            userId,
-            roleInfo
+            rincian_count: rincian_list?.length || 0
         });
         
         if (!kegiatan_id) {
@@ -357,19 +619,44 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
         }
         
+        // 🔥 PERBAIKAN: Cek status LPD - boleh edit jika draft ATAU ditolak_katim ATAU ditolak_kabalai
+        const [statusCheck] = await db.query(`
+            SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+        `, [kegiatan_id]);
+        
+        const currentStatus = statusCheck.length > 0 ? statusCheck[0].lpd_status : 'draft';
+        
+        // Status yang boleh diedit: draft, ditolak_katim, ditolak_kabalai
+        const allowedStatuses = ['draft', null, 'ditolak_katim', 'ditolak_kabalai'];
+        
+        if (!allowedStatuses.includes(currentStatus)) {
+            return res.status(403).json({
+                success: false,
+                message: `Tidak dapat mengedit rincian karena LPD sudah dalam status "${currentStatus}". Hanya dapat diedit saat status Draft atau Ditolak.`
+            });
+        }
+        
+        // Cek akses user
         let hasAccess = false;
         if (roleInfo.isAdmin) {
             hasAccess = true;
-            console.log('👑 Admin access granted');
-        } else if (roleInfo.isRegularUser && kegiatan[0].user_id === userId) {
+        } else if (kegiatan[0].user_id === userId) {
             hasAccess = true;
-            console.log('✅ Access granted: User is the kegiatan creator');
+        } else {
+            const cleanUserNip = normalizeNip(userNip);
+            const [pegawaiCheck] = await db.query(`
+                SELECT p.id FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+            `, [kegiatan_id, cleanUserNip]);
+            if (pegawaiCheck.length > 0) {
+                hasAccess = true;
+            }
         }
         
         if (!hasAccess) {
             return res.status(403).json({ 
                 success: false, 
-                message: 'Tidak memiliki akses untuk mengubah rincian kegiatan ini. Hanya pembuat kegiatan yang dapat mengedit.' 
+                message: 'Tidak memiliki akses untuk mengubah rincian kegiatan ini.' 
             });
         }
         
@@ -411,6 +698,9 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
 });
 
 // ============ POST upload dokumentasi LPD ============
+// routes/lpd.js - Perbaiki endpoint upload dokumentasi
+
+// ============ POST upload dokumentasi LPD ============
 router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
     uploadLpd.array('files', 20)(req, res, async (err) => {
         if (err) {
@@ -423,12 +713,14 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
             const { keterangan_list } = req.body;
             const user = req.user;
             const userId = getUserId(user);
+            const userNip = user?.nip || '';
             const roleInfo = getUserRoleInfo(user);
             
             console.log('📝 Uploading dokumentasi for kegiatan:', {
                 kegiatanId,
                 filesCount: req.files?.length || 0,
                 userId,
+                userNip,
                 roleInfo
             });
             
@@ -440,19 +732,54 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
                 return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
             }
             
+            // 🔥 Cek status LPD terlebih dahulu
+            const [statusCheck] = await db.query(`
+                SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+            `, [kegiatanId]);
+            
+            const currentStatus = statusCheck.length > 0 ? statusCheck[0].lpd_status : 'draft';
+            
+            // 🔥 Status yang boleh upload dokumentasi: draft, ditolak_katim, ditolak_kabalai
+            const allowedStatuses = ['draft', null, 'ditolak_katim', 'ditolak_kabalai'];
+            
+            if (!allowedStatuses.includes(currentStatus)) {
+                return res.status(403).json({
+                    success: false,
+                    message: `Tidak dapat upload dokumentasi karena LPD sudah dalam status "${currentStatus}". Hanya dapat diupload saat status Draft atau Ditolak.`
+                });
+            }
+            
+            // 🔥 PERBAIKAN: Cek akses - siapa saja yang bisa upload
             let hasAccess = false;
+            
+            // Admin bisa upload
             if (roleInfo.isAdmin) {
                 hasAccess = true;
-                console.log('👑 Admin access granted');
-            } else if (roleInfo.isRegularUser && kegiatan[0].user_id === userId) {
+                console.log('👑 Admin access granted for upload');
+            }
+            // Creator kegiatan bisa upload
+            else if (kegiatan[0].user_id === userId) {
                 hasAccess = true;
-                console.log('✅ Access granted: User is the kegiatan creator');
+                console.log('✅ Access granted: User is kegiatan creator');
+            }
+            // Pegawai yang terdaftar dalam kegiatan bisa upload (jika status draft atau ditolak)
+            else {
+                const cleanUserNip = normalizeNip(userNip);
+                const [pegawaiCheck] = await db.query(`
+                    SELECT p.id FROM nominatif_pegawai p 
+                    WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+                `, [kegiatanId, cleanUserNip]);
+                
+                if (pegawaiCheck.length > 0) {
+                    hasAccess = true;
+                    console.log('✅ Access granted: User is a pegawai in this kegiatan');
+                }
             }
             
             if (!hasAccess) {
                 return res.status(403).json({ 
                     success: false, 
-                    message: 'Tidak memiliki akses untuk upload dokumentasi. Hanya pembuat kegiatan yang dapat upload.' 
+                    message: 'Tidak memiliki akses untuk upload dokumentasi. Hanya pegawai yang terdaftar, pembuat kegiatan, atau admin yang dapat upload.' 
                 });
             }
             
@@ -471,7 +798,6 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
             if (req.files && req.files.length > 0) {
                 for (let i = 0; i < req.files.length; i++) {
                     const file = req.files[i];
-                    // PERBAIKAN: Simpan path dengan format yang benar (tanpa /api)
                     const filePath = `/uploads/lpd-dokumentasi/${file.filename}`;
                     let keterangan = '';
                     
@@ -491,7 +817,7 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
                     
                     savedFiles.push({
                         id: result.insertId,
-                        file_path: filePath, // Kembalikan path yang benar
+                        file_path: filePath,
                         file_name: file.originalname,
                         file_type: file.mimetype,
                         file_size: file.size,
@@ -518,21 +844,26 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
 });
 
 // ============ DELETE dokumentasi LPD ============
+// routes/lpd.js - Perbaiki endpoint DELETE dokumentasi
+
+// ============ DELETE dokumentasi LPD ============
 router.delete('/dokumentasi/:dokumentasiId', keycloakAuth, async (req, res) => {
     try {
         const { dokumentasiId } = req.params;
         const user = req.user;
         const userId = getUserId(user);
+        const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
         
         console.log('🗑️ Deleting dokumentasi:', {
             dokumentasiId,
             userId,
+            userNip,
             roleInfo
         });
         
         const [dokumentasi] = await db.query(`
-            SELECT d.*, k.user_id 
+            SELECT d.*, k.user_id as kegiatan_creator_id, k.id as kegiatan_id
             FROM lpd_dokumentasi d
             JOIN nominatif_kegiatan k ON d.kegiatan_id = k.id
             WHERE d.id = ?
@@ -542,28 +873,65 @@ router.delete('/dokumentasi/:dokumentasiId', keycloakAuth, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Dokumentasi tidak ditemukan' });
         }
         
+        // 🔥 Cek status LPD terlebih dahulu
+        const [statusCheck] = await db.query(`
+            SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+        `, [dokumentasi[0].kegiatan_id]);
+        
+        const currentStatus = statusCheck.length > 0 ? statusCheck[0].lpd_status : 'draft';
+        
+        // 🔥 PERBAIKAN: Status yang boleh menghapus dokumentasi: draft, ditolak_katim, ditolak_kabalai
+        const allowedStatuses = ['draft', null, 'ditolak_katim', 'ditolak_kabalai'];
+        
+        if (!allowedStatuses.includes(currentStatus)) {
+            return res.status(403).json({
+                success: false,
+                message: `Tidak dapat menghapus dokumentasi karena LPD sudah dalam status "${currentStatus}". Hanya dapat dihapus saat status Draft atau Ditolak.`
+            });
+        }
+        
+        // 🔥 PERBAIKAN: Cek akses - siapa saja yang bisa menghapus
         let hasAccess = false;
+        
+        // Admin bisa menghapus semua
         if (roleInfo.isAdmin) {
             hasAccess = true;
-            console.log('👑 Admin access granted');
-        } else if (roleInfo.isRegularUser && dokumentasi[0].user_id === userId) {
+            console.log('👑 Admin access granted for delete');
+        } 
+        // Creator kegiatan bisa menghapus
+        else if (dokumentasi[0].kegiatan_creator_id === userId) {
             hasAccess = true;
-            console.log('✅ Access granted: User is the kegiatan creator');
+            console.log('✅ Access granted: User is kegiatan creator');
+        }
+        // Pegawai yang terdaftar dalam kegiatan bisa menghapus (jika status draft atau ditolak)
+        else {
+            const cleanUserNip = normalizeNip(userNip);
+            const [pegawaiCheck] = await db.query(`
+                SELECT p.id FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+            `, [dokumentasi[0].kegiatan_id, cleanUserNip]);
+            
+            if (pegawaiCheck.length > 0) {
+                hasAccess = true;
+                console.log('✅ Access granted: User is a pegawai in this kegiatan');
+            }
         }
         
         if (!hasAccess) {
             return res.status(403).json({ 
                 success: false, 
-                message: 'Tidak memiliki akses untuk menghapus dokumentasi' 
+                message: 'Tidak memiliki akses untuk menghapus dokumentasi. Hanya pegawai yang terdaftar, pembuat kegiatan, atau admin yang dapat menghapus.' 
             });
         }
         
+        // Hapus file fisik
         const filePath = path.join(__dirname, '../public', dokumentasi[0].file_path);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
             console.log(`🗑️ Deleted file: ${filePath}`);
         }
         
+        // Hapus record dari database
         await db.query('DELETE FROM lpd_dokumentasi WHERE id = ?', [dokumentasiId]);
         
         console.log(`✅ Dokumentasi ${dokumentasiId} deleted`);
@@ -598,11 +966,451 @@ router.get('/dokumentasi/:dokumentasiId/download', keycloakAuth, async (req, res
             return res.status(404).json({ success: false, message: 'File fisik tidak ditemukan' });
         }
         
-        console.log(`📥 Downloading file: ${dokumentasi[0].file_name}`);
         res.download(filePath, dokumentasi[0].file_name);
         
     } catch (error) {
         console.error('❌ Error downloading dokumentasi:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ KIRIM LPD ke Katim/Kabag TU ============
+router.post('/kirim-ke-katim/:kegiatanId', keycloakAuth, async (req, res) => {
+    const { kegiatanId } = req.params;
+    const user = req.user;
+    const userId = getUserId(user);
+    const userNip = user?.nip || '';
+    const { katim_id, katim_nama, katim_nip, catatan } = req.body;
+    
+    console.log('📤 Mengirim LPD ke Katim:', { kegiatanId, userId, katim_nama });
+    
+    if (!kegiatanId || isNaN(kegiatanId)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+    
+    if (!katim_id || !katim_nama) {
+        return res.status(400).json({ success: false, message: 'Katim/Kabag TU harus dipilih' });
+    }
+    
+    let connection;
+    try {
+        const cleanUserNip = normalizeNip(userNip);
+        const [pegawaiCheck] = await db.query(`
+            SELECT p.id FROM nominatif_pegawai p 
+            WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+        `, [kegiatanId, cleanUserNip]);
+        
+        const isPegawai = pegawaiCheck.length > 0;
+        
+        if (!isPegawai) {
+            return res.status(403).json({
+                success: false,
+                message: 'Hanya pegawai yang terdaftar dalam kegiatan yang dapat mengirim LPD'
+            });
+        }
+        
+        const [rincianCheck] = await db.query(
+            'SELECT COUNT(*) as count FROM lpd_rincian_kegiatan WHERE kegiatan_id = ?',
+            [kegiatanId]
+        );
+        
+        const [dokumentasiCheck] = await db.query(
+            'SELECT COUNT(*) as count FROM lpd_dokumentasi WHERE kegiatan_id = ?',
+            [kegiatanId]
+        );
+        
+        const hasRincian = (rincianCheck[0]?.count || 0) > 0;
+        const hasDokumentasi = (dokumentasiCheck[0]?.count || 0) > 0;
+        
+        if (!hasRincian || !hasDokumentasi) {
+            return res.status(400).json({
+                success: false,
+                message: 'LPD belum lengkap. Harus mengisi rincian kegiatan dan upload dokumentasi terlebih dahulu.'
+            });
+        }
+        
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const [existingStatus] = await connection.query(
+            'SELECT id FROM lpd_status WHERE kegiatan_id = ?',
+            [kegiatanId]
+        );
+        
+        if (existingStatus.length > 0) {
+            await connection.query(`
+                UPDATE lpd_status 
+                SET 
+                    lpd_status = 'menunggu_katim',
+                    katim_id = ?,
+                    katim_nama = ?,
+                    katim_nip = ?,
+                    catatan_katim = ?,
+                    submitted_at = NOW(),
+                    updated_at = NOW()
+                WHERE kegiatan_id = ?
+            `, [katim_id, katim_nama, katim_nip, catatan || null, kegiatanId]);
+        } else {
+            await connection.query(`
+                INSERT INTO lpd_status 
+                (kegiatan_id, lpd_status, katim_id, katim_nama, katim_nip, catatan_katim, submitted_at, created_at, updated_at)
+                VALUES (?, 'menunggu_katim', ?, ?, ?, ?, NOW(), NOW(), NOW())
+            `, [kegiatanId, katim_id, katim_nama, katim_nip, catatan || null]);
+        }
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`✅ LPD kegiatan ${kegiatanId} dikirim ke Katim: ${katim_nama}`);
+        
+        res.status(200).json({
+            success: true,
+            message: `LPD berhasil dikirim ke ${katim_nama} untuk persetujuan`
+        });
+        
+    } catch (error) {
+        console.error('❌ Error mengirim LPD ke Katim:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ KATIM/KABAG TU APPROVE LPD ============
+router.post('/approve-katim/:kegiatanId', keycloakAuth, async (req, res) => {
+    const { kegiatanId } = req.params;
+    const user = req.user;
+    const userId = getUserId(user);
+    const username = getUsername(user);
+    const roleInfo = getUserRoleInfo(user);
+    const { catatan } = req.body;
+    
+    console.log('✅ Katim/Kabag TU approve LPD:', { kegiatanId, userId, username });
+    
+    if (!kegiatanId || isNaN(kegiatanId)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+    
+    if (!roleInfo.isKatim && !roleInfo.isKabagTu && !roleInfo.isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Hanya Katim/Kabag TU yang dapat menyetujui LPD'
+        });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const [statusCheck] = await connection.query(`
+            SELECT lpd_status, katim_id FROM lpd_status WHERE kegiatan_id = ?
+        `, [kegiatanId]);
+        
+        if (statusCheck.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'LPD tidak ditemukan'
+            });
+        }
+        
+        if (statusCheck[0].lpd_status !== 'menunggu_katim') {
+            return res.status(400).json({
+                success: false,
+                message: `LPD sudah dalam status ${statusCheck[0].lpd_status}, tidak dapat disetujui`
+            });
+        }
+        
+        const ttdPath = await getTtdByUser(user);
+        console.log(`📝 TTD untuk ${username}: ${ttdPath || 'Tidak ditemukan'}`);
+        
+        await connection.query(`
+            UPDATE lpd_status 
+            SET 
+                lpd_status = 'menunggu_kabalai',
+                katim_tgl_ttd = NOW(),
+                katim_ttd_path = ?,
+                catatan_katim = COALESCE(?, catatan_katim),
+                updated_at = NOW()
+            WHERE kegiatan_id = ?
+        `, [ttdPath || null, catatan || null, kegiatanId]);
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`✅ LPD kegiatan ${kegiatanId} disetujui oleh ${username}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'LPD berhasil disetujui oleh Katim/Kabag TU, selanjutnya menunggu persetujuan Kabalai'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error approve Katim:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ KATIM/KABAG TU REJECT LPD ============
+router.post('/reject-katim/:kegiatanId', keycloakAuth, async (req, res) => {
+    const { kegiatanId } = req.params;
+    const user = req.user;
+    const userId = getUserId(user);
+    const username = getUsername(user);
+    const roleInfo = getUserRoleInfo(user);
+    const { catatan } = req.body;
+    
+    console.log('❌ Katim/Kabag TU reject LPD:', { kegiatanId, userId, username });
+    
+    if (!kegiatanId || isNaN(kegiatanId)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+    
+    if (!catatan || catatan.trim().length === 0) {
+        return res.status(400).json({ success: false, message: 'Catatan alasan penolakan wajib diisi' });
+    }
+    
+    if (!roleInfo.isKatim && !roleInfo.isKabagTu && !roleInfo.isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Hanya Katim/Kabag TU yang dapat menolak LPD'
+        });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const [statusCheck] = await connection.query(`
+            SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+        `, [kegiatanId]);
+        
+        if (statusCheck.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'LPD tidak ditemukan'
+            });
+        }
+        
+        if (statusCheck[0].lpd_status !== 'menunggu_katim') {
+            return res.status(400).json({
+                success: false,
+                message: `LPD sudah dalam status ${statusCheck[0].lpd_status}, tidak dapat ditolak`
+            });
+        }
+        
+        await connection.query(`
+            UPDATE lpd_status 
+            SET 
+                lpd_status = 'ditolak_katim',
+                catatan_katim = ?,
+                updated_at = NOW()
+            WHERE kegiatan_id = ?
+        `, [catatan, kegiatanId]);
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`❌ LPD kegiatan ${kegiatanId} ditolak oleh ${username}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'LPD ditolak oleh Katim/Kabag TU'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error reject Katim:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ KABALAI APPROVE LPD ============
+router.post('/approve-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
+    const { kegiatanId } = req.params;
+    const user = req.user;
+    const userId = getUserId(user);
+    const username = getUsername(user);
+    const roleInfo = getUserRoleInfo(user);
+    const { catatan } = req.body;
+    
+    console.log('✅ Kabalai approve LPD:', { kegiatanId, userId, username });
+    
+    if (!kegiatanId || isNaN(kegiatanId)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+    
+    if (!roleInfo.isKabalai && !roleInfo.isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Hanya Kabalai yang dapat menyetujui LPD'
+        });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const [statusCheck] = await connection.query(`
+            SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+        `, [kegiatanId]);
+        
+        if (statusCheck.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'LPD tidak ditemukan'
+            });
+        }
+        
+        if (statusCheck[0].lpd_status !== 'menunggu_kabalai') {
+            return res.status(400).json({
+                success: false,
+                message: `LPD sudah dalam status ${statusCheck[0].lpd_status}, tidak dapat disetujui`
+            });
+        }
+        
+        const ttdPath = await getTtdByUser(user);
+        console.log(`📝 TTD untuk Kabalai ${username}: ${ttdPath || 'Tidak ditemukan'}`);
+        
+        await connection.query(`
+            UPDATE lpd_status 
+            SET 
+                lpd_status = 'selesai',
+                kabalai_id = ?,
+                kabalai_nama = ?,
+                kabalai_nip = ?,
+                kabalai_tgl_ttd = NOW(),
+                kabalai_ttd_path = ?,
+                catatan_kabalai = COALESCE(?, catatan_kabalai),
+                updated_at = NOW()
+            WHERE kegiatan_id = ?
+        `, [userId, username, user?.nip || '', ttdPath || null, catatan || null, kegiatanId]);
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`✅ LPD kegiatan ${kegiatanId} disetujui oleh Kabalai ${username}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'LPD berhasil disetujui oleh Kabalai dan selesai'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error approve Kabalai:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ KABALAI REJECT LPD ============
+router.post('/reject-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
+    const { kegiatanId } = req.params;
+    const user = req.user;
+    const userId = getUserId(user);
+    const username = getUsername(user);
+    const roleInfo = getUserRoleInfo(user);
+    const { catatan } = req.body;
+    
+    console.log('❌ Kabalai reject LPD:', { kegiatanId, userId, username });
+    
+    if (!kegiatanId || isNaN(kegiatanId)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+    
+    if (!catatan || catatan.trim().length === 0) {
+        return res.status(400).json({ success: false, message: 'Catatan alasan penolakan wajib diisi' });
+    }
+    
+    if (!roleInfo.isKabalai && !roleInfo.isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Hanya Kabalai yang dapat menolak LPD'
+        });
+    }
+    
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        
+        const [statusCheck] = await connection.query(`
+            SELECT lpd_status FROM lpd_status WHERE kegiatan_id = ?
+        `, [kegiatanId]);
+        
+        if (statusCheck.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'LPD tidak ditemukan'
+            });
+        }
+        
+        if (statusCheck[0].lpd_status !== 'menunggu_kabalai') {
+            return res.status(400).json({
+                success: false,
+                message: `LPD sudah dalam status ${statusCheck[0].lpd_status}, tidak dapat ditolak`
+            });
+        }
+        
+        await connection.query(`
+            UPDATE lpd_status 
+            SET 
+                lpd_status = 'ditolak_kabalai',
+                catatan_kabalai = ?,
+                updated_at = NOW()
+            WHERE kegiatan_id = ?
+        `, [catatan, kegiatanId]);
+        
+        await connection.commit();
+        connection.release();
+        
+        console.log(`❌ LPD kegiatan ${kegiatanId} ditolak oleh Kabalai ${username}`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'LPD ditolak oleh Kabalai'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error reject Kabalai:', error);
+        if (connection) {
+            try {
+                await connection.rollback();
+                connection.release();
+            } catch (rollbackError) {
+                console.error('❌ Error rollback:', rollbackError);
+            }
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 });
