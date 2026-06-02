@@ -1,6 +1,5 @@
 // components/lpd/lpdPrint.js
 import React from 'react';
-import { formatDateFn } from '../../utils/formatters';
 
 const BACKEND_URL = 'http://localhost:5000';
 
@@ -31,30 +30,142 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         
         const printDocument = printFrame.contentWindow.document;
         
-        // Format tanggal
-        const formatTanggal = (date) => {
+        // Nama bulan dalam Bahasa Indonesia
+        const namaBulan = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        
+        // Format tanggal ke "28 Mei 2026" (menerima format YYYY/MM/DD atau YYYY-MM-DD)
+        const formatTanggalIndonesia = (date) => {
             if (!date) return '-';
-            return new Date(date).toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
+            
+            let tahun, bulan, hari;
+            
+            // Konversi ke string jika perlu
+            const dateStr = String(date);
+            
+            // Format YYYY/MM/DD
+            if (dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    tahun = parseInt(parts[0]);
+                    bulan = parseInt(parts[1]) - 1;
+                    hari = parseInt(parts[2]);
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            // Format YYYY-MM-DD
+            else if (dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    tahun = parseInt(parts[0]);
+                    bulan = parseInt(parts[1]) - 1;
+                    hari = parseInt(parts[2]);
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            // Jika sudah dalam bentuk Date object
+            else if (date instanceof Date && !isNaN(date)) {
+                hari = date.getDate();
+                bulan = date.getMonth();
+                tahun = date.getFullYear();
+                return `${hari} ${namaBulan[bulan]} ${tahun}`;
+            }
+            // Coba parse dengan new Date
+            else {
+                const parsedDate = new Date(date);
+                if (!isNaN(parsedDate.getTime())) {
+                    hari = parsedDate.getDate();
+                    bulan = parsedDate.getMonth();
+                    tahun = parsedDate.getFullYear();
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            
+            return dateStr;
+        };
+        
+        // Format tanggal untuk rincian kegiatan (format: 28 Mei 2026) - SAMA dengan formatTanggalIndonesia
+        const formatTanggalRincian = (date) => {
+            if (!date) return '-';
+            
+            let tahun, bulan, hari;
+            
+            const dateStr = String(date);
+            
+            // Format YYYY/MM/DD
+            if (dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    tahun = parseInt(parts[0]);
+                    bulan = parseInt(parts[1]) - 1;
+                    hari = parseInt(parts[2]);
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            // Format YYYY-MM-DD
+            else if (dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    tahun = parseInt(parts[0]);
+                    bulan = parseInt(parts[1]) - 1;
+                    hari = parseInt(parts[2]);
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            // Jika sudah dalam bentuk Date object
+            else if (date instanceof Date && !isNaN(date)) {
+                hari = date.getDate();
+                bulan = date.getMonth();
+                tahun = date.getFullYear();
+                return `${hari} ${namaBulan[bulan]} ${tahun}`;
+            }
+            // Coba parse dengan new Date
+            else {
+                const parsedDate = new Date(date);
+                if (!isNaN(parsedDate.getTime())) {
+                    hari = parsedDate.getDate();
+                    bulan = parsedDate.getMonth();
+                    tahun = parsedDate.getFullYear();
+                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                }
+            }
+            
+            return '-';
         };
         
         // Format tanggal untuk header
         const getCurrentDate = () => {
-            return new Date().toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
+            const now = new Date();
+            const hari = now.getDate();
+            const bulan = namaBulan[now.getMonth()];
+            const tahun = now.getFullYear();
+            return `${hari} ${bulan} ${tahun}`;
         };
         
         // Hitung lama perjalanan
         const hitungLamaPerjalanan = () => {
             if (!kegiatanData?.tgl_mulai || !kegiatanData?.tgl_selesai) return '-';
-            const start = new Date(kegiatanData.tgl_mulai);
-            const end = new Date(kegiatanData.tgl_selesai);
+            
+            const parseTanggal = (date) => {
+                const dateStr = String(date);
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                }
+                if (dateStr.includes('-')) {
+                    const parts = dateStr.split('-');
+                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                }
+                return new Date(date);
+            };
+            
+            const start = parseTanggal(kegiatanData.tgl_mulai);
+            const end = parseTanggal(kegiatanData.tgl_selesai);
+            
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+            
             const diffTime = Math.abs(end - start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             return `${diffDays} (${diffDays} hari)`;
@@ -74,7 +185,6 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         const dokumentasi = lpdData?.dokumentasi || [];
         
         // Tanda tangan
-        const ttdPengirim = lpdData?.ttd_pengirim || '';
         const ttdKatim = lpdData?.ttd_katim || '';
         const ttdKabalai = lpdData?.ttd_kabalai || '';
         
@@ -348,7 +458,7 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                                 </tr>
                                 <tr>
                                     <td class="label-cell">Tanggal</td>
-                                    <td class="value-cell"> : ${formatTanggal(kegiatanData?.tgl_st)}</td>
+                                    <td class="value-cell"> : ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
                                 </tr>
                             </table>
                         </div>
@@ -391,16 +501,12 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         <div class="section-content">
                             <table class="info-table-inline">
                                 <tr>
-                                    <td class="label-cell">Lama Perjalanan </td>
-                                    <td class="value-cell">: ${hitungLamaPerjalanan()}</td>
+                                    <td class="label-cell">Lama Perjalanan</td>
+                                    <td class="value-cell"> : ${hitungLamaPerjalanan()}</td>
                                 </tr>
                                 <tr>
                                     <td class="label-cell">Tanggal</td>
-                                    <td class="value-cell"> :
-                                        ${kegiatanData?.tgl_mulai ? formatTanggal(kegiatanData.tgl_mulai) : '-'} 
-                                        s/d 
-                                        ${kegiatanData?.tgl_selesai ? formatTanggal(kegiatanData.tgl_selesai) : '-'}
-                                    </td>
+                                    <td class="value-cell"> : ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
                                 </tr>
                                 <tr>
                                     <td class="label-cell">Tempat Pelaksanaan</td>
@@ -439,15 +545,15 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                             </thead>
                             <tbody>
                                 ${rincianKegiatan.length > 0 ? rincianKegiatan.map((item, index) => `
-                                    <tr>
-                                        <td style="text-align: center;">${index + 1}</td>
-                                        <td>${formatTanggal(item.tanggal)}</td>
-                                        <td>${item.kegiatan || '-'}</td>
-                                    </tr>
+                                <tr>
+                                    <td style="text-align: center;">${index + 1}</td>
+                                    <td style="text-align: center;">${formatTanggalRincian(item.tanggal)}</td>
+                                    <td>${item.kegiatan || '-'}</td>
+                                </tr>
                                 `).join('') : `
-                                    <tr>
-                                        <td colspan="3" style="text-align: center;">- Tidak ada rincian kegiatan -</td>
-                                    </tr>
+                                <tr>
+                                    <td colspan="3" style="text-align: center;">- Tidak ada rincian kegiatan -</td>
+                                </tr>
                                 `}
                             </tbody>
                         </table>
