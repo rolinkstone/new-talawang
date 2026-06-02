@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import { 
   FaHome, FaBox, FaUsers, FaShoppingCart, FaCog, FaSignOutAlt, 
   FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch,
-  FaTimesCircle, FaFileInvoice, FaReceipt, FaFileAlt, FaCamera, FaCalendarAlt  
+  FaTimesCircle, FaFileInvoice, FaReceipt, FaFileAlt, FaCamera, FaCalendarAlt,
+  FaChartBar  // Tambahan icon untuk laporan
 } from 'react-icons/fa';
 
 import { useSession, signOut } from 'next-auth/react';
@@ -107,6 +108,32 @@ export default function DashboardLayout({ children }) {
     return false;
   };
 
+  // Fungsi untuk cek apakah user memiliki role Kepala Balai (Ka Balai)
+  const hasKepalaBalaiRole = () => {
+    if (!session?.user) return false;
+    
+    if (session.user.role) {
+      const role = session.user.role.toLowerCase();
+      if (role.includes('kabalai') || role.includes('kepala balai') || role === 'kepalabalai') {
+        return true;
+      }
+    }
+    
+    if (session.user.roles && Array.isArray(session.user.roles)) {
+      return session.user.roles.some(role => 
+        role.toLowerCase().includes('kabalai') || 
+        role.toLowerCase().includes('kepala balai')
+      );
+    }
+    
+    if (session.user.roles && typeof session.user.roles === 'string') {
+      const roleLower = session.user.roles.toLowerCase();
+      return roleLower.includes('kabalai') || roleLower.includes('kepala balai');
+    }
+    
+    return false;
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -203,6 +230,19 @@ export default function DashboardLayout({ children }) {
             ] : [])
         ]
     },
+    // MENU LAPORAN UNTUK KEPALA BALAI
+    ...(hasKepalaBalaiRole() || hasAdminRole() ? [{
+        title: 'Laporan',
+        items: [
+            { 
+                href: '/laporan', 
+                label: 'Rekap Perjadin Pegawai', 
+                icon: <FaChartBar />,
+                description: 'Laporan perjalanan dinas per pegawai',
+                badge: hasAdminRole() ? 'Admin' : 'Ka. Balai'
+            }
+        ]
+    }] : []),
     {
         title: 'Pengaturan',
         items: [
@@ -216,6 +256,7 @@ export default function DashboardLayout({ children }) {
     hasPPK: hasPPKRole(),
     hasBendahara: hasBendaharaRole(),
     hasAdmin: hasAdminRole(),
+    hasKepalaBalai: hasKepalaBalaiRole(),
     userRole: session?.user?.role,
     userRoles: session?.user?.roles,
     isArray: Array.isArray(session?.user?.roles),
@@ -284,7 +325,9 @@ export default function DashboardLayout({ children }) {
                           {item.badge && (
                             <span className={`
                               text-xs px-1.5 py-0.5 rounded
-                              ${item.badge === 'Admin' ? 'bg-red-500' : 'bg-yellow-500'}
+                              ${item.badge === 'Admin' ? 'bg-red-500' : 
+                                item.badge === 'Ka. Balai' ? 'bg-purple-500' :
+                                'bg-yellow-500'}
                             `}>
                               {item.badge}
                             </span>
@@ -315,6 +358,7 @@ export default function DashboardLayout({ children }) {
                   hasAdminRole() ? 'bg-red-600' :
                   hasPPKRole() ? 'bg-yellow-600' :
                   hasBendaharaRole() ? 'bg-green-600' :
+                  hasKepalaBalaiRole() ? 'bg-purple-600' :
                   'bg-gray-600'
                 }`}>
                   {getUserRoleDisplay()}
@@ -358,12 +402,18 @@ export default function DashboardLayout({ children }) {
                  router.pathname === '/kegiatan' ? 'Nominatif Kegiatan' :
                  router.pathname === '/lpd' ? 'Laporan Perjalanan Dinas (LPD)' :
                  router.pathname === '/search' ? 'Batalkan Nominatif' :
+                 router.pathname === '/laporan-pegawai' ? 'Rekap Perjalanan Dinas Pegawai' :
                  router.pathname.startsWith('/lpd/') ? 'Laporan Perjalanan Dinas (LPD)' :
                  'Aplikasi Nominatif'}
               </h2>
               {router.pathname.startsWith('/lpd/') && (
                 <p className="text-sm text-gray-500 mt-1">
                   Form Laporan Perjalanan Dinas
+                </p>
+              )}
+              {router.pathname === '/laporan-pegawai' && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Laporan rekap perjalanan dinas seluruh pegawai
                 </p>
               )}
             </div>
@@ -374,7 +424,7 @@ export default function DashboardLayout({ children }) {
                 <button 
                   onClick={() => {
                     console.log("🔍 DEBUG Session Info:", debugInfo);
-                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\nHas Bendahara: ${hasBendaharaRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
+                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\nHas Bendahara: ${hasBendaharaRole() ? 'Yes' : 'No'}\nHas Ka. Balai: ${hasKepalaBalaiRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
                   }}
                   className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
                 >
@@ -405,7 +455,7 @@ export default function DashboardLayout({ children }) {
                         session.user.role.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
                         session.user.role.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
                         session.user.role.toLowerCase().includes('bendahara') ? 'bg-green-100 text-green-800' :
-                        session.user.role.toLowerCase().includes('kabalai') ? 'bg-purple-100 text-purple-800' :
+                        session.user.role.toLowerCase().includes('kabalai') || session.user.role.toLowerCase().includes('kepala balai') ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {getUserRoleDisplay()}

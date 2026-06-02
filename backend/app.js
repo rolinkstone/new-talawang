@@ -13,7 +13,7 @@ const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
 const indexRoutes = require('./routes/index');
 const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
-
+const laporanRoutes = require('./routes/lapran');  // TAMBAHKAN INI
 const app = express();
 
 // ========== MIDDLEWARE SETUP ==========
@@ -96,6 +96,7 @@ app.use('/api/kegiatan', kegiatanRoutes);
 app.use('/api/kwitansi', kwitansiRoutes);  // TAMBAHKAN INI (jika belum ada)
 app.use('/api/search', searchRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
+app.use('/api/laporan', lpaoranRoutes);  // TAMBAHKAN INI
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
