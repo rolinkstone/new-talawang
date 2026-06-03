@@ -6,6 +6,29 @@ const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloak
 
 // ========== HELPER FUNCTIONS ==========
 
+// Helper function untuk mengekstrak pola nomor ST (7 angka terakhir)
+const normalizeStNumber = (noSt) => {
+    if (!noSt) return null;
+    
+    // Extract 7 digit terakhir dari nomor ST
+    const match = noSt.match(/(\d{7})$/);
+    if (match) {
+        return match[1]; // Kembalikan 7 digit terakhir
+    }
+    
+    // Alternatif: extract semua angka
+    const numbers = noSt.match(/\d+/g);
+    if (numbers && numbers.length > 0) {
+        const lastNumbers = numbers[numbers.length - 1];
+        if (lastNumbers.length >= 7) {
+            return lastNumbers.slice(-7); // Ambil 7 digit terakhir
+        }
+        return lastNumbers;
+    }
+    
+    return noSt.trim(); // Fallback ke string asli
+};
+
 // Cek apakah user memiliki role Kepala Balai
 const hasKepalaBalaiRole = (user) => {
     if (user.isKabalai) return true;
@@ -60,15 +83,15 @@ router.get('/test', keycloakAuth, async (req, res) => {
     });
 });
 
+// routes/laporan.js - Perbaikan untuk endpoint /rekap-pegawai
+
 // ========== LAPORAN REKAP PEGAWAI PERJADIN ==========
 router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
     console.log(`📊 ${username} mengakses laporan rekap pegawai perjadin`);
     
-    // Validasi role: hanya Kepala Balai atau Admin
     if (!hasKepalaBalaiRole(req.user) && !hasAdminRole(req.user)) {
-        console.log(`❌ Akses ditolak untuk ${username}: bukan Kepala Balai atau Admin`);
         return res.status(403).json({
             success: false,
             message: 'Akses ditolak. Hanya Kepala Balai dan Admin yang dapat mengakses laporan ini.'
@@ -77,40 +100,30 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     
     try {
         const { bulan, tahun, pegawai_nip, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
-        
-        // Filter tahun (default tahun berjalan)
         const filterTahun = tahun || new Date().getFullYear();
         
-        // Build WHERE clause
         let whereConditions = [];
         let params = [];
         
-        // Filter jenis_spm (default 'LS')
         if (jenis_spm && jenis_spm !== 'all') {
             whereConditions.push(`k.jenis_spm = ?`);
             params.push(jenis_spm);
         }
         
-        // Filter status_2 (default 'selesai')
         if (status_2 && status_2 !== 'all') {
             whereConditions.push(`k.status_2 = ?`);
             params.push(status_2);
         }
         
-        // Filter status utama harus 'selesai' (sudah ada surat tugas)
         whereConditions.push(`k.status = 'selesai'`);
-        
-        // Filter tahun (dari tgl_st atau created_at)
         whereConditions.push(`(YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))`);
         params.push(filterTahun, filterTahun);
         
-        // Filter bulan (opsional)
         if (bulan && bulan !== 'all') {
             whereConditions.push(`(MONTH(k.tgl_st) = ? OR (k.tgl_st IS NULL AND MONTH(k.created_at) = ?))`);
             params.push(bulan, bulan);
         }
         
-        // Filter pegawai spesifik berdasarkan NIP (opsional)
         if (pegawai_nip && pegawai_nip !== 'all') {
             whereConditions.push(`REPLACE(p.nip, ' ', '') = ?`);
             params.push(pegawai_nip.replace(/\s/g, ''));
@@ -120,32 +133,50 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             ? `WHERE ${whereConditions.join(' AND ')}` 
             : '';
         
-        // Query dengan filter NIP valid (bukan -, --, ---, null, empty)
+        // Query dengan normalisasi nomor ST menggunakan SUBSTRING atau REGEXP di SQL
         const query = `
             SELECT 
-                REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
-                MAX(p.nip) as pegawai_nip,
-                MAX(p.nama) as pegawai_nama,
-                MAX(p.pangkat) as pegawai_pangkat,
-                MAX(p.jabatan) as pegawai_jabatan,
-                COUNT(DISTINCT k.id) as jumlah_perjalanan,
-                SUM(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
-                SUM(COALESCE((
-                    SELECT SUM(uh.total)
-                    FROM accounting.nominatif_uang_harian_items uh
-                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
-                    WHERE bk.pegawai_id = p.id
-                ), 0)) as total_uang_harian
-            FROM accounting.nominatif_pegawai p
-            INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
-            ${whereClause}
-                AND p.nip IS NOT NULL 
-                AND TRIM(p.nip) != ''
-                AND TRIM(p.nip) != '-'
-                AND TRIM(p.nip) != '--'
-                AND TRIM(p.nip) != '---'
-                AND TRIM(p.nip) NOT REGEXP '^-+$'
-            GROUP BY REPLACE(p.nip, ' ', '')
+                pegawai_nip_normalized,
+                MAX(pegawai_nip) as pegawai_nip,
+                MAX(pegawai_nama) as pegawai_nama,
+                MAX(pegawai_pangkat) as pegawai_pangkat,
+                MAX(pegawai_jabatan) as pegawai_jabatan,
+                SUM(jumlah_perjalanan) as jumlah_perjalanan,
+                SUM(total_hari_dinas) as total_hari_dinas,
+                SUM(total_uang_harian) as total_uang_harian
+            FROM (
+                SELECT 
+                    REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
+                    MAX(p.nip) as pegawai_nip,
+                    MAX(p.nama) as pegawai_nama,
+                    MAX(p.pangkat) as pegawai_pangkat,
+                    MAX(p.jabatan) as pegawai_jabatan,
+                    1 as jumlah_perjalanan,
+                    MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
+                    SUM(COALESCE((
+                        SELECT SUM(uh.total)
+                        FROM accounting.nominatif_uang_harian_items uh
+                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
+                        WHERE bk.pegawai_id = p.id
+                    ), 0)) as total_uang_harian
+                FROM accounting.nominatif_pegawai p
+                INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
+                ${whereClause}
+                    AND p.nip IS NOT NULL 
+                    AND TRIM(p.nip) != ''
+                    AND TRIM(p.nip) != '-'
+                    AND TRIM(p.nip) != '--'
+                    AND TRIM(p.nip) != '---'
+                    AND TRIM(p.nip) NOT REGEXP '^-+$'
+                GROUP BY REPLACE(p.nip, ' ', ''), 
+                    -- Normalisasi nomor ST: ambil 7 digit terakhir
+                    CASE 
+                        WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
+                        WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
+                        ELSE k.no_st
+                    END
+            ) as per_st
+            GROUP BY pegawai_nip_normalized
             HAVING pegawai_nip_normalized IS NOT NULL 
                 AND pegawai_nip_normalized != ''
                 AND pegawai_nip_normalized NOT REGEXP '^-+$'
@@ -169,7 +200,6 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Format data
         const dataRekap = rows.map((row, index) => ({
             no: index + 1,
             pegawai_id: row.pegawai_nip_normalized,
@@ -304,6 +334,12 @@ router.get('/options', keycloakAuth, async (req, res) => {
     }
 });
 
+// routes/laporan.js - Perbaikan untuk endpoint /pegawai/:nip
+
+// ========== LAPORAN DETAIL PER PEGAWAI ==========
+// routes/laporan.js - Perbaikan untuk endpoint /pegawai/:nip
+
+// ========== LAPORAN DETAIL PER PEGAWAI ==========
 // ========== LAPORAN DETAIL PER PEGAWAI ==========
 router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
     const { nip } = req.params;
@@ -328,50 +364,22 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
         const filterTahun = tahun || new Date().getFullYear();
         const normalizedNip = nip.replace(/\s/g, '');
         
-        // Query untuk mendapatkan data pegawai
-        const pegawaiQuery = `
+        // Query dengan normalisasi nomor ST
+        const query = `
             SELECT 
-                MAX(p.nama) as nama,
-                MAX(p.nip) as nip,
-                MAX(p.pangkat) as pangkat,
-                MAX(p.jabatan) as jabatan,
-                COUNT(DISTINCT k.id) as total_perjalanan,
-                SUM(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
-                SUM(COALESCE((
-                    SELECT SUM(uh.total)
-                    FROM accounting.nominatif_uang_harian_items uh
-                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
-                    WHERE bk.pegawai_id = p.id
-                ), 0)) as total_uang_harian
-            FROM accounting.nominatif_pegawai p
-            INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
-            WHERE REPLACE(p.nip, ' ', '') = ?
-                AND k.status = 'selesai'
-                AND k.status_2 = ?
-                AND k.jenis_spm = ?
-                AND (YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))
-            GROUP BY REPLACE(p.nip, ' ', '')
-        `;
-        
-        const [pegawaiRows] = await db.query(pegawaiQuery, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
-        
-        if (pegawaiRows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Pegawai tidak ditemukan atau tidak memiliki perjalanan dinas'
-            });
-        }
-        
-        const pegawai = pegawaiRows[0];
-        
-        // Query untuk detail perjalanan pegawai
-        const detailQuery = `
-            SELECT 
-                k.id as kegiatan_id,
+                p.nama as pegawai_nama,
+                p.nip as pegawai_nip,
+                p.pangkat as pegawai_pangkat,
+                p.jabatan as pegawai_jabatan,
                 k.kegiatan as kegiatan_nama,
                 k.mak,
-                k.no_st,
                 k.jenis_spm,
+                k.no_st as original_no_st,
+                CASE 
+                    WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
+                    WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
+                    ELSE k.no_st
+                END as normalized_no_st,
                 DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st,
                 DATE_FORMAT(k.rencana_tanggal_pelaksanaan, '%Y-%m-%d') as tgl_mulai,
                 DATE_FORMAT(k.rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as tgl_selesai,
@@ -385,7 +393,8 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                 ), 0) as uang_harian,
                 k.status,
                 k.status_2,
-                k.catatan_status_2
+                k.catatan_status_2,
+                k.created_at
             FROM accounting.nominatif_pegawai p
             INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
             WHERE REPLACE(p.nip, ' ', '') = ?
@@ -396,43 +405,99 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
             ORDER BY k.tgl_st DESC, k.created_at DESC
         `;
         
-        const [detailRows] = await db.query(detailQuery, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
+        const [rows] = await db.query(query, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
         
-        res.status(200).json({
-            success: true,
-            message: 'Detail laporan pegawai berhasil diambil',
-            data: {
-                pegawai: {
-                    id: normalizedNip,
-                    nama: pegawai.nama,
-                    nip: pegawai.nip,
-                    pangkat: pegawai.pangkat,
-                    jabatan: pegawai.jabatan
-                },
-                ringkasan: {
-                    total_perjalanan: parseInt(pegawai.total_perjalanan) || 0,
-                    total_hari_dinas: parseInt(pegawai.total_hari_dinas) || 0,
-                    total_uang_harian: parseFloat(pegawai.total_uang_harian) || 0,
-                    rata_rata_uang_harian_per_hari: pegawai.total_hari_dinas > 0 
-                        ? Math.round((parseFloat(pegawai.total_uang_harian) || 0) / (parseInt(pegawai.total_hari_dinas) || 1)) 
-                        : 0
-                },
-                detail_perjalanan: detailRows.map(row => ({
-                    kegiatan_id: row.kegiatan_id,
-                    kegiatan_nama: row.kegiatan_nama,
+        if (rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Pegawai tidak ditemukan atau tidak memiliki perjalanan dinas'
+            });
+        }
+        
+        // Ambil informasi pegawai dari baris pertama
+        const pegawaiInfo = {
+            id: normalizedNip,
+            nama: rows[0].pegawai_nama,
+            nip: rows[0].pegawai_nip,
+            pangkat: rows[0].pegawai_pangkat,
+            jabatan: rows[0].pegawai_jabatan
+        };
+        
+        // Kelompokkan berdasarkan normalized_no_st (7 digit terakhir)
+        const groupedByTrip = {};
+        
+        for (const row of rows) {
+            const tripKey = row.normalized_no_st;
+            
+            if (!groupedByTrip[tripKey]) {
+                groupedByTrip[tripKey] = {
+                    no_st: row.original_no_st,
+                    normalized_no_st: row.normalized_no_st,
+                    kegiatan_nama: [],
                     mak: row.mak,
-                    no_st: row.no_st,
                     jenis_spm: row.jenis_spm,
                     tgl_st: row.tgl_st,
                     tgl_mulai: row.tgl_mulai,
                     tgl_selesai: row.tgl_selesai,
                     jumlah_hari: parseInt(row.jumlah_hari) || 0,
                     lokasi: row.lokasi,
-                    uang_harian: parseFloat(row.uang_harian) || 0,
+                    uang_harian: 0,
                     status: row.status,
                     status_2: row.status_2,
                     catatan_status_2: row.catatan_status_2
-                }))
+                };
+            }
+            
+            // Tambahkan nama kegiatan (hindari duplikasi)
+            if (!groupedByTrip[tripKey].kegiatan_nama.includes(row.kegiatan_nama)) {
+                groupedByTrip[tripKey].kegiatan_nama.push(row.kegiatan_nama);
+            }
+            
+            // Tambahkan uang harian
+            groupedByTrip[tripKey].uang_harian += parseFloat(row.uang_harian) || 0;
+        }
+        
+        // Hitung ringkasan
+        let totalPerjalanan = 0;
+        let totalHariDinas = 0;
+        let totalUangHarian = 0;
+        
+        const detailPerjalanan = Object.values(groupedByTrip).map(item => {
+            totalPerjalanan++;
+            totalHariDinas += item.jumlah_hari;
+            totalUangHarian += item.uang_harian;
+            
+            return {
+                no_st: item.no_st,
+                kegiatan_nama: item.kegiatan_nama.join(' / '),
+                mak: item.mak,
+                jenis_spm: item.jenis_spm,
+                tgl_st: item.tgl_st,
+                tgl_mulai: item.tgl_mulai,
+                tgl_selesai: item.tgl_selesai,
+                jumlah_hari: item.jumlah_hari,
+                lokasi: item.lokasi,
+                uang_harian: item.uang_harian,
+                status: item.status,
+                status_2: item.status_2,
+                catatan_status_2: item.catatan_status_2
+            };
+        });
+        
+        res.status(200).json({
+            success: true,
+            message: 'Detail laporan pegawai berhasil diambil',
+            data: {
+                pegawai: pegawaiInfo,
+                ringkasan: {
+                    total_perjalanan: totalPerjalanan,
+                    total_hari_dinas: totalHariDinas,
+                    total_uang_harian: totalUangHarian,
+                    rata_rata_uang_harian_per_hari: totalHariDinas > 0 
+                        ? Math.round(totalUangHarian / totalHariDinas) 
+                        : 0
+                },
+                detail_perjalanan: detailPerjalanan
             }
         });
         
@@ -446,6 +511,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
     }
 });
 
+// ========== EXPORT LAPORAN (CSV) ==========
 // ========== EXPORT LAPORAN (CSV) ==========
 router.get('/export/csv', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
@@ -476,32 +542,49 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
         whereConditions.push(`(YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))`);
         params.push(filterTahun, filterTahun);
         
-        // Query dengan filter NIP valid
         const query = `
             SELECT 
-                MAX(p.nama) as Nama_Pegawai,
-                MAX(p.nip) as NIP,
-                MAX(p.pangkat) as Pangkat,
-                MAX(p.jabatan) as Jabatan,
-                COUNT(DISTINCT k.id) as Jumlah_Perjalanan,
-                SUM(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as Total_Hari_Dinas,
-                SUM(COALESCE((
-                    SELECT SUM(uh.total)
-                    FROM accounting.nominatif_uang_harian_items uh
-                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
-                    WHERE bk.pegawai_id = p.id
-                ), 0)) as Total_Uang_Harian
-            FROM accounting.nominatif_pegawai p
-            INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
-            WHERE ${whereConditions.join(' AND ')}
-                AND p.nip IS NOT NULL 
-                AND TRIM(p.nip) != ''
-                AND TRIM(p.nip) != '-'
-                AND TRIM(p.nip) != '--'
-                AND TRIM(p.nip) != '---'
-                AND TRIM(p.nip) NOT REGEXP '^-+$'
-            GROUP BY REPLACE(p.nip, ' ', '')
-            ORDER BY MAX(p.nama) ASC
+                pegawai_nip_normalized,
+                MAX(pegawai_nip) as NIP,
+                MAX(pegawai_nama) as Nama_Pegawai,
+                MAX(pegawai_pangkat) as Pangkat,
+                MAX(pegawai_jabatan) as Jabatan,
+                SUM(jumlah_perjalanan) as Jumlah_Perjalanan,
+                SUM(total_hari_dinas) as Total_Hari_Dinas,
+                SUM(total_uang_harian) as Total_Uang_Harian
+            FROM (
+                SELECT 
+                    REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
+                    MAX(p.nip) as pegawai_nip,
+                    MAX(p.nama) as pegawai_nama,
+                    MAX(p.pangkat) as pegawai_pangkat,
+                    MAX(p.jabatan) as pegawai_jabatan,
+                    1 as jumlah_perjalanan,
+                    MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
+                    SUM(COALESCE((
+                        SELECT SUM(uh.total)
+                        FROM accounting.nominatif_uang_harian_items uh
+                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
+                        WHERE bk.pegawai_id = p.id
+                    ), 0)) as total_uang_harian
+                FROM accounting.nominatif_pegawai p
+                INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
+                WHERE ${whereConditions.join(' AND ')}
+                    AND p.nip IS NOT NULL 
+                    AND TRIM(p.nip) != ''
+                    AND TRIM(p.nip) != '-'
+                    AND TRIM(p.nip) != '--'
+                    AND TRIM(p.nip) != '---'
+                    AND TRIM(p.nip) NOT REGEXP '^-+$'
+                GROUP BY REPLACE(p.nip, ' ', ''), 
+                    CASE 
+                        WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
+                        WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
+                        ELSE k.no_st
+                    END
+            ) as per_st
+            GROUP BY pegawai_nip_normalized
+            ORDER BY Nama_Pegawai ASC
         `;
         
         const [rows] = await db.query(query, params);
