@@ -68,31 +68,7 @@ export default function SummaryCards({ summary, filters, formatRupiah }) {
         ))}
       </div>
       
-      {/* Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Rata-rata Perjalanan per Pegawai</p>
-              <p className="text-xl font-semibold text-gray-800">{avgPerjalananPerPegawai} Kali</p>
-            </div>
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <FaBriefcase className="text-blue-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Rata-rata Hari per Perjalanan</p>
-              <p className="text-xl font-semibold text-gray-800">{avgHariPerPerjalanan} Hari</p>
-            </div>
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <FaCalendarWeek className="text-green-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      
       
       {/* Filter Info */}
       {filters && (
