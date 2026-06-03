@@ -35,6 +35,18 @@ const hasAdminRole = (user) => {
     return false;
 };
 
+// Helper untuk mengecek apakah NIP valid (bukan -, --, ---, null, empty)
+const isValidNip = (nip) => {
+    if (!nip) return false;
+    const nipStr = String(nip).trim();
+    if (nipStr === '') return false;
+    if (nipStr === '-') return false;
+    if (nipStr === '--') return false;
+    if (nipStr === '---') return false;
+    if (nipStr.match(/^[-]+$/)) return false; // hanya karakter -
+    return true;
+};
+
 // ========== TEST ROUTE ==========
 router.get('/test', keycloakAuth, async (req, res) => {
     res.status(200).json({
@@ -64,7 +76,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     }
     
     try {
-        const { bulan, tahun, pegawai_nip, status_2 = 'selesai' } = req.query;
+        const { bulan, tahun, pegawai_nip, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
         
         // Filter tahun (default tahun berjalan)
         const filterTahun = tahun || new Date().getFullYear();
@@ -72,6 +84,12 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
         // Build WHERE clause
         let whereConditions = [];
         let params = [];
+        
+        // Filter jenis_spm (default 'LS')
+        if (jenis_spm && jenis_spm !== 'all') {
+            whereConditions.push(`k.jenis_spm = ?`);
+            params.push(jenis_spm);
+        }
         
         // Filter status_2 (default 'selesai')
         if (status_2 && status_2 !== 'all') {
@@ -102,8 +120,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             ? `WHERE ${whereConditions.join(' AND ')}` 
             : '';
         
-        // PERBAIKAN: GROUP BY berdasarkan NIP (bukan ID pegawai)
-        // Menggunakan REPLACE untuk menghilangkan spasi pada NIP saat grouping
+        // Query dengan filter NIP valid (bukan -, --, ---, null, empty)
         const query = `
             SELECT 
                 REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
@@ -122,8 +139,16 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             FROM accounting.nominatif_pegawai p
             INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
             ${whereClause}
+                AND p.nip IS NOT NULL 
+                AND TRIM(p.nip) != ''
+                AND TRIM(p.nip) != '-'
+                AND TRIM(p.nip) != '--'
+                AND TRIM(p.nip) != '---'
+                AND TRIM(p.nip) NOT REGEXP '^-+$'
             GROUP BY REPLACE(p.nip, ' ', '')
-            HAVING pegawai_nip_normalized IS NOT NULL AND pegawai_nip_normalized != ''
+            HAVING pegawai_nip_normalized IS NOT NULL 
+                AND pegawai_nip_normalized != ''
+                AND pegawai_nip_normalized NOT REGEXP '^-+$'
             ORDER BY total_uang_harian DESC, pegawai_nama ASC
         `;
         
@@ -203,7 +228,7 @@ router.get('/options', keycloakAuth, async (req, res) => {
     }
     
     try {
-        // PERBAIKAN: Daftar pegawai unik berdasarkan NIP
+        // Daftar pegawai unik berdasarkan NIP (filter NIP valid)
         const pegawaiQuery = `
             SELECT DISTINCT 
                 REPLACE(p.nip, ' ', '') as id,
@@ -215,7 +240,11 @@ router.get('/options', keycloakAuth, async (req, res) => {
             INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
             WHERE k.status = 'selesai'
                 AND p.nip IS NOT NULL 
-                AND REPLACE(p.nip, ' ', '') != ''
+                AND TRIM(p.nip) != ''
+                AND TRIM(p.nip) != '-'
+                AND TRIM(p.nip) != '--'
+                AND TRIM(p.nip) != '---'
+                AND TRIM(p.nip) NOT REGEXP '^-+$'
             GROUP BY REPLACE(p.nip, ' ', '')
             ORDER BY MAX(p.nama) ASC
         `;
@@ -240,18 +269,28 @@ router.get('/options', keycloakAuth, async (req, res) => {
             ORDER BY status_2 ASC
         `;
         
+        // Daftar jenis_spm yang tersedia
+        const jenisSpmQuery = `
+            SELECT DISTINCT jenis_spm
+            FROM accounting.nominatif_kegiatan
+            WHERE status = 'selesai' AND jenis_spm IS NOT NULL AND jenis_spm != ''
+            ORDER BY jenis_spm ASC
+        `;
+        
         const [pegawaiRows] = await db.query(pegawaiQuery);
         const [tahunRows] = await db.query(tahunQuery);
         const [status2Rows] = await db.query(status2Query);
+        const [jenisSpmRows] = await db.query(jenisSpmQuery);
         
-        console.log(`✅ Options loaded: ${pegawaiRows.length} pegawai, ${tahunRows.length} tahun, ${status2Rows.length} status`);
+        console.log(`✅ Options loaded: ${pegawaiRows.length} pegawai, ${tahunRows.length} tahun, ${status2Rows.length} status, ${jenisSpmRows.length} jenis_spm`);
         
         res.status(200).json({
             success: true,
             data: {
                 pegawai: pegawaiRows,
                 tahun: tahunRows.map(row => row.tahun),
-                status_2: status2Rows.map(row => row.status_2)
+                status_2: status2Rows.map(row => row.status_2),
+                jenis_spm: jenisSpmRows.map(row => row.jenis_spm)
             }
         });
         
@@ -285,7 +324,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
     }
     
     try {
-        const { tahun, status_2 = 'selesai' } = req.query;
+        const { tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
         const filterTahun = tahun || new Date().getFullYear();
         const normalizedNip = nip.replace(/\s/g, '');
         
@@ -309,11 +348,12 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
             WHERE REPLACE(p.nip, ' ', '') = ?
                 AND k.status = 'selesai'
                 AND k.status_2 = ?
+                AND k.jenis_spm = ?
                 AND (YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))
             GROUP BY REPLACE(p.nip, ' ', '')
         `;
         
-        const [pegawaiRows] = await db.query(pegawaiQuery, [normalizedNip, status_2, filterTahun, filterTahun]);
+        const [pegawaiRows] = await db.query(pegawaiQuery, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
         
         if (pegawaiRows.length === 0) {
             return res.status(404).json({
@@ -331,6 +371,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                 k.kegiatan as kegiatan_nama,
                 k.mak,
                 k.no_st,
+                k.jenis_spm,
                 DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st,
                 DATE_FORMAT(k.rencana_tanggal_pelaksanaan, '%Y-%m-%d') as tgl_mulai,
                 DATE_FORMAT(k.rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as tgl_selesai,
@@ -350,11 +391,12 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
             WHERE REPLACE(p.nip, ' ', '') = ?
                 AND k.status = 'selesai'
                 AND k.status_2 = ?
+                AND k.jenis_spm = ?
                 AND (YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))
             ORDER BY k.tgl_st DESC, k.created_at DESC
         `;
         
-        const [detailRows] = await db.query(detailQuery, [normalizedNip, status_2, filterTahun, filterTahun]);
+        const [detailRows] = await db.query(detailQuery, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
         
         res.status(200).json({
             success: true,
@@ -380,6 +422,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                     kegiatan_nama: row.kegiatan_nama,
                     mak: row.mak,
                     no_st: row.no_st,
+                    jenis_spm: row.jenis_spm,
                     tgl_st: row.tgl_st,
                     tgl_mulai: row.tgl_mulai,
                     tgl_selesai: row.tgl_selesai,
@@ -415,14 +458,15 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
     }
     
     try {
-        const { bulan, tahun, status_2 = 'selesai' } = req.query;
+        const { bulan, tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
         const filterTahun = tahun || new Date().getFullYear();
         
         let whereConditions = [
             `k.status = 'selesai'`,
-            `k.status_2 = ?`
+            `k.status_2 = ?`,
+            `k.jenis_spm = ?`
         ];
-        let params = [status_2];
+        let params = [status_2, jenis_spm];
         
         if (bulan && bulan !== 'all') {
             whereConditions.push(`(MONTH(k.tgl_st) = ? OR (k.tgl_st IS NULL AND MONTH(k.created_at) = ?))`);
@@ -432,7 +476,7 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
         whereConditions.push(`(YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))`);
         params.push(filterTahun, filterTahun);
         
-        // PERBAIKAN: GROUP BY NIP untuk CSV export
+        // Query dengan filter NIP valid
         const query = `
             SELECT 
                 MAX(p.nama) as Nama_Pegawai,
@@ -451,7 +495,11 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
             INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
             WHERE ${whereConditions.join(' AND ')}
                 AND p.nip IS NOT NULL 
-                AND REPLACE(p.nip, ' ', '') != ''
+                AND TRIM(p.nip) != ''
+                AND TRIM(p.nip) != '-'
+                AND TRIM(p.nip) != '--'
+                AND TRIM(p.nip) != '---'
+                AND TRIM(p.nip) NOT REGEXP '^-+$'
             GROUP BY REPLACE(p.nip, ' ', '')
             ORDER BY MAX(p.nama) ASC
         `;
@@ -459,7 +507,7 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
         const [rows] = await db.query(query, params);
         
         res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename=laporan_perjadin_${filterTahun}_${bulan || 'semua'}.csv`);
+        res.setHeader('Content-Disposition', `attachment; filename=laporan_perjadin_${filterTahun}_${bulan || 'semua'}_${jenis_spm}.csv`);
         
         if (rows.length === 0) {
             return res.send('Tidak ada data untuk periode yang dipilih');
