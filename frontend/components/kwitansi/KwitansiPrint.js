@@ -354,9 +354,19 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
               <td style="padding: 4px 0 4px 8px; vertical-align: top;"><strong>${namaDanAlamat}</strong></td>
             </tr>
             <tr>
+              <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
+              <td style="padding: 4px 0; text-align: center;">&nbsp;</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;</td>
+            </tr>
+            <tr>
               <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nomor kamar</td>
               <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
               <td style="padding: 4px 0 4px 8px; vertical-align: top;">${penginapan.nomor_kamar || '-'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
+              <td style="padding: 4px 0; text-align: center;">&nbsp;</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;</td>
             </tr>
             <tr>
               <td style="width: 180px; padding: 4px 0; vertical-align: top;">Tarif hotel</td>

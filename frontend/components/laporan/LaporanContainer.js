@@ -21,7 +21,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
     const [laporanData, setLaporanData] = useState([]);
     const [detailPerjalanan, setDetailPerjalanan] = useState([]);
     const [summary, setSummary] = useState(null);
-    const [options, setOptions] = useState({ pegawai: [], tahun: [], status_2: [] });
+    const [options, setOptions] = useState({ pegawai: [], tahun: [], status_2: [], jenis_spm: [] });
     
     // State untuk loading
     const [loading, setLoading] = useState(true);
@@ -33,7 +33,8 @@ export default function LaporanContainer({ session: propSession, status: propSta
         tahun: new Date().getFullYear(),
         bulan: 'all',
         pegawai_id: 'all',
-        status_2: 'selesai'
+        status_2: 'selesai',
+        jenis_spm: 'LS'
     });
     
     // State untuk modal
@@ -43,7 +44,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
     const [modalLoading, setModalLoading] = useState(false);
     
     // State untuk view
-    const [viewType, setViewType] = useState('table'); // table, chart
+    const [viewType, setViewType] = useState('table');
     const [showFilters, setShowFilters] = useState(true);
     
     // State untuk notifikasi
@@ -56,9 +57,51 @@ export default function LaporanContainer({ session: propSession, status: propSta
         isAdmin: false,
         isPPK: false,
         isKabalai: false,
+        isKabagTu: false,
         isBendahara: false,
         isRegularUser: false
     });
+    
+    // ============ PERBAIKAN: Fungsi cek role Kabag TU ============
+    const hasKabagTuRole = () => {
+        if (!session?.user) return false;
+        
+        if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
+        if (session.user.roles) {
+            const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+            return roles.some(r => r.toLowerCase().includes('kabag_tu'));
+        }
+        return false;
+    };
+    
+    const hasKepalaBalaiRole = () => {
+        if (!session?.user) return false;
+        const roleLower = session.user.role?.toLowerCase() || '';
+        if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
+        if (session.user.roles) {
+            const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+            return roles.some(r => {
+                const rLower = r.toLowerCase();
+                return rLower.includes('kabalai') || rLower.includes('kepala balai');
+            });
+        }
+        return false;
+    };
+    
+    const hasAdminRole = () => {
+        if (!session?.user) return false;
+        if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
+        if (session.user.roles) {
+            const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+            return roles.some(r => r.toLowerCase().includes('admin'));
+        }
+        return false;
+    };
+    
+    // ============ PERBAIKAN: Cek akses laporan untuk Admin, Kabag TU, atau Kabalai ============
+    const canAccessLaporan = () => {
+        return hasAdminRole() || hasKabagTuRole() || hasKepalaBalaiRole();
+    };
     
     // Cek akses user
     useEffect(() => {
@@ -77,20 +120,23 @@ export default function LaporanContainer({ session: propSession, status: propSta
             const isAdmin = roles.some(role => role.toLowerCase() === 'admin');
             const isPPK = roles.some(role => role.toLowerCase() === 'ppk');
             const isKabalai = roles.some(role => role.toLowerCase() === 'kabalai' || role.toLowerCase().includes('kepala balai'));
+            const isKabagTu = roles.some(role => role.toLowerCase() === 'kabag_tu');
             const isBendahara = roles.some(role => role.toLowerCase() === 'bendahara');
             
             setUserType({
                 isAdmin,
                 isPPK,
                 isKabalai,
+                isKabagTu,
                 isBendahara,
-                isRegularUser: !isAdmin && !isPPK && !isKabalai && !isBendahara
+                isRegularUser: !isAdmin && !isPPK && !isKabalai && !isKabagTu && !isBendahara
             });
             
             console.log('📊 User Type Info:', {
                 isAdmin,
                 isPPK,
                 isKabalai,
+                isKabagTu,
                 isBendahara,
                 roles
             });
@@ -122,22 +168,22 @@ export default function LaporanContainer({ session: propSession, status: propSta
                 }
             } else {
                 console.error('Options API returned success=false:', response.data);
-                // Set default options
                 setOptions({
                     pegawai: [],
                     tahun: [new Date().getFullYear()],
-                    status_2: ['selesai']
+                    status_2: ['selesai'],
+                    jenis_spm: ['LS']
                 });
             }
         } catch (error) {
             console.error('❌ Error fetching options:', error);
             setNotificationMessage('Gagal memuat data filter: ' + (error.response?.data?.message || error.message));
             setModalOpen(true);
-            // Set default options
             setOptions({
                 pegawai: [],
                 tahun: [new Date().getFullYear()],
-                status_2: ['selesai']
+                status_2: ['selesai'],
+                jenis_spm: ['LS']
             });
         } finally {
             setOptionsLoading(false);
@@ -158,6 +204,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
             if (filters.bulan && filters.bulan !== 'all') params.append('bulan', filters.bulan);
             if (filters.pegawai_id && filters.pegawai_id !== 'all') params.append('pegawai_id', filters.pegawai_id);
             if (filters.status_2 && filters.status_2 !== 'all') params.append('status_2', filters.status_2);
+            if (filters.jenis_spm && filters.jenis_spm !== 'all') params.append('jenis_spm', filters.jenis_spm);
             
             const url = `${process.env.NEXT_PUBLIC_API_URL}/laporan/rekap-pegawai?${params.toString()}`;
             console.log('🔄 Fetching laporan from:', url);
@@ -172,7 +219,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                 setLaporanData(response.data.data || []);
                 setDetailPerjalanan(response.data.detail_perjalanan || []);
                 setSummary(response.data.summary);
-                console.log(`✅ Laporan loaded: ${response.data.data?.length || 0} pegawai, ${response.data.detail_perjalanan?.length || 0} perjalanan`);
+                console.log(`✅ Laporan loaded: ${response.data.data?.length || 0} pegawai`);
             } else {
                 console.error('Laporan API returned success=false:', response.data);
                 setNotificationMessage(response.data.message || 'Gagal memuat data laporan');
@@ -202,6 +249,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
             const params = new URLSearchParams();
             if (filters.tahun) params.append('tahun', filters.tahun);
             if (filters.status_2 && filters.status_2 !== 'all') params.append('status_2', filters.status_2);
+            if (filters.jenis_spm && filters.jenis_spm !== 'all') params.append('jenis_spm', filters.jenis_spm);
             
             const url = `${process.env.NEXT_PUBLIC_API_URL}/laporan/pegawai/${pegawaiId}?${params.toString()}`;
             console.log(`🔍 Fetching pegawai detail from: ${url}`);
@@ -237,6 +285,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
             if (filters.tahun) params.append('tahun', filters.tahun);
             if (filters.bulan && filters.bulan !== 'all') params.append('bulan', filters.bulan);
             if (filters.status_2 && filters.status_2 !== 'all') params.append('status_2', filters.status_2);
+            if (filters.jenis_spm && filters.jenis_spm !== 'all') params.append('jenis_spm', filters.jenis_spm);
             
             const url = `${process.env.NEXT_PUBLIC_API_URL}/laporan/export/csv?${params.toString()}`;
             console.log('📥 Exporting CSV from:', url);
@@ -246,12 +295,11 @@ export default function LaporanContainer({ session: propSession, status: propSta
                 responseType: 'blob'
             });
             
-            // Create download link
             const blob = new Blob([response.data], { type: 'text/csv' });
             const link = document.createElement('a');
             const downloadUrl = window.URL.createObjectURL(blob);
             link.href = downloadUrl;
-            link.download = `laporan_perjadin_${filters.tahun}_${filters.bulan !== 'all' ? filters.bulan : 'semua'}.csv`;
+            link.download = `laporan_perjadin_${filters.tahun}_${filters.bulan !== 'all' ? filters.bulan : 'semua'}_${filters.jenis_spm || 'LS'}.csv`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -299,6 +347,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                     <div class="summary">
                         <p><strong>Periode:</strong> ${filters.tahun} ${filters.bulan !== 'all' ? `- Bulan ${getBulanName(filters.bulan)}` : '(Semua Bulan)'}</p>
                         <p><strong>Status SPM:</strong> ${filters.status_2 === 'all' ? 'Semua' : filters.status_2}</p>
+                        <p><strong>Jenis SPM:</strong> ${filters.jenis_spm === 'all' ? 'Semua' : filters.jenis_spm}</p>
                         <p><strong>Total Pegawai:</strong> ${summary?.total_pegawai || 0}</p>
                         <p><strong>Total Perjalanan:</strong> ${summary?.total_perjalanan || 0}</p>
                         <p><strong>Total Hari Dinas:</strong> ${summary?.total_hari_dinas || 0}</p>
@@ -342,7 +391,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                     ${laporanData.map((item, idx) => `
                         <tr>
                             <td>${idx + 1}</td>
-                            <td>${item.pegawai_nama}</td>
+                            <td>${item.pegawai_nama || '-'}</td>
                             <td>${item.pegawai_nip || '-'}</td>
                             <td>${item.pegawai_pangkat || '-'}</td>
                             <td>${item.pegawai_jabatan || '-'}</td>
@@ -377,7 +426,8 @@ export default function LaporanContainer({ session: propSession, status: propSta
             tahun: options.tahun?.[0] || new Date().getFullYear(),
             bulan: 'all',
             pegawai_id: 'all',
-            status_2: 'selesai'
+            status_2: 'selesai',
+            jenis_spm: 'LS'
         });
     };
     
@@ -396,12 +446,13 @@ export default function LaporanContainer({ session: propSession, status: propSta
     
     // Fetch laporan when filters change or options are loaded
     useEffect(() => {
-        if (session?.accessToken && options.tahun.length > 0) {
+        if (session?.accessToken && options.tahun && options.tahun.length > 0) {
             fetchLaporan();
         }
     }, [filters, session?.accessToken, options.tahun]);
     
-    const canAccess = userType.isKabalai || userType.isAdmin;
+    // ============ PERBAIKAN: Cek akses laporan ============
+    const hasAccess = canAccessLaporan();
     
     if (status === 'loading' || optionsLoading) {
         return <LoadingSpinner />;
@@ -411,17 +462,18 @@ export default function LaporanContainer({ session: propSession, status: propSta
         return null;
     }
     
-    if (!canAccess) {
+    // ============ PERBAIKAN: Pesan akses ditolak dengan role Kabag TU ============
+    if (!hasAccess) {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
                     <div className="text-red-500 text-6xl mb-4">⚠️</div>
                     <h2 className="text-2xl font-semibold text-gray-800 mb-2">Akses Ditolak</h2>
                     <p className="text-gray-600">
-                        Halaman ini hanya dapat diakses oleh Kepala Balai dan Admin.
+                        Halaman ini hanya dapat diakses oleh <strong>Admin, Kabag TU, dan Kepala Balai</strong>.
                     </p>
                     <p className="text-sm text-gray-500 mt-2">
-                        Role Anda: {userRole || 'Tidak diketahui'}
+                        Role Anda: <span className="font-mono bg-gray-100 px-2 py-1 rounded">{userRole || 'Tidak diketahui'}</span>
                     </p>
                 </div>
             </div>
@@ -437,6 +489,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                     <p className="text-gray-600 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | Role: {userRole || 'User'}
                         {userType.isAdmin && <span className="ml-2 text-blue-600">(Admin - Melihat Semua Data)</span>}
+                        {userType.isKabagTu && <span className="ml-2 text-teal-600">(Kabag TU - Laporan Perjadin)</span>}
                         {userType.isKabalai && <span className="ml-2 text-purple-600">(Kepala Balai - Laporan Perjadin)</span>}
                     </p>
                     <p className="text-sm text-gray-500 mt-1">

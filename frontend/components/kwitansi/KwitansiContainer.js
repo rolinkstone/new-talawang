@@ -122,17 +122,40 @@ export default function KwitansiContainer() {
     }, [session]);
     
     // Filter data untuk tab Diri Sendiri
-    const filterSelfData = (data) => {
-        if (!data || data.length === 0) return [];
+    // Filter data untuk tab Diri Sendiri
+const filterSelfData = (data) => {
+    if (!data || data.length === 0) return [];
+    
+    const filtered = data.filter(kegiatan => {
+        const hasCurrentUser = kegiatan.pegawai?.some(p => p.isCurrentUser === true);
+        return hasCurrentUser;
+    }).map(kegiatan => {
+        const currentUserPegawai = kegiatan.pegawai?.filter(p => p.isCurrentUser === true);
         
-        return data.filter(kegiatan => {
-            const hasCurrentUser = kegiatan.pegawai?.some(p => p.isCurrentUser === true);
-            return hasCurrentUser;
-        }).map(kegiatan => ({
+        // Log untuk debugging - tampilkan status sebenarnya dari database
+        if (currentUserPegawai && currentUserPegawai.length > 0) {
+            console.log(`📊 [Diri Sendiri - DB DATA] User ${currentUserPegawai[0].nama}:`, {
+                status_pegawai: currentUserPegawai[0].status_pegawai,
+                status_ppk: currentUserPegawai[0].status_ppk,
+                status_bendahara: currentUserPegawai[0].status_bendahara,
+                kwitansi_id: currentUserPegawai[0].kwitansi_id,
+                lpd_status: kegiatan.lpd_status
+            });
+        }
+        
+        return {
             ...kegiatan,
-            pegawai: kegiatan.pegawai?.filter(p => p.isCurrentUser === true)
-        }));
-    };
+            pegawai: currentUserPegawai,
+            // Hitung ulang status approval berdasarkan data terbaru
+            semua_pegawai_approve: currentUserPegawai?.every(p => p.status_pegawai === 'sudah') || false,
+            semua_ppk_approve: currentUserPegawai?.every(p => p.status_ppk === 'sudah') || false,
+            semua_bendahara_approve: currentUserPegawai?.every(p => p.status_bendahara === 'sudah') || false
+        };
+    });
+    
+    console.log(`👤 Tab "Diri Sendiri": ${filtered.length} kegiatan`);
+    return filtered;
+};
     
     // Filter data untuk tab Pegawai Lain (hanya untuk creator kegiatan)
     const filterOtherData = (data) => {
@@ -155,30 +178,45 @@ export default function KwitansiContainer() {
         return filtered;
     };
     
-    // Filter data untuk tab Persetujuan PPK (menunggu approve PPK)
-    const filterPpkApprovalData = (data) => {
-        if (!data || data.length === 0) return [];
+ const filterPpkApprovalData = (data) => {
+    if (!data || data.length === 0) return [];
+    
+    const filtered = data.filter(kegiatan => {
+        // Cek apakah ada pegawai yang butuh persetujuan PPK
+        // Syarat: status_pegawai = 'sudah' DAN status_ppk = 'belum'
+        const hasWaitingPpk = kegiatan.pegawai?.some(p => 
+            p.status_ppk === 'belum' && 
+            p.status_pegawai === 'sudah'
+        );
         
-        const filtered = data.filter(kegiatan => {
-            const hasWaitingPpk = kegiatan.pegawai?.some(p => 
-                p.status_ppk === 'belum' && 
-                p.status_pegawai === 'sudah'
-            );
-            return hasWaitingPpk;
-        }).map(kegiatan => {
+        // Log untuk debugging
+        if (hasWaitingPpk) {
+            console.log(`📋 Kegiatan ${kegiatan.id} memiliki kwitansi yang menunggu PPK`);
+            // Log detail pegawai yang butuh approve
             const waitingPegawai = kegiatan.pegawai?.filter(p => 
-                p.status_ppk === 'belum' && 
-                p.status_pegawai === 'sudah'
+                p.status_ppk === 'belum' && p.status_pegawai === 'sudah'
             );
-            return {
-                ...kegiatan,
-                pegawai: waitingPegawai
-            };
-        });
+            waitingPegawai.forEach(p => {
+                console.log(`   - Pegawai: ${p.nama}, status_pegawai=${p.status_pegawai}, status_ppk=${p.status_ppk}`);
+            });
+        }
         
-        console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan`);
-        return filtered;
-    };
+        return hasWaitingPpk;
+    }).map(kegiatan => {
+        // Filter hanya pegawai yang butuh persetujuan PPK
+        const waitingPegawai = kegiatan.pegawai?.filter(p => 
+            p.status_ppk === 'belum' && 
+            p.status_pegawai === 'sudah'
+        );
+        return {
+            ...kegiatan,
+            pegawai: waitingPegawai
+        };
+    });
+    
+    console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan ditemukan`);
+    return filtered;
+};
     
     // Filter data untuk tab Riwayat PPK (sudah disetujui PPK)
     const filterPpkHistoryData = (data) => {
@@ -822,7 +860,8 @@ export default function KwitansiContainer() {
                                 <div><span className="font-medium">MAK:</span> {kegiatan.mak}</div>
                                 <div><span className="font-medium">Lokasi:</span> {kegiatan.kota_kab_kecamatan}</div>
                                 <div><span className="font-medium">Progress Input:</span> <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">{kegiatan.sudah_input || 0} / {kegiatan.total_pegawai} sudah input</span></div>
-                                <div><span className="font-medium">Status Approval:</span> 
+                                <div>
+                                    <span className="font-medium">Status Approval:</span> 
                                     {kegiatan.semua_bendahara_approve ? 
                                         <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">✓ Selesai</span> : 
                                         kegiatan.semua_ppk_approve ?
@@ -921,8 +960,10 @@ export default function KwitansiContainer() {
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex justify-center gap-2 flex-wrap">
                                                                 {!sudahInput ? (
-                                                                    // Tombol Input Kwitansi - HANYA untuk Regular User, Creator, atau Admin
-                                                                    (userType.isRegularUser || userType.isCreator || userType.isAdmin) && (
+                                                                    // ============ PERBAIKAN: Tampilkan tombol input untuk SEMUA peserta ============
+                                                                    // Cek apakah user adalah peserta perjadin (isCurrentUser = true)
+                                                                    // Tidak perlu cek role
+                                                                    pegawai.isCurrentUser && (
                                                                         <button 
                                                                             onClick={() => handleInputKwitansi(kegiatan, pegawai)} 
                                                                             className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
@@ -936,7 +977,7 @@ export default function KwitansiContainer() {
                                                                             onClick={() => handleViewDetail(pegawai, kegiatan)} 
                                                                             className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
                                                                         >
-                                                                            Detail
+                                                                            Setujui / Tolak
                                                                         </button>
                                                                         <button 
                                                                             onClick={() => handlePrint(pegawai, kegiatan, { no_lpd: pegawai.no_lpd, id: pegawai.kwitansi_id })} 
@@ -944,7 +985,6 @@ export default function KwitansiContainer() {
                                                                         >
                                                                             🖨️ Cetak
                                                                         </button>
-                                                                       
                                                                     </>
                                                                 )}
                                                             </div>

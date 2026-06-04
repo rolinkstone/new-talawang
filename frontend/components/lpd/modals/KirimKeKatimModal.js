@@ -14,26 +14,77 @@ export default function KirimKeKatimModal({ show, onClose, kegiatanId, kegiatanN
     const [catatan, setCatatan] = useState('');
     const [error, setError] = useState('');
 
+    // Fungsi untuk refresh notifikasi di dashboard
+    const refreshNotifications = () => {
+        if (typeof window !== 'undefined') {
+            // Trigger event untuk refresh notifikasi
+            window.dispatchEvent(new Event('refresh-notifications'));
+            console.log('🔔 Event refresh-notifications dispatched from KirimKeKatimModal');
+            
+            // Jika ada fungsi global
+            if (window.refreshNotifications) {
+                window.refreshNotifications();
+                console.log('🔔 window.refreshNotifications() called');
+            }
+        }
+    };
+
     const fetchKatimList = async () => {
         if (!session?.accessToken) return;
         
         try {
             setLoadingKatim(true);
-            const response = await axios.get(`${API_BASE_URL}/keycloak/users/all-simple`, {
+            
+            // ============ PERBAIKAN: Gunakan endpoint yang sudah dibuat ============
+            // Coba endpoint untuk mendapatkan Kabag TU dan Katim
+            const response = await axios.get(`${API_BASE_URL}/keycloak/kabag-katim/list`, {
                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
             });
             
             if (response.data.success && response.data.data) {
-                const filtered = response.data.data.filter(user => 
-                    user.jabatan?.toLowerCase().includes('katim') || 
-                    user.jabatan?.toLowerCase().includes('kabag') ||
-                    user.jabatan?.toLowerCase().includes('kepala bidang')
-                );
-                setKatimList(filtered);
+                console.log('📋 Daftar Kabag TU/Katim:', response.data.data);
+                setKatimList(response.data.data);
+            } else {
+                // Fallback ke endpoint all-simple jika gagal
+                console.log('⚠️ Endpoint kabag-katim/list gagal, mencoba fallback...');
+                const fallbackResponse = await axios.get(`${API_BASE_URL}/keycloak/users/all-simple`, {
+                    headers: { 'Authorization': `Bearer ${session.accessToken}` }
+                });
+                
+                if (fallbackResponse.data.success && fallbackResponse.data.data) {
+                    // Filter berdasarkan jabatan atau role
+                    const filtered = fallbackResponse.data.data.filter(user => 
+                        user.jabatan?.toLowerCase().includes('katim') || 
+                        user.jabatan?.toLowerCase().includes('kabag') ||
+                        user.jabatan?.toLowerCase().includes('kepala bidang')
+                    );
+                    setKatimList(filtered);
+                }
             }
         } catch (error) {
             console.error('Error fetching Katim list:', error);
-            setKatimList([]);
+            
+            // Coba fallback ke all-simple
+            try {
+                console.log('🔄 Mencoba fallback ke users/all-simple...');
+                const fallbackResponse = await axios.get(`${API_BASE_URL}/keycloak/users/all-simple`, {
+                    headers: { 'Authorization': `Bearer ${session.accessToken}` }
+                });
+                
+                if (fallbackResponse.data.success && fallbackResponse.data.data) {
+                    const filtered = fallbackResponse.data.data.filter(user => 
+                        user.jabatan?.toLowerCase().includes('katim') || 
+                        user.jabatan?.toLowerCase().includes('kabag') ||
+                        user.jabatan?.toLowerCase().includes('kepala bidang')
+                    );
+                    setKatimList(filtered);
+                } else {
+                    setKatimList([]);
+                }
+            } catch (fallbackError) {
+                console.error('Fallback also failed:', fallbackError);
+                setKatimList([]);
+            }
         } finally {
             setLoadingKatim(false);
         }
@@ -91,6 +142,9 @@ export default function KirimKeKatimModal({ show, onClose, kegiatanId, kegiatanN
             );
 
             if (response.data.success) {
+                // ============ REFRESH NOTIFIKASI ============
+                refreshNotifications();
+                
                 onSuccess(response.data.message);
                 onClose();
             } else {
@@ -154,7 +208,8 @@ export default function KirimKeKatimModal({ show, onClose, kegiatanId, kegiatanN
                                     </div>
                                 ) : katimList.length === 0 ? (
                                     <div className="p-3 text-sm text-yellow-700 bg-yellow-50 rounded-md">
-                                        Tidak ada data Katim/Kabag TU. Silakan hubungi administrator.
+                                        <p>Tidak ada data Katim/Kabag TU ditemukan.</p>
+                                        <p className="text-xs mt-1">Pastikan ada user dengan role "katim" atau "kabag_tu" di Keycloak.</p>
                                     </div>
                                 ) : (
                                     <select
@@ -165,7 +220,10 @@ export default function KirimKeKatimModal({ show, onClose, kegiatanId, kegiatanN
                                         <option value="">-- Pilih Katim/Kabag TU --</option>
                                         {katimList.map(katim => (
                                             <option key={katim.id || katim.user_id} value={katim.id || katim.user_id}>
-                                                {katim.nama} {katim.nip ? `- NIP: ${katim.nip}` : ''} {katim.jabatan ? `(${katim.jabatan})` : ''}
+                                                {katim.nama} 
+                                                {katim.nip ? ` - NIP: ${katim.nip}` : ''} 
+                                                {katim.jabatan ? ` (${katim.jabatan})` : ''}
+                                                {katim.role ? ` [${katim.role.toUpperCase()}]` : ''}
                                             </option>
                                         ))}
                                     </select>

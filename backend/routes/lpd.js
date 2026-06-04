@@ -181,7 +181,8 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
             isAdmin: roleInfo.isAdmin,
             isKatim: roleInfo.isKatim,
             isKabagTu: roleInfo.isKabagTu,
-            isKabalai: roleInfo.isKabalai
+            isKabalai: roleInfo.isKabalai,
+            roles: user.extractedRoles || user.role || []
         });
         
         let query = `
@@ -220,26 +221,64 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
         
         const params = [];
         
-        // 🔥 Filter berdasarkan role
+        // ============ PERBAIKAN: Filter berdasarkan role ============
         if (roleInfo.isAdmin) {
             // Admin melihat semua kegiatan
             console.log('👑 Admin mode: melihat semua kegiatan');
+            query += ` ORDER BY n.created_at DESC`;
         } 
         else if (roleInfo.isKatim || roleInfo.isKabagTu) {
-            // 🔥 Katim/Kabag TU: melihat kegiatan dengan status LPD 'menunggu_katim' dan 'menunggu_kabalai'
-            query += ` AND COALESCE(l.lpd_status, 'draft') IN ('menunggu_katim', 'menunggu_kabalai')`;
-            console.log('📋 Katim/Kabag TU mode: melihat kegiatan dengan status menunggu_katim dan menunggu_kabalai');
+            // ============ PERBAIKAN UNTUK KATIM/KABAG TU ============
+            // Katim/Kabag TU bisa melihat:
+            // 1. Kegiatan yang menunggu persetujuan mereka (status 'menunggu_katim')
+            // 2. Kegiatan yang sudah mereka setujui (status 'menunggu_kabalai' atau 'selesai')
+            // 3. Kegiatan yang sudah ditolak (status 'ditolak_katim')
+            query += ` AND (
+                COALESCE(l.lpd_status, 'draft') = 'menunggu_katim'
+                OR (l.lpd_status = 'menunggu_kabalai' AND l.katim_id = ?)
+                OR (l.lpd_status = 'selesai' AND l.katim_id = ?)
+                OR (l.lpd_status = 'ditolak_katim' AND l.katim_id = ?)
+            )`;
+            params.push(userId, userId, userId);
+            query += ` ORDER BY 
+                CASE 
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_katim' THEN 1
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'ditolak_katim' THEN 2
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai' THEN 3
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'selesai' THEN 4
+                    ELSE 5
+                END,
+                n.created_at DESC`;
+            console.log('📋 Katim/Kabag TU mode: melihat kegiatan menunggu persetujuan, sudah disetujui, dan ditolak');
         } 
         else if (roleInfo.isKabalai) {
-            // 🔥 PERBAIKAN: Kabalai melihat:
+            // Kabalai bisa melihat:
             // 1. Kegiatan yang menunggu persetujuan mereka (status 'menunggu_kabalai')
             // 2. Kegiatan yang sudah disetujui mereka (status 'selesai') - untuk riwayat
-            query += ` AND COALESCE(l.lpd_status, 'draft') IN ('menunggu_kabalai', 'selesai')`;
-            console.log('👔 Kabalai mode: melihat kegiatan dengan status menunggu_kabalai (untuk persetujuan) dan selesai (untuk riwayat)');
+            // 3. Kegiatan di mana mereka terdaftar sebagai pegawai (untuk mengisi LPD)
+            query += ` AND (
+                COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai'
+                OR (l.lpd_status = 'selesai' AND l.kabalai_id = ?)
+                OR EXISTS (
+                    SELECT 1 FROM nominatif_pegawai p 
+                    WHERE p.kegiatan_id = n.id 
+                    AND REPLACE(p.nip, ' ', '') = ?
+                )
+            )`;
+            params.push(userId, cleanUserNip);
+            query += ` ORDER BY 
+                CASE 
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai' THEN 1
+                    WHEN COALESCE(l.lpd_status, 'draft') = 'selesai' THEN 2
+                    ELSE 3
+                END,
+                n.created_at DESC`;
+            console.log('👔 Kabalai mode: melihat kegiatan menunggu persetujuan, riwayat, DAN kegiatan sebagai peserta');
         } 
         else {
-            // 🔥 User biasa (pegawai): hanya melihat kegiatan yang NIP mereka terdaftar sebagai pegawai
-            // ATAU kegiatan yang mereka buat (creator)
+            // User biasa (pegawai/creator): hanya melihat kegiatan yang:
+            // 1. Mereka buat (creator)
+            // 2. ATAU NIP mereka terdaftar sebagai pegawai
             query += ` AND (
                 n.user_id = ? 
                 OR EXISTS (
@@ -249,16 +288,9 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 )
             )`;
             params.push(userId, cleanUserNip);
-            console.log('👤 Regular user mode: hanya melihat kegiatan yang dibuat atau NIP terdaftar sebagai pegawai');
+            query += ` ORDER BY n.created_at DESC`;
+            console.log('👤 Regular user mode: melihat kegiatan yang dibuat atau NIP terdaftar sebagai pegawai');
         }
-        
-        query += ` ORDER BY 
-            CASE 
-                WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai' THEN 1
-                WHEN COALESCE(l.lpd_status, 'draft') = 'selesai' THEN 2
-                ELSE 3
-            END,
-            n.created_at DESC`;
         
         console.log('📝 Final Query:', query);
         console.log('📝 Params:', params);
@@ -298,6 +330,20 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
             
             const isSubmitted = kegiatan.lpd_status && kegiatan.lpd_status !== 'draft' && kegiatan.lpd_status !== null;
             
+            // Tentukan apakah user bisa mengedit LPD (hanya jika status draft dan user adalah pegawai atau creator)
+            const canEditLpd = (kegiatan.lpd_status === 'draft' || kegiatan.lpd_status === null) && 
+                               (kegiatan.user_id === userId || isPegawaiInKegiatan);
+            
+            // Cek apakah user adalah Katim/Kabag TU yang sudah approve kegiatan ini
+            const isApprovedByMe = (roleInfo.isKatim || roleInfo.isKabagTu) && 
+                                   kegiatan.lpd_status === 'menunggu_kabalai' && 
+                                   kegiatan.katim_id === userId;
+            
+            // Cek apakah user adalah Katim/Kabag TU yang menolak kegiatan ini
+            const isRejectedByMe = (roleInfo.isKatim || roleInfo.isKabagTu) && 
+                                   kegiatan.lpd_status === 'ditolak_katim' && 
+                                   kegiatan.katim_id === userId;
+            
             result.push({
                 id: kegiatan.id,
                 kegiatan: kegiatan.kegiatan,
@@ -314,11 +360,15 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 is_pegawai_in_kegiatan: isPegawaiInKegiatan,
                 is_submitted: isSubmitted,
                 lpd_status: kegiatan.lpd_status || 'draft',
+                can_edit_lpd: canEditLpd,
+                // Untuk Katim/Kabag TU
+                is_approved_by_me: isApprovedByMe,
+                is_rejected_by_me: isRejectedByMe,
                 katim_nama: kegiatan.katim_nama,
-                kabalai_nama: kegiatan.kabalai_nama,
                 katim_tgl_ttd: kegiatan.katim_tgl_ttd,
-                kabalai_tgl_ttd: kegiatan.kabalai_tgl_ttd,
                 katim_ttd_path: kegiatan.katim_ttd_path,
+                kabalai_nama: kegiatan.kabalai_nama,
+                kabalai_tgl_ttd: kegiatan.kabalai_tgl_ttd,
                 kabalai_ttd_path: kegiatan.kabalai_ttd_path,
                 created_at: kegiatan.created_at,
                 ppk_nama: kegiatan.ppk_nama,
@@ -980,6 +1030,7 @@ router.post('/kirim-ke-katim/:kegiatanId', keycloakAuth, async (req, res) => {
     const user = req.user;
     const userId = getUserId(user);
     const userNip = user?.nip || '';
+    const roleInfo = getUserRoleInfo(user);
     const { katim_id, katim_nama, katim_nip, catatan } = req.body;
     
     console.log('📤 Mengirim LPD ke Katim:', { kegiatanId, userId, katim_nama });
@@ -995,20 +1046,35 @@ router.post('/kirim-ke-katim/:kegiatanId', keycloakAuth, async (req, res) => {
     let connection;
     try {
         const cleanUserNip = normalizeNip(userNip);
+        
+        // ============ PERBAIKAN: Cek apakah user adalah pegawai ATAU creator kegiatan ============
         const [pegawaiCheck] = await db.query(`
             SELECT p.id FROM nominatif_pegawai p 
             WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
         `, [kegiatanId, cleanUserNip]);
         
-        const isPegawai = pegawaiCheck.length > 0;
+        const [creatorCheck] = await db.query(`
+            SELECT id FROM nominatif_kegiatan 
+            WHERE id = ? AND user_id = ?
+        `, [kegiatanId, userId]);
         
-        if (!isPegawai) {
+        const isPegawai = pegawaiCheck.length > 0;
+        const isCreator = creatorCheck.length > 0;
+        const isAdmin = roleInfo.isAdmin;
+        
+        // Yang boleh mengirim LPD: pegawai yang terdaftar, creator kegiatan, atau admin
+        const canSendLpd = isPegawai || isCreator || isAdmin;
+        
+        console.log(`🔍 Hak akses kirim LPD: isPegawai=${isPegawai}, isCreator=${isCreator}, isAdmin=${isAdmin}, canSend=${canSendLpd}`);
+        
+        if (!canSendLpd) {
             return res.status(403).json({
                 success: false,
-                message: 'Hanya pegawai yang terdaftar dalam kegiatan yang dapat mengirim LPD'
+                message: 'Hanya pegawai yang terdaftar dalam kegiatan, pembuat kegiatan, atau admin yang dapat mengirim LPD'
             });
         }
         
+        // Cek kelengkapan LPD
         const [rincianCheck] = await db.query(
             'SELECT COUNT(*) as count FROM lpd_rincian_kegiatan WHERE kegiatan_id = ?',
             [kegiatanId]
@@ -1061,7 +1127,7 @@ router.post('/kirim-ke-katim/:kegiatanId', keycloakAuth, async (req, res) => {
         await connection.commit();
         connection.release();
         
-        console.log(`✅ LPD kegiatan ${kegiatanId} dikirim ke Katim: ${katim_nama}`);
+        console.log(`✅ LPD kegiatan ${kegiatanId} dikirim ke Katim: ${katim_nama} oleh ${getUsername(user)}`);
         
         res.status(200).json({
             success: true,

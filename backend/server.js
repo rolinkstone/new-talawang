@@ -149,6 +149,7 @@ const keycloakRoutes = require('./routes/keycloak');
 const profileRoutes = require('./routes/profile');
 const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
 const laporanRoutes = require('./routes/laporan');  // TAMBAHKAN INI
+const notifikasiRoutes = require('./routes/notifikasi');  // TAMBAHKAN INI
 
 // ========== MOUNT ROUTES ==========
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -159,6 +160,7 @@ app.use('/api/keycloak', keycloakRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 app.use('/api/laporan', laporanRoutes);  // TAMBAHKAN INI
+app.use('/api/notifikasi', notifikasiRoutes);  // TAMBAHKAN INI
 
 // ========== AUTH ENDPOINTS ==========
 app.post('/api/login', async (req, res) => {

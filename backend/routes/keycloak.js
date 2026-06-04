@@ -203,18 +203,15 @@ router.get('/bendahara/list', keycloakAuth, async (req, res) => {
         
         let bendaharaUsers;
         try {
-            // Coba metode utama
             bendaharaUsers = await getBendaharaUsersFromKeycloak();
         } catch (primaryError) {
             console.warn('⚠️ Primary method failed:', primaryError.message);
             
-            // Coba metode fallback
             try {
                 console.log('🔄 Trying fallback method...');
                 bendaharaUsers = await getAllUsersAndFilterBendahara();
             } catch (fallbackError) {
                 console.error('❌ Fallback method also failed:', fallbackError.message);
-                // Return empty array instead of error
                 bendaharaUsers = [];
             }
         }
@@ -232,11 +229,6 @@ router.get('/bendahara/list', keycloakAuth, async (req, res) => {
         }
         
         console.log(`✅ Successfully retrieved ${bendaharaUsers.length} Bendahara users`);
-        
-        // Log contoh data
-        bendaharaUsers.slice(0, 3).forEach((user, idx) => {
-            console.log(`${idx + 1}. ${user.nama} (${user.username}) - NIP: ${user.nip || '-'}`);
-        });
         
         const formattedUsers = bendaharaUsers.map(user => ({
             user_id: user.user_id,
@@ -261,7 +253,6 @@ router.get('/bendahara/list', keycloakAuth, async (req, res) => {
     } catch (error) {
         console.error('❌ Error fetching Bendahara list:', error.message);
         
-        // Return empty array instead of error to prevent frontend crash
         return res.status(200).json({
             success: true,
             message: 'Gagal mengambil daftar Bendahara, menggunakan data kosong',
@@ -380,6 +371,404 @@ router.get('/bendahara/:id', keycloakAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Gagal mengambil detail Bendahara',
+            error: error.message
+        });
+    }
+});
+
+// ========== KABAG TU & KATIM MANAGEMENT ROUTES ==========
+
+// Helper function untuk mendapatkan user berdasarkan role dari Keycloak
+async function getUsersByRoleFromKeycloak(role) {
+    const axios = require('axios');
+    const { getAdminCliToken } = require('../utils/keycloakHelpers');
+    
+    try {
+        const adminToken = await getAdminCliToken();
+        
+        console.log(`🔍 Fetching users with role: ${role} from Keycloak...`);
+        
+        const response = await axios.get(
+            `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/roles/${role}/users`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                params: {
+                    max: 100
+                }
+            }
+        );
+        
+        const users = response.data;
+        
+        const getAttribute = (user, attributeName) => {
+            if (!user.attributes || !user.attributes[attributeName]) return '';
+            const value = user.attributes[attributeName];
+            return Array.isArray(value) ? (value[0] || '') : (String(value) || '');
+        };
+        
+        const formattedUsers = users.map(user => {
+            let nama = '';
+            if (user.firstName || user.lastName) {
+                nama = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+            } else if (getAttribute(user, 'nama')) {
+                nama = getAttribute(user, 'nama');
+            } else {
+                nama = user.username || '';
+            }
+            
+            return {
+                user_id: user.id,
+                username: user.username,
+                email: user.email,
+                nama: nama,
+                nip: getAttribute(user, 'nip') || '',
+                jabatan: getAttribute(user, 'jabatan') || role.toUpperCase(),
+                unit_kerja: getAttribute(user, 'unitKerja') || getAttribute(user, 'unit_kerja') || '',
+                role: role,
+                enabled: user.enabled,
+                email_verified: user.emailVerified || false,
+                first_name: user.firstName || '',
+                last_name: user.lastName || ''
+            };
+        });
+        
+        console.log(`✅ Found ${formattedUsers.length} users with role ${role}`);
+        return formattedUsers;
+        
+    } catch (error) {
+        console.error(`❌ Error fetching users with role ${role}:`, error.message);
+        if (error.response?.status === 404) {
+            console.log(`⚠️ Role ${role} not found in Keycloak`);
+            return [];
+        }
+        throw error;
+    }
+}
+
+// Helper function untuk mendapatkan user dengan multiple roles (kabag_tu atau katim)
+async function getKabagTuAndKatimUsers() {
+    const axios = require('axios');
+    const { getAdminCliToken } = require('../utils/keycloakHelpers');
+    
+    try {
+        const adminToken = await getAdminCliToken();
+        const allUsers = [];
+        const seenUserIds = new Set();
+        
+        const roles = ['kabag_tu', 'katim'];
+        
+        for (const role of roles) {
+            try {
+                const response = await axios.get(
+                    `${process.env.KEYCLOAK_SERVER_URL}/admin/realms/${process.env.KEYCLOAK_REALM}/roles/${role}/users`,
+                    {
+                        headers: { 'Authorization': `Bearer ${adminToken}` },
+                        params: { max: 100 }
+                    }
+                );
+                
+                const users = response.data;
+                
+                const getAttribute = (user, attributeName) => {
+                    if (!user.attributes || !user.attributes[attributeName]) return '';
+                    const value = user.attributes[attributeName];
+                    return Array.isArray(value) ? (value[0] || '') : (String(value) || '');
+                };
+                
+                for (const user of users) {
+                    if (!seenUserIds.has(user.id)) {
+                        seenUserIds.add(user.id);
+                        
+                        let nama = '';
+                        if (user.firstName || user.lastName) {
+                            nama = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+                        } else if (getAttribute(user, 'nama')) {
+                            nama = getAttribute(user, 'nama');
+                        } else {
+                            nama = user.username || '';
+                        }
+                        
+                        allUsers.push({
+                            user_id: user.id,
+                            username: user.username,
+                            email: user.email,
+                            nama: nama,
+                            nip: getAttribute(user, 'nip') || '',
+                            jabatan: getAttribute(user, 'jabatan') || role.toUpperCase(),
+                            unit_kerja: getAttribute(user, 'unitKerja') || getAttribute(user, 'unit_kerja') || '',
+                            role: role,
+                            roles: [role],
+                            enabled: user.enabled,
+                            email_verified: user.emailVerified || false
+                        });
+                    }
+                }
+                console.log(`✅ Found ${users.length} users with role ${role}`);
+            } catch (err) {
+                if (err.response?.status === 404) {
+                    console.log(`⚠️ Role ${role} not found in Keycloak`);
+                } else {
+                    console.error(`Error fetching role ${role}:`, err.message);
+                }
+            }
+        }
+        
+        console.log(`✅ Total unique users with roles kabag_tu/katim: ${allUsers.length}`);
+        return allUsers;
+        
+    } catch (error) {
+        console.error('❌ Error fetching kabag_tu/katim users:', error.message);
+        return [];
+    }
+}
+
+// GET - Daftar Kabag TU dan Katim dari Keycloak
+router.get('/kabag-katim/list', keycloakAuth, async (req, res) => {
+    const username = getUsername(req.user);
+    
+    console.log(`📋 ${username} mengakses daftar Kabag TU dan Katim`);
+    
+    try {
+        console.log('🔐 Attempting to get Kabag TU/Katim list from Keycloak...');
+        
+        let kabagKatimUsers;
+        try {
+            kabagKatimUsers = await getKabagTuAndKatimUsers();
+        } catch (primaryError) {
+            console.warn('⚠️ Primary method failed:', primaryError.message);
+            kabagKatimUsers = [];
+        }
+        
+        if (!kabagKatimUsers || kabagKatimUsers.length === 0) {
+            console.log('⚠️ Tidak ada user Kabag TU/Katim ditemukan di Keycloak');
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada user dengan role Kabag TU atau Katim ditemukan di sistem',
+                data: [],
+                count: 0,
+                source: 'keycloak',
+                suggestion: 'Pastikan ada user yang diberikan role "kabag_tu" atau "katim" di Keycloak'
+            });
+        }
+        
+        console.log(`✅ Successfully retrieved ${kabagKatimUsers.length} Kabag TU/Katim users`);
+        
+        // Log contoh data
+        kabagKatimUsers.slice(0, 5).forEach((user, idx) => {
+            console.log(`${idx + 1}. ${user.nama} (${user.username}) - Role: ${user.role}, NIP: ${user.nip || '-'}`);
+        });
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Daftar Kabag TU dan Katim berhasil diambil dari Keycloak',
+            data: kabagKatimUsers,
+            count: kabagKatimUsers.length,
+            source: 'keycloak'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Kabag TU/Katim list:', error.message);
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Gagal mengambil daftar Kabag TU/Katim, menggunakan data kosong',
+            data: [],
+            count: 0,
+            error: error.message
+        });
+    }
+});
+
+// GET - Daftar Kabag TU dari Keycloak
+router.get('/kabag-tu/list', keycloakAuth, async (req, res) => {
+    const username = getUsername(req.user);
+    
+    console.log(`📋 ${username} mengakses daftar Kabag TU`);
+    
+    try {
+        const kabagTuUsers = await getUsersByRoleFromKeycloak('kabag_tu');
+        
+        if (!kabagTuUsers || kabagTuUsers.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada user dengan role Kabag TU ditemukan',
+                data: [],
+                count: 0
+            });
+        }
+        
+        console.log(`✅ Retrieved ${kabagTuUsers.length} Kabag TU users`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Daftar Kabag TU berhasil diambil',
+            data: kabagTuUsers,
+            count: kabagTuUsers.length
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Kabag TU list:', error.message);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Gagal mengambil daftar Kabag TU',
+            data: [],
+            count: 0,
+            error: error.message
+        });
+    }
+});
+
+// GET - Daftar Katim dari Keycloak
+router.get('/katim/list', keycloakAuth, async (req, res) => {
+    const username = getUsername(req.user);
+    
+    console.log(`📋 ${username} mengakses daftar Katim`);
+    
+    try {
+        const katimUsers = await getUsersByRoleFromKeycloak('katim');
+        
+        if (!katimUsers || katimUsers.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada user dengan role Katim ditemukan',
+                data: [],
+                count: 0
+            });
+        }
+        
+        console.log(`✅ Retrieved ${katimUsers.length} Katim users`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Daftar Katim berhasil diambil',
+            data: katimUsers,
+            count: katimUsers.length
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Katim list:', error.message);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Gagal mengambil daftar Katim',
+            data: [],
+            count: 0,
+            error: error.message
+        });
+    }
+});
+
+// GET - Search Kabag TU/Katim berdasarkan nama atau NIP
+router.get('/kabag-katim/search', keycloakAuth, async (req, res) => {
+    const { query } = req.query;
+    const username = getUsername(req.user);
+    
+    console.log(`🔍 ${username} mencari Kabag TU/Katim dengan query: ${query}`);
+    
+    if (!query || query.trim().length < 2) {
+        return res.status(400).json({
+            success: false,
+            message: 'Query pencarian minimal 2 karakter'
+        });
+    }
+    
+    try {
+        let kabagKatimUsers;
+        try {
+            kabagKatimUsers = await getKabagTuAndKatimUsers();
+        } catch (error) {
+            console.warn('⚠️ Failed to get Kabag/Katim users:', error.message);
+            kabagKatimUsers = [];
+        }
+        
+        if (!kabagKatimUsers || kabagKatimUsers.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Tidak ada data Kabag TU/Katim ditemukan',
+                data: [],
+                count: 0
+            });
+        }
+        
+        const searchTerm = query.toLowerCase();
+        const filteredUsers = kabagKatimUsers.filter(user => 
+            user.nama.toLowerCase().includes(searchTerm) ||
+            (user.nip && user.nip.toLowerCase().includes(searchTerm)) ||
+            (user.email && user.email.toLowerCase().includes(searchTerm)) ||
+            (user.jabatan && user.jabatan.toLowerCase().includes(searchTerm)) ||
+            (user.role && user.role.toLowerCase().includes(searchTerm))
+        );
+        
+        console.log(`✅ Found ${filteredUsers.length} Kabag TU/Katim matching search`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Pencarian Kabag TU/Katim berhasil',
+            data: filteredUsers,
+            count: filteredUsers.length,
+            search_query: query
+        });
+        
+    } catch (error) {
+        console.error('❌ Error searching Kabag TU/Katim:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            message: 'Gagal melakukan pencarian Kabag TU/Katim',
+            error: error.message
+        });
+    }
+});
+
+// GET - Detail Kabag TU/Katim berdasarkan ID
+router.get('/kabag-katim/:id', keycloakAuth, async (req, res) => {
+    const { id } = req.params;
+    const username = getUsername(req.user);
+    
+    console.log(`👤 ${username} mengakses detail Kabag TU/Katim ID: ${id}`);
+    
+    if (!id) {
+        return res.status(400).json({
+            success: false,
+            message: 'ID tidak valid'
+        });
+    }
+    
+    try {
+        let kabagKatimUsers;
+        try {
+            kabagKatimUsers = await getKabagTuAndKatimUsers();
+        } catch (error) {
+            console.warn('⚠️ Failed to get Kabag/Katim users:', error.message);
+            kabagKatimUsers = [];
+        }
+        
+        const foundUser = kabagKatimUsers.find(user => user.user_id === id);
+        
+        if (!foundUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'User tidak ditemukan'
+            });
+        }
+        
+        console.log(`✅ Found user: ${foundUser.nama} (Role: ${foundUser.role})`);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Detail user berhasil diambil',
+            data: foundUser
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching user detail:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengambil detail user',
             error: error.message
         });
     }
@@ -507,7 +896,6 @@ router.get('/users/all-simple', keycloakAuth, async (req, res) => {
         
         console.log(`✅ ${formattedUsers.length} users formatted`);
         
-        // Log sample data untuk debug
         if (formattedUsers.length > 0) {
             console.log('📋 Sample user data (first 3):');
             formattedUsers.slice(0, 3).forEach((user, idx) => {

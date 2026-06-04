@@ -13,20 +13,19 @@ const normalizeStNumber = (noSt) => {
     // Extract 7 digit terakhir dari nomor ST
     const match = noSt.match(/(\d{7})$/);
     if (match) {
-        return match[1]; // Kembalikan 7 digit terakhir
+        return match[1];
     }
     
-    // Alternatif: extract semua angka
     const numbers = noSt.match(/\d+/g);
     if (numbers && numbers.length > 0) {
         const lastNumbers = numbers[numbers.length - 1];
         if (lastNumbers.length >= 7) {
-            return lastNumbers.slice(-7); // Ambil 7 digit terakhir
+            return lastNumbers.slice(-7);
         }
         return lastNumbers;
     }
     
-    return noSt.trim(); // Fallback ke string asli
+    return noSt.trim();
 };
 
 // Cek apakah user memiliki role Kepala Balai
@@ -58,7 +57,24 @@ const hasAdminRole = (user) => {
     return false;
 };
 
-// Helper untuk mengecek apakah NIP valid (bukan -, --, ---, null, empty)
+// ============ PERBAIKAN: TAMBAHKAN FUNGSI CEK KABAG TU ============
+const hasKabagTuRole = (user) => {
+    const roles = user.extractedRoles || user.role || [];
+    if (Array.isArray(roles)) {
+        return roles.some(r => r.toLowerCase().includes('kabag_tu'));
+    }
+    if (typeof roles === 'string') {
+        return roles.toLowerCase().includes('kabag_tu');
+    }
+    return false;
+};
+
+// ============ PERBAIKAN: Fungsi untuk cek akses laporan ============
+const canAccessLaporan = (user) => {
+    return hasAdminRole(user) || hasKabagTuRole(user) || hasKepalaBalaiRole(user);
+};
+
+// Helper untuk mengecek apakah NIP valid
 const isValidNip = (nip) => {
     if (!nip) return false;
     const nipStr = String(nip).trim();
@@ -66,7 +82,7 @@ const isValidNip = (nip) => {
     if (nipStr === '-') return false;
     if (nipStr === '--') return false;
     if (nipStr === '---') return false;
-    if (nipStr.match(/^[-]+$/)) return false; // hanya karakter -
+    if (nipStr.match(/^[-]+$/)) return false;
     return true;
 };
 
@@ -78,23 +94,25 @@ router.get('/test', keycloakAuth, async (req, res) => {
         user: {
             username: getUsername(req.user),
             isKabalai: hasKepalaBalaiRole(req.user),
-            isAdmin: hasAdminRole(req.user)
+            isKabagTu: hasKabagTuRole(req.user),
+            isAdmin: hasAdminRole(req.user),
+            canAccess: canAccessLaporan(req.user)
         }
     });
 });
 
-// routes/laporan.js - Perbaikan untuk endpoint /rekap-pegawai
-
 // ========== LAPORAN REKAP PEGAWAI PERJADIN ==========
+// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
 router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
     console.log(`📊 ${username} mengakses laporan rekap pegawai perjadin`);
     
-    if (!hasKepalaBalaiRole(req.user) && !hasAdminRole(req.user)) {
+    // PERBAIKAN: Cek akses untuk Admin, Kabag TU, atau Kepala Balai
+    if (!canAccessLaporan(req.user)) {
         return res.status(403).json({
             success: false,
-            message: 'Akses ditolak. Hanya Kepala Balai dan Admin yang dapat mengakses laporan ini.'
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengakses laporan ini.'
         });
     }
     
@@ -133,7 +151,6 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             ? `WHERE ${whereConditions.join(' AND ')}` 
             : '';
         
-        // Query dengan normalisasi nomor ST menggunakan SUBSTRING atau REGEXP di SQL
         const query = `
             SELECT 
                 pegawai_nip_normalized,
@@ -169,7 +186,6 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                     AND TRIM(p.nip) != '---'
                     AND TRIM(p.nip) NOT REGEXP '^-+$'
                 GROUP BY REPLACE(p.nip, ' ', ''), 
-                    -- Normalisasi nomor ST: ambil 7 digit terakhir
                     CASE 
                         WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
                         WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
@@ -245,20 +261,20 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
 });
 
 // ========== GET DROPDOWN OPTIONS ==========
+// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
 router.get('/options', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
     console.log(`📋 ${username} mengakses options laporan`);
     
-    if (!hasKepalaBalaiRole(req.user) && !hasAdminRole(req.user)) {
+    if (!canAccessLaporan(req.user)) {
         return res.status(403).json({
             success: false,
-            message: 'Akses ditolak'
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengakses.'
         });
     }
     
     try {
-        // Daftar pegawai unik berdasarkan NIP (filter NIP valid)
         const pegawaiQuery = `
             SELECT DISTINCT 
                 REPLACE(p.nip, ' ', '') as id,
@@ -279,7 +295,6 @@ router.get('/options', keycloakAuth, async (req, res) => {
             ORDER BY MAX(p.nama) ASC
         `;
         
-        // Daftar tahun yang tersedia
         const tahunQuery = `
             SELECT DISTINCT YEAR(tgl_st) as tahun
             FROM accounting.nominatif_kegiatan
@@ -291,7 +306,6 @@ router.get('/options', keycloakAuth, async (req, res) => {
             ORDER BY tahun DESC
         `;
         
-        // Daftar status_2 yang tersedia
         const status2Query = `
             SELECT DISTINCT status_2
             FROM accounting.nominatif_kegiatan
@@ -299,7 +313,6 @@ router.get('/options', keycloakAuth, async (req, res) => {
             ORDER BY status_2 ASC
         `;
         
-        // Daftar jenis_spm yang tersedia
         const jenisSpmQuery = `
             SELECT DISTINCT jenis_spm
             FROM accounting.nominatif_kegiatan
@@ -334,21 +347,16 @@ router.get('/options', keycloakAuth, async (req, res) => {
     }
 });
 
-// routes/laporan.js - Perbaikan untuk endpoint /pegawai/:nip
-
 // ========== LAPORAN DETAIL PER PEGAWAI ==========
-// routes/laporan.js - Perbaikan untuk endpoint /pegawai/:nip
-
-// ========== LAPORAN DETAIL PER PEGAWAI ==========
-// ========== LAPORAN DETAIL PER PEGAWAI ==========
+// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
 router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
     const { nip } = req.params;
     const username = getUsername(req.user);
     
-    if (!hasKepalaBalaiRole(req.user) && !hasAdminRole(req.user)) {
+    if (!canAccessLaporan(req.user)) {
         return res.status(403).json({
             success: false,
-            message: 'Akses ditolak. Hanya Kepala Balai dan Admin yang dapat mengakses laporan ini.'
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengakses laporan ini.'
         });
     }
     
@@ -364,7 +372,6 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
         const filterTahun = tahun || new Date().getFullYear();
         const normalizedNip = nip.replace(/\s/g, '');
         
-        // Query dengan normalisasi nomor ST
         const query = `
             SELECT 
                 p.nama as pegawai_nama,
@@ -414,7 +421,6 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
             });
         }
         
-        // Ambil informasi pegawai dari baris pertama
         const pegawaiInfo = {
             id: normalizedNip,
             nama: rows[0].pegawai_nama,
@@ -423,7 +429,6 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
             jabatan: rows[0].pegawai_jabatan
         };
         
-        // Kelompokkan berdasarkan normalized_no_st (7 digit terakhir)
         const groupedByTrip = {};
         
         for (const row of rows) {
@@ -448,16 +453,13 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                 };
             }
             
-            // Tambahkan nama kegiatan (hindari duplikasi)
             if (!groupedByTrip[tripKey].kegiatan_nama.includes(row.kegiatan_nama)) {
                 groupedByTrip[tripKey].kegiatan_nama.push(row.kegiatan_nama);
             }
             
-            // Tambahkan uang harian
             groupedByTrip[tripKey].uang_harian += parseFloat(row.uang_harian) || 0;
         }
         
-        // Hitung ringkasan
         let totalPerjalanan = 0;
         let totalHariDinas = 0;
         let totalUangHarian = 0;
@@ -512,14 +514,14 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
 });
 
 // ========== EXPORT LAPORAN (CSV) ==========
-// ========== EXPORT LAPORAN (CSV) ==========
+// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
 router.get('/export/csv', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
-    if (!hasKepalaBalaiRole(req.user) && !hasAdminRole(req.user)) {
+    if (!canAccessLaporan(req.user)) {
         return res.status(403).json({
             success: false,
-            message: 'Akses ditolak'
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengexport laporan.'
         });
     }
     

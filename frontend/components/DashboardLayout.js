@@ -3,13 +3,74 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { 
-  FaHome, FaBox, FaUsers, FaShoppingCart, FaCog, FaSignOutAlt, 
-  FaTruck, FaListAlt, FaCreditCard, FaBell, FaClipboardList, FaSearch,
-  FaTimesCircle, FaFileInvoice, FaReceipt, FaFileAlt, FaCamera, FaCalendarAlt,
-  FaChartBar  // Tambahan icon untuk laporan
+  FaHome, FaCog, FaSignOutAlt, FaBell, FaClipboardList,
+  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar
 } from 'react-icons/fa';
-
 import { useSession, signOut } from 'next-auth/react';
+
+// ============ CUSTOM HOOK UNTUK NOTIFIKASI ============
+function useNotifications() {
+  const { data: session } = useSession();
+  const [notifications, setNotifications] = useState({
+    lpd: 0,
+    kwitansi: 0,
+    total: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchNotifications = async () => {
+    if (!session?.accessToken) {
+      console.log('🔔 No access token, skipping notification fetch');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const url = `${apiUrl}/notifikasi/count`;
+      
+      console.log(`🔔 Fetching notifications from: ${url}`);
+      
+      const response = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      console.log('🔔 Notifikasi response:', {
+        status: response.status,
+        success: data.success,
+        data: data.data,
+        error: data.message
+      });
+      
+      if (data.success) {
+        setNotifications(data.data);
+        console.log(`✅ Notifikasi berhasil: LPD=${data.data.lpd}, Kwitansi=${data.data.kwitansi}, Total=${data.data.total}`);
+      } else {
+        console.warn('⚠️ Notifikasi API returned success=false:', data.message);
+        setError(data.message);
+      }
+    } catch (err) {
+      console.error('❌ Error fetching notifications:', err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [session?.accessToken]);
+
+  return { notifications, loading, error, refresh: fetchNotifications };
+}
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -17,6 +78,43 @@ export default function DashboardLayout({ children }) {
   const { data: session, status } = useSession();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const loading = status === 'loading';
+  
+  // Ambil notifikasi
+  const { notifications, loading: notifLoading, error: notifError, refresh: refreshNotif } = useNotifications();
+
+  // ============ EVENT LISTENER UNTUK REFRESH NOTIFIKASI ============
+  useEffect(() => {
+    const handleRefreshNotifications = () => {
+      console.log('🔔🔔🔔 Received refresh-notifications event, refreshing dashboard notifications... 🔔🔔🔔');
+      if (refreshNotif) {
+        refreshNotif();
+      }
+    };
+    
+    window.addEventListener('refresh-notifications', handleRefreshNotifications);
+    window.refreshNotifications = refreshNotif;
+    
+    console.log('✅ DashboardLayout: Event listener untuk refresh-notifications telah terdaftar');
+    
+    return () => {
+      window.removeEventListener('refresh-notifications', handleRefreshNotifications);
+      delete window.refreshNotifications;
+      console.log('🧹 DashboardLayout: Event listener dibersihkan');
+    };
+  }, [refreshNotif]);
+
+  // Debug log untuk mengecek notifikasi
+  useEffect(() => {
+    if (notifications) {
+      console.log('📊 Dashboard notifikasi state:', {
+        lpd: notifications.lpd,
+        kwitansi: notifications.kwitansi,
+        total: notifications.total,
+        loading: notifLoading,
+        error: notifError
+      });
+    }
+  }, [notifications, notifLoading, notifError]);
 
   useEffect(() => {
     if (!loading && !session) {
@@ -24,123 +122,83 @@ export default function DashboardLayout({ children }) {
     }
   }, [session, loading, router]);
 
-  // Fungsi untuk cek apakah user memiliki role PPK
+  // ============ FUNGSI CEK ROLE USER ============
   const hasPPKRole = () => {
-    console.log("🔍 Checking PPK role in session:", session);
-    
     if (!session?.user) return false;
     
-    console.log("🔍 User data:", session.user);
-    console.log("🔍 User role:", session.user.role);
-    
-    if (session.user.role) {
-      const role = session.user.role.toLowerCase();
-      console.log("🔍 Checking role:", role);
-      
-      if (role.includes('ppk')) {
-        console.log("✅ User has PPK role (from user.role)");
-        return true;
-      }
+    if (session.user.role && session.user.role.toLowerCase().includes('ppk')) return true;
+    if (session.user.roles) {
+      const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+      return roles.some(r => r.toLowerCase().includes('ppk'));
     }
-    
-    if (session.user.roles && Array.isArray(session.user.roles)) {
-      const hasRole = session.user.roles.some(role => 
-        role.toLowerCase().includes('ppk')
-      );
-      if (hasRole) {
-        console.log("✅ User has PPK role (from user.roles array)");
-        return true;
-      }
-    }
-    
-    if (session.user.roles && typeof session.user.roles === 'string') {
-      if (session.user.roles.toLowerCase().includes('ppk')) {
-        console.log("✅ User has PPK role (from user.roles string)");
-        return true;
-      }
-    }
-    
-    console.log("❌ User does NOT have PPK role");
     return false;
   };
 
-  // Fungsi untuk cek apakah user memiliki role Bendahara
   const hasBendaharaRole = () => {
     if (!session?.user) return false;
-    
-    if (session.user.role) {
-      const role = session.user.role.toLowerCase();
-      if (role.includes('bendahara')) {
-        return true;
-      }
+    if (session.user.role && session.user.role.toLowerCase().includes('bendahara')) return true;
+    if (session.user.roles) {
+      const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+      return roles.some(r => r.toLowerCase().includes('bendahara'));
     }
-    
-    if (session.user.roles && Array.isArray(session.user.roles)) {
-      return session.user.roles.some(role => role.toLowerCase().includes('bendahara'));
-    }
-    
-    if (session.user.roles && typeof session.user.roles === 'string') {
-      return session.user.roles.toLowerCase().includes('bendahara');
-    }
-    
     return false;
   };
 
-  // Fungsi untuk cek apakah user memiliki role Admin
   const hasAdminRole = () => {
     if (!session?.user) return false;
-    
-    if (session.user.role) {
-      const role = session.user.role.toLowerCase();
-      if (role.includes('admin')) {
-        return true;
-      }
+    if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
+    if (session.user.roles) {
+      const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+      return roles.some(r => r.toLowerCase().includes('admin'));
     }
-    
-    if (session.user.roles && Array.isArray(session.user.roles)) {
-      return session.user.roles.some(role => role.toLowerCase().includes('admin'));
-    }
-    
-    if (session.user.roles && typeof session.user.roles === 'string') {
-      return session.user.roles.toLowerCase().includes('admin');
-    }
-    
     return false;
   };
 
-  // Fungsi untuk cek apakah user memiliki role Kepala Balai (Ka Balai)
-  const hasKepalaBalaiRole = () => {
+  const hasKabagTuRole = () => {
     if (!session?.user) return false;
-    
-    if (session.user.role) {
-      const role = session.user.role.toLowerCase();
-      if (role.includes('kabalai') || role.includes('kepala balai') || role === 'kepalabalai') {
-        return true;
-      }
+    if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
+    if (session.user.roles) {
+      const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+      return roles.some(r => r.toLowerCase().includes('kabag_tu'));
     }
-    
-    if (session.user.roles && Array.isArray(session.user.roles)) {
-      return session.user.roles.some(role => 
-        role.toLowerCase().includes('kabalai') || 
-        role.toLowerCase().includes('kepala balai')
-      );
-    }
-    
-    if (session.user.roles && typeof session.user.roles === 'string') {
-      const roleLower = session.user.roles.toLowerCase();
-      return roleLower.includes('kabalai') || roleLower.includes('kepala balai');
-    }
-    
     return false;
   };
+
+  const hasKepalaBalaiRole = () => {
+    if (!session?.user) return false;
+    const roleLower = session.user.role?.toLowerCase() || '';
+    if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
+    if (session.user.roles) {
+      const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
+      return roles.some(r => {
+        const rLower = r.toLowerCase();
+        return rLower.includes('kabalai') || rLower.includes('kepala balai');
+      });
+    }
+    return false;
+  };
+
+  // Debug role session
+  useEffect(() => {
+    if (session?.user) {
+      console.log('🔍 DEBUG Session User:', {
+        name: session.user.name,
+        email: session.user.email,
+        role: session.user.role,
+        roles: session.user.roles,
+        hasPPK: hasPPKRole(),
+        hasBendahara: hasBendaharaRole(),
+        hasAdmin: hasAdminRole(),
+        hasKabagTu: hasKabagTuRole(),
+        hasKepalaBalai: hasKepalaBalaiRole()
+      });
+    }
+  }, [session]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      console.log("🚪 Logout via NextAuth");
-      await signOut({
-        callbackUrl: "/login"
-      });
+      await signOut({ callbackUrl: "/login" });
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";
@@ -160,9 +218,7 @@ export default function DashboardLayout({ children }) {
     );
   }
 
-  if (!session) {
-    return null;
-  }
+  if (!session) return null;
 
   const getUserName = () => {
     return session?.user?.name || 
@@ -181,94 +237,107 @@ export default function DashboardLayout({ children }) {
   };
 
   const getUserRoleDisplay = () => {
-    if (session?.user?.role) {
-      return session.user.role;
-    }
+    if (session?.user?.role) return session.user.role;
     if (session?.user?.roles) {
-      if (Array.isArray(session.user.roles)) {
-        return session.user.roles.join(', ');
-      }
-      return session.user.roles;
+      return Array.isArray(session.user.roles) ? session.user.roles.join(', ') : session.user.roles;
     }
     return 'User';
   };
 
+  // ============ MENU DENGAN NOTIFIKASI ============
+  // Cek apakah user bisa mengakses laporan (Admin, Kabag TU, atau Kepala Balai)
+  const canAccessLaporan = hasAdminRole() || hasKabagTuRole() || hasKepalaBalaiRole();
+
   const menuGroups = [
     {
-        title: 'Home',
-        items: [
-            { href: '/', label: 'Beranda', icon: <FaHome /> }
-        ]
+      title: 'Home',
+      items: [
+        { href: '/', label: 'Beranda', icon: <FaHome /> }
+      ]
     },
     {
-        title: 'Transaksi',
-        items: [
-            { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
-            // Menu Kwitansi - ditampilkan untuk SEMUA USER
-            { 
-                href: '/kwitansi', 
-                label: 'Kuitansi Perjadin', 
-                icon: <FaReceipt />,
-                description: 'Input kuitansi perjalanan dinas'
-            },
-            // Menu LPD - Laporan Perjalanan Dinas
-            { 
-                href: '/lpd', 
-                label: 'Laporan Perjadin', 
-                icon: <FaFileAlt />,
-                description: 'Laporan Perjalanan Dinas (LPD)'
-            },
-            // Menu Cari/Batalkan - ditampilkan untuk role PPK dan ADMIN
-            ...(hasPPKRole() || hasAdminRole() ? [
-                { 
-                    href: '/search', 
-                    label: 'Batalkan Nominatif', 
-                    icon: <FaTimesCircle />,
-                    description: 'Membatalkan kegiatan (PPK & Admin)',
-                    badge: hasAdminRole() ? 'Admin' : 'PPK'
-                }
-            ] : [])
-        ]
+      title: 'Transaksi',
+      items: [
+        { href: '/kegiatan', label: 'Nominatif', icon: <FaClipboardList /> },
+        { 
+          href: '/lpd', 
+          label: 'Laporan Perjadin', 
+          icon: <FaFileAlt />,
+          description: 'Laporan Perjalanan Dinas (LPD)',
+          badge: notifications.lpd > 0 ? notifications.lpd : null,
+          badgeColor: 'bg-orange-500'
+        },
+        { 
+          href: '/kwitansi', 
+          label: 'Kuitansi Perjadin', 
+          icon: <FaReceipt />,
+          description: 'Input kuitansi perjalanan dinas',
+          badge: notifications.kwitansi > 0 ? notifications.kwitansi : null,
+          badgeColor: 'bg-red-500'
+        },
+        ...(hasPPKRole() || hasAdminRole() ? [
+          { 
+            href: '/search', 
+            label: 'Batalkan Nominatif', 
+            icon: <FaTimesCircle />,
+            description: 'Membatalkan kegiatan (PPK & Admin)',
+            badge: hasAdminRole() ? 'Admin' : 'PPK',
+            badgeColor: hasAdminRole() ? 'bg-red-500' : 'bg-yellow-500'
+          }
+        ] : [])
+      ]
     },
-    // MENU LAPORAN UNTUK KEPALA BALAI
-    ...(hasKepalaBalaiRole() || hasAdminRole() ? [{
-        title: 'Laporan',
-        items: [
-            { 
-                href: '/laporan', 
-                label: 'Rekap Perjadin Pegawai', 
-                icon: <FaChartBar />,
-                description: 'Laporan perjalanan dinas per pegawai',
-                badge: hasAdminRole() ? 'Admin' : 'Ka. Balai'
-            }
-        ]
+    // MENU LAPORAN - untuk Admin, Kabag TU, dan Kepala Balai
+    ...(canAccessLaporan ? [{
+      title: 'Laporan',
+      items: [
+        { 
+          href: '/laporan', 
+          label: 'Rekap Perjadin Pegawai', 
+          icon: <FaChartBar />,
+          description: 'Laporan rekap perjalanan dinas seluruh pegawai',
+          badge: hasAdminRole() ? 'Admin' : 
+                 hasKabagTuRole() ? 'Kabag TU' : 
+                 hasKepalaBalaiRole() ? 'Ka. Balai' : null,
+          badgeColor: hasAdminRole() ? 'bg-red-500' : 
+                      hasKabagTuRole() ? 'bg-blue-500' : 
+                      'bg-purple-500'
+        }
+      ]
     }] : []),
     {
-        title: 'Pengaturan',
-        items: [
-            { href: '/profile', label: 'Profile', icon: <FaCog /> },
-            { href: '/setting', label: 'Settings', icon: <FaCog /> }
-        ]
+      title: 'Pengaturan',
+      items: [
+        { href: '/profile', label: 'Profile', icon: <FaCog /> },
+        { href: '/setting', label: 'Settings', icon: <FaCog /> }
+      ]
     }
-];
+  ];
 
-  const debugInfo = {
-    hasPPK: hasPPKRole(),
-    hasBendahara: hasBendaharaRole(),
-    hasAdmin: hasAdminRole(),
-    hasKepalaBalai: hasKepalaBalaiRole(),
-    userRole: session?.user?.role,
-    userRoles: session?.user?.roles,
-    isArray: Array.isArray(session?.user?.roles),
-    allUserData: session?.user
+  // Role badge untuk user info
+  const getUserRoleBadgeClass = () => {
+    if (hasAdminRole()) return 'bg-red-600';
+    if (hasPPKRole()) return 'bg-yellow-600';
+    if (hasBendaharaRole()) return 'bg-green-600';
+    if (hasKabagTuRole()) return 'bg-blue-600';
+    if (hasKepalaBalaiRole()) return 'bg-purple-600';
+    return 'bg-gray-600';
+  };
+
+  const getUserRoleBadgeText = () => {
+    if (hasAdminRole()) return 'Admin';
+    if (hasPPKRole()) return 'PPK';
+    if (hasBendaharaRole()) return 'Bendahara';
+    if (hasKabagTuRole()) return 'Kabag TU';
+    if (hasKepalaBalaiRole()) return 'Ka. Balai';
+    return 'User';
   };
 
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
       <aside className={`
-        flex flex-col
-        transition-all duration-300 ease-in-out
+        flex flex-col transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'w-64' : 'w-16'}
         bg-gray-800 text-white
       `}>
@@ -308,7 +377,7 @@ export default function DashboardLayout({ children }) {
                     key={itemIndex}
                     href={item.href}
                     className={`
-                      flex items-center py-3 px-3 rounded-lg
+                      flex items-center py-3 px-3 rounded-lg relative
                       transition-all duration-200
                       ${router.pathname === item.href || router.pathname.startsWith(item.href + '/')
                         ? 'bg-blue-600 text-white' 
@@ -317,19 +386,32 @@ export default function DashboardLayout({ children }) {
                     `}
                     title={item.description || item.label}
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-lg relative">
+                      {item.icon}
+                      {!isSidebarOpen && item.badge && typeof item.badge === 'number' && item.badge > 0 && (
+                        <span className="absolute -top-2 -right-2 flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-red-500 text-white rounded-full">
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </span>
+                      )}
+                    </span>
+                    
                     {isSidebarOpen && (
-                      <div className="ml-3">
-                        <div className="flex items-center gap-2">
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="font-medium block">{item.label}</span>
                           {item.badge && (
                             <span className={`
-                              text-xs px-1.5 py-0.5 rounded
-                              ${item.badge === 'Admin' ? 'bg-red-500' : 
-                                item.badge === 'Ka. Balai' ? 'bg-purple-500' :
-                                'bg-yellow-500'}
+                              text-xs px-2 py-0.5 rounded-full
+                              ${typeof item.badge === 'number' 
+                                ? (item.badgeColor || 'bg-red-500') + ' text-white' 
+                                : item.badge === 'Admin' ? 'bg-red-500 text-white' :
+                                  item.badge === 'Kabag TU' ? 'bg-blue-500 text-white' :
+                                  item.badge === 'Ka. Balai' ? 'bg-purple-500 text-white' :
+                                  item.badge === 'PPK' ? 'bg-yellow-500 text-white' :
+                                  'bg-gray-500 text-white'
+                              }
                             `}>
-                              {item.badge}
+                              {typeof item.badge === 'number' && item.badge > 99 ? '99+' : item.badge}
                             </span>
                           )}
                         </div>
@@ -354,14 +436,8 @@ export default function DashboardLayout({ children }) {
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
               <p className="text-xs text-gray-400 mt-1">
-                <span className={`inline-block px-2 py-0.5 rounded text-xs ${
-                  hasAdminRole() ? 'bg-red-600' :
-                  hasPPKRole() ? 'bg-yellow-600' :
-                  hasBendaharaRole() ? 'bg-green-600' :
-                  hasKepalaBalaiRole() ? 'bg-purple-600' :
-                  'bg-gray-600'
-                }`}>
-                  {getUserRoleDisplay()}
+                <span className={`inline-block px-2 py-0.5 rounded text-xs ${getUserRoleBadgeClass()}`}>
+                  {getUserRoleBadgeText()}
                 </span>
               </p>
             </div>
@@ -370,11 +446,9 @@ export default function DashboardLayout({ children }) {
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="
-              flex items-center justify-center w-full py-3 px-3 rounded-lg
+            className="flex items-center justify-center w-full py-3 px-3 rounded-lg
               hover:bg-red-600 bg-red-700 transition-colors duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-            "
+              disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoggingOut ? (
               <>
@@ -402,76 +476,71 @@ export default function DashboardLayout({ children }) {
                  router.pathname === '/kegiatan' ? 'Nominatif Kegiatan' :
                  router.pathname === '/lpd' ? 'Laporan Perjalanan Dinas (LPD)' :
                  router.pathname === '/search' ? 'Batalkan Nominatif' :
-                 router.pathname === '/laporan-pegawai' ? 'Rekap Perjalanan Dinas Pegawai' :
+                 router.pathname === '/laporan' ? 'Rekap Perjalanan Dinas Pegawai' :
                  router.pathname.startsWith('/lpd/') ? 'Laporan Perjalanan Dinas (LPD)' :
                  'Aplikasi Nominatif'}
               </h2>
-              {router.pathname.startsWith('/lpd/') && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Form Laporan Perjalanan Dinas
-                </p>
-              )}
-              {router.pathname === '/laporan-pegawai' && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Laporan rekap perjalanan dinas seluruh pegawai
-                </p>
-              )}
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Debug Info Button - hanya di development */}
-              {process.env.NODE_ENV === 'development' && (
+              {notifications.total > 0 && (
                 <button 
+                  className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label="Notifications"
                   onClick={() => {
-                    console.log("🔍 DEBUG Session Info:", debugInfo);
-                    alert(`User Role: ${session?.user?.role}\nHas Admin: ${hasAdminRole() ? 'Yes' : 'No'}\nHas PPK: ${hasPPKRole() ? 'Yes' : 'No'}\nHas Bendahara: ${hasBendaharaRole() ? 'Yes' : 'No'}\nHas Ka. Balai: ${hasKepalaBalaiRole() ? 'Yes' : 'No'}\n\nCheck console for details.`);
+                    if (notifications.lpd > 0) router.push('/lpd');
+                    else if (notifications.kwitansi > 0) router.push('/kwitansi');
                   }}
-                  className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
                 >
-                  Debug Role
+                  <FaBell className="text-gray-600" />
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold bg-red-500 text-white rounded-full px-1">
+                    {notifications.total > 9 ? '9+' : notifications.total}
+                  </span>
                 </button>
               )}
 
-              <button 
-                className="
-                  relative p-2 rounded-full 
-                  hover:bg-gray-100 transition-colors
-                "
-                aria-label="Notifications"
-              >
-                <FaBell className="text-gray-600" />
-                <span className="
-                  absolute top-1 right-1
-                  w-2 h-2 bg-red-500 rounded-full
-                "></span>
-              </button>
+              {process.env.NODE_ENV === 'development' && (
+                <button 
+                  onClick={() => {
+                    console.log('🔍 DEBUG Notifications:', notifications);
+                    console.log('🔍 DEBUG Session:', {
+                      user: session?.user,
+                      hasPPK: hasPPKRole(),
+                      hasBendahara: hasBendaharaRole(),
+                      hasAdmin: hasAdminRole(),
+                      hasKabagTu: hasKabagTuRole(),
+                      hasKepalaBalai: hasKepalaBalaiRole()
+                    });
+                    refreshNotif();
+                    alert(`Notifikasi:\nLPD: ${notifications.lpd}\nKwitansi: ${notifications.kwitansi}\nTotal: ${notifications.total}\n\nLoading: ${notifLoading}\nError: ${notifError || 'Tidak ada'}`);
+                  }}
+                  className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
+                >
+                  Debug Notif
+                </button>
+              )}
 
               <div className="flex items-center space-x-3">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-800">{getUserName()}</p>
                   <p className="text-xs text-gray-500">
-                    {session?.user?.role && (
-                      <span className={`px-2 py-1 rounded ${
-                        session.user.role.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
-                        session.user.role.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
-                        session.user.role.toLowerCase().includes('bendahara') ? 'bg-green-100 text-green-800' :
-                        session.user.role.toLowerCase().includes('kabalai') || session.user.role.toLowerCase().includes('kepala balai') ? 'bg-purple-100 text-purple-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {getUserRoleDisplay()}
-                      </span>
-                    )}
+                    <span className={`px-2 py-1 rounded ${
+                      session.user.role?.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
+                      session.user.role?.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
+                      session.user.role?.toLowerCase().includes('bendahara') ? 'bg-green-100 text-green-800' :
+                      session.user.role?.toLowerCase().includes('kabag_tu') ? 'bg-blue-100 text-blue-800' :
+                      session.user.role?.toLowerCase().includes('kabalai') || session.user.role?.toLowerCase().includes('kepala balai') ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {getUserRoleDisplay()}
+                    </span>
                   </p>
                 </div>
                 <div className="relative">
                   <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-gray-300">
                     {getInitials()}
                   </div>
-                  <span className="
-                    absolute bottom-0 right-0
-                    w-3 h-3 bg-green-500 rounded-full
-                    border-2 border-white
-                  "></span>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
                 </div>
               </div>
             </div>
