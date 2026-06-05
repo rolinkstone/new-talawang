@@ -117,6 +117,25 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     return new Intl.NumberFormat('id-ID').format(Number(number));
   };
 
+  // Fungsi format tanggal ke DD Month YYYY (contoh: 06 Mei 2026)
+  const formatDateIndonesian = (dateString) => {
+    if (!dateString) return '-';
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+    
+    const days = date.getDate().toString().padStart(2, '0');
+    
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    return `${days} ${month} ${year}`;
+  };
+
   const terbilang = (angka) => {
     if (!angka || angka === 0) return 'Nol rupiah';
     const satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan'];
@@ -196,9 +215,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   const pegawaiJabatan = pegawai?.jabatan || 'Pegawai';
   
   const today = new Date();
-  const todayFormatted = formatDateFn(today);
+  const todayFormatted = formatDateIndonesian(today);
   
-  const tglSpd = item?.tgl_spd ? formatDateFn(item.tgl_spd) : (item?.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : todayFormatted);
+  const tglSpd = item?.tgl_spd ? formatDateIndonesian(item.tgl_spd) : (item?.tgl_kwitansi ? formatDateIndonesian(item.tgl_kwitansi) : todayFormatted);
   const noSpt = item?.no_lpd || pegawai?.no_lpd || '-';
 
   const totalTransportFromNominatif = transportDetail.reduce((sum, t) => sum + (Number(t.total) || 0), 0) || totals.transportTotal;
@@ -258,9 +277,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         
         let tanggalText = '';
         if (tglMulai && tglAkhir) {
-          tanggalText = `Uang Harian tanggal ${formatDateFn(tglMulai)} s.d ${formatDateFn(tglAkhir)}`;
+          tanggalText = `Uang Harian tanggal ${formatDateIndonesian(tglMulai)} s.d ${formatDateIndonesian(tglAkhir)}`;
         } else if (tglMulai) {
-          tanggalText = `Uang Harian tanggal ${formatDateFn(tglMulai)}`;
+          tanggalText = `Uang Harian tanggal ${formatDateIndonesian(tglMulai)}`;
         } else {
           tanggalText = 'Uang Harian';
         }
@@ -344,6 +363,8 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           namaDanAlamat += `, ${penginapan.alamat_penginapan}`;
         }
         
+        const tglMenginapFormatted = penginapan.tgl_menginap ? formatDateIndonesian(penginapan.tgl_menginap) : '-';
+        
         return `
          <div style="margin-bottom: 15px; padding-bottom: 10px; ${idx !== penginapanSptjmList.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
         <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
@@ -371,7 +392,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
             <tr>
               <td style="width: 180px; padding: 4px 0; vertical-align: top;">Tarif hotel</td>
               <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
-              <td style="padding: 4px 0 4px 8px; vertical-align: top;">Rp ${formatRupiah(penginapan.tarif_hotel)} / hari (tanggal ${penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'})</td>
+              <td style="padding: 4px 0 4px 8px; vertical-align: top;">Rp ${formatRupiah(penginapan.tarif_hotel)} / hari (tanggal ${tglMenginapFormatted})</td>
             </tr>
           </tbody>
         </table>
@@ -386,19 +407,19 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <div style="margin-bottom: 15px; padding-bottom: 10px; ${idx !== penginapanDetail.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
               <tr>
-                <td style="width: 180px; padding: 4px 0;">Nama dan Alamat Penginapan</td>
-                <td style="width: 10px; padding: 4px 0;">:</td>
-                <td style="padding: 4px 0;"><strong>${namaDanAlamat}</strong></td>
+                <td style="width: 180px; padding: 4px 0;"> &nbsp; Nama dan Alamat Penginapan</td>
+                <td style="width: 10px; padding: 4px 0;">&nbsp; :</td>
+                <td style="padding: 4px 0;"><strong> &nbsp;${namaDanAlamat}</strong></td>
               </tr>
               <tr>
-                <td style="width: 180px; padding: 4px 0;">Nomor kamar</td>
-                <td style="width: 10px; padding: 4px 0;">:</td>
-                <td style="padding: 4px 0;">-</td>
+                <td style="width: 180px; padding: 4px 0;">&nbsp; Nomor kamar</td>
+                <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
+                <td style="padding: 4px 0;">&nbsp;-</td>
               </tr>
               <tr>
-                <td style="width: 180px; padding: 4px 0;">Tarif hotel</td>
-                <td style="width: 10px; padding: 4px 0;">:</td>
-                <td style="padding: 4px 0;">Rp ${formatRupiah(p.total)} / hari</td>
+                <td style="width: 180px; padding: 4px 0;">&nbsp; Tarif hotel</td>
+                <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
+                <td style="padding: 4px 0;">&nbsp; Rp ${formatRupiah(p.total)} / hari</td>
               </tr>
             </table>
           </div>

@@ -36,99 +36,88 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
         ];
         
-        // Format tanggal ke "28 Mei 2026" (menerima format YYYY/MM/DD atau YYYY-MM-DD)
+        // Format tanggal ke "06 Mei 2026"
         const formatTanggalIndonesia = (date) => {
             if (!date) return '-';
             
             let tahun, bulan, hari;
-            
-            // Konversi ke string jika perlu
             const dateStr = String(date);
             
-            // Format YYYY/MM/DD
             if (dateStr.includes('/')) {
                 const parts = dateStr.split('/');
                 if (parts.length === 3) {
                     tahun = parseInt(parts[0]);
                     bulan = parseInt(parts[1]) - 1;
                     hari = parseInt(parts[2]);
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
-            // Format YYYY-MM-DD
             else if (dateStr.includes('-')) {
                 const parts = dateStr.split('-');
                 if (parts.length === 3) {
                     tahun = parseInt(parts[0]);
                     bulan = parseInt(parts[1]) - 1;
                     hari = parseInt(parts[2]);
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
-            // Jika sudah dalam bentuk Date object
             else if (date instanceof Date && !isNaN(date)) {
                 hari = date.getDate();
                 bulan = date.getMonth();
                 tahun = date.getFullYear();
-                return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
             }
-            // Coba parse dengan new Date
             else {
                 const parsedDate = new Date(date);
                 if (!isNaN(parsedDate.getTime())) {
                     hari = parsedDate.getDate();
                     bulan = parsedDate.getMonth();
                     tahun = parsedDate.getFullYear();
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
             
             return dateStr;
         };
         
-        // Format tanggal untuk rincian kegiatan (format: 28 Mei 2026) - SAMA dengan formatTanggalIndonesia
+        // Format tanggal untuk rincian kegiatan
         const formatTanggalRincian = (date) => {
             if (!date) return '-';
             
             let tahun, bulan, hari;
-            
             const dateStr = String(date);
             
-            // Format YYYY/MM/DD
             if (dateStr.includes('/')) {
                 const parts = dateStr.split('/');
                 if (parts.length === 3) {
                     tahun = parseInt(parts[0]);
                     bulan = parseInt(parts[1]) - 1;
                     hari = parseInt(parts[2]);
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
-            // Format YYYY-MM-DD
             else if (dateStr.includes('-')) {
                 const parts = dateStr.split('-');
                 if (parts.length === 3) {
                     tahun = parseInt(parts[0]);
                     bulan = parseInt(parts[1]) - 1;
                     hari = parseInt(parts[2]);
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
-            // Jika sudah dalam bentuk Date object
             else if (date instanceof Date && !isNaN(date)) {
                 hari = date.getDate();
                 bulan = date.getMonth();
                 tahun = date.getFullYear();
-                return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
             }
-            // Coba parse dengan new Date
             else {
                 const parsedDate = new Date(date);
                 if (!isNaN(parsedDate.getTime())) {
                     hari = parsedDate.getDate();
                     bulan = parsedDate.getMonth();
                     tahun = parsedDate.getFullYear();
-                    return `${hari} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
                 }
             }
             
@@ -138,7 +127,7 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         // Format tanggal untuk header
         const getCurrentDate = () => {
             const now = new Date();
-            const hari = now.getDate();
+            const hari = now.getDate().toString().padStart(2, '0');
             const bulan = namaBulan[now.getMonth()];
             const tahun = now.getFullYear();
             return `${hari} ${bulan} ${tahun}`;
@@ -188,14 +177,70 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         const ttdKatim = lpdData?.ttd_katim || '';
         const ttdKabalai = lpdData?.ttd_kabalai || '';
         
-        // Logo (data URL placeholder - Anda bisa mengganti dengan base64 logo asli)
+        // Logo SVG
         const logoSvg = `
-            <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="50" cy="50" r="45" fill="#1a56db" stroke="#1e3a8a" stroke-width="3"/>
                 <circle cx="50" cy="50" r="35" fill="white"/>
                 <path d="M50 25 L58 40 L75 42 L62 54 L65 71 L50 63 L35 71 L38 54 L25 42 L42 40 L50 25Z" fill="#1a56db" stroke="#1e3a8a" stroke-width="2"/>
                 <text x="50" y="55" text-anchor="middle" font-size="8" fill="#1a56db" font-weight="bold">BPOM</text>
             </svg>
+        `;
+        
+        // Generate HTML untuk semua pegawai
+        const generateAllPegawaiHTML = () => {
+            let html = '';
+            
+            pegawaiList.forEach((pegawai, index) => {
+                if (index > 0) {
+                    html += '<tr><td colspan="2" style="height: 8px;"></td></tr>';
+                }
+                
+                html += `
+                    <tr>
+                        <td class="label-cell" style="width: 170px;">Nama</td>
+                        <td class="value-cell">: ${pegawai?.nama || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label-cell" style="width: 170px;">NIP</td>
+                        <td class="value-cell">: ${pegawai?.nip || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label-cell" style="width: 170px;">Pangkat / Golongan</td>
+                        <td class="value-cell">: ${pegawai?.pangkat_golongan || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label-cell" style="width: 170px;">Jabatan</td>
+                        <td class="value-cell">: ${pegawai?.jabatan || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            return html;
+        };
+        
+        const headerHTML = `
+            <table class="header-table">
+                <tr>
+                    <td rowspan="2" class="logo-cell">
+                        ${logoSvg}
+                    </td>
+                    <td class="title-cell" colspan="2">
+                        <strong>LAPORAN PERJALANAN DINAS (LPD)</strong>
+                    </td>
+                    <td class="label-cell-header">Tanggal :</td>
+                    <td class="value-cell-header">${getCurrentDate()}</td>
+                </tr>
+                <tr>
+                    <td class="subtitle-cell" colspan="2">
+                        ${kegiatanData?.kegiatan || '-'}
+                    </td>
+                    <td class="label-cell-header">Halaman :</td>
+                    <td class="value-cell-header">
+                        <span class="pageNumber"></span> dari <span class="totalPages"></span>
+                    </td>
+                </tr>
+            </table>
         `;
         
         const html = `
@@ -214,86 +259,94 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     body {
                         font-family: 'Times New Roman', Times, serif;
                         font-size: 12pt;
-                        line-height: 1.5;
+                        line-height: 1.3;
                         color: #000;
                         background: white;
-                        padding: 20px 30px;
+                        margin: 0;
+                        padding: 0;
                     }
                     
+                    /* Header untuk print - muncul di setiap halaman */
+                    .print-header {
+                        display: none;
+                    }
+                    
+                    /* Konten utama */
                     .container {
                         max-width: 100%;
                         margin: 0 auto;
+                        padding: 20px 25px;
                     }
                     
                     /* Header Table */
                     .header-table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin-bottom: 20px;
                         border: 1px solid #000;
+                        margin-bottom: 20px;
                     }
                     
                     .header-table td {
                         border: 1px solid #000;
-                        padding: 8px;
+                        padding: 6px;
                         vertical-align: top;
                     }
                     
                     .logo-cell {
-                        width: 100px;
+                        width: 70px;
                         text-align: center;
                         vertical-align: middle;
                     }
                     
-                    .header-table .title-cell {
+                    .title-cell {
                         text-align: center;
                         font-weight: bold;
-                        font-size: 14pt;
+                        font-size: 13pt;
                     }
                     
-                    .header-table .subtitle-cell {
+                    .subtitle-cell {
                         text-align: center;
                         font-size: 11pt;
                     }
                     
-                    .header-table .label-cell {
+                    .label-cell-header {
                         font-weight: bold;
-                        width: 100px;
+                        width: 65px;
                         text-align: right;
-                        vertical-align: top;
                     }
                     
-                    .header-table .value-cell {
+                    .value-cell-header {
                         text-align: left;
-                        vertical-align: top;
+                        width: 100px;
                     }
                     
                     /* Section */
                     .section {
-                        margin-bottom: 20px;
+                        margin-bottom: 15px;
                     }
                     
                     .section-title {
                         font-weight: bold;
                         font-size: 12pt;
-                        margin-bottom: 10px;
+                        margin-bottom: 8px;
                         text-decoration: underline;
                     }
                     
                     .section-content {
-                        margin-left: 20px;
+                        margin-left: 0px;
                     }
                     
-                    /* Info Table untuk data dengan label */
+                    /* Info Table */
                     .info-table-inline {
-                        width: auto;
+                        width: 100%;
                         border: none;
                         margin: 5px 0;
+                        border-collapse: collapse;
                     }
                     
                     .info-table-inline td {
                         border: none;
-                        padding: 2px 5px;
+                        padding: 3px 0;
                         vertical-align: top;
                     }
                     
@@ -305,19 +358,20 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     
                     .info-table-inline .value-cell {
                         text-align: left;
+                        padding-left: 8px;
                     }
                     
-                    /* Tabel */
+                    /* Tabel Rincian */
                     .table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin: 15px 0;
+                        margin: 10px 0;
                     }
                     
                     .table th,
                     .table td {
                         border: 1px solid #000;
-                        padding: 8px;
+                        padding: 5px;
                         text-align: left;
                         vertical-align: top;
                     }
@@ -332,134 +386,153 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     .dokumentasi-grid {
                         display: flex;
                         flex-wrap: wrap;
-                        gap: 20px;
-                        margin-top: 15px;
+                        gap: 15px;
+                        margin-top: 10px;
                     }
                     
                     .dokumentasi-item {
-                        width: 200px;
+                        width: 170px;
                         text-align: center;
                     }
                     
                     .dokumentasi-item img {
                         width: 100%;
-                        height: 150px;
+                        height: 120px;
                         object-fit: cover;
-                        border: 1px solid #ddd;
-                        margin-bottom: 5px;
+                        border: 1px solid #ccc;
                     }
                     
                     .dokumentasi-item .keterangan {
-                        font-size: 10pt;
-                        font-style: italic;
+                        font-size: 9pt;
+                        margin-top: 5px;
                     }
                     
                     .file-placeholder {
                         width: 100%;
-                        height: 150px;
+                        height: 120px;
                         background: #f0f0f0;
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        border: 1px solid #ddd;
-                        font-size: 48px;
+                        border: 1px solid #ccc;
+                        font-size: 35px;
                     }
                     
                     /* Tanda Tangan */
-                    .ttd-section {
-                        margin-top: 40px;
+                    .signature-wrapper {
+                        margin-top: 30px;
                         display: flex;
                         justify-content: space-between;
                     }
                     
-                    .ttd-box {
+                    .signature-box {
                         width: 45%;
                         text-align: center;
                     }
                     
-                    .ttd-title {
+                    .signature-title {
                         font-weight: bold;
-                        margin-bottom: 10px;
+                        margin-bottom: 8px;
+                        font-size: 11pt;
                     }
                     
-                    .ttd-line {
-                        margin-top: 60px;
+                    .signature-line {
+                        margin-top: 40px;
                         padding-top: 5px;
                         border-top: 1px solid #000;
                     }
                     
-                    .ttd-name {
+                    .signature-name {
                         font-weight: bold;
                         margin-top: 5px;
                     }
                     
-                    .ttd-date {
-                        font-size: 10pt;
-                        margin-top: 5px;
+                    .signature-nip {
+                        font-size: 9pt;
+                        margin-top: 3px;
                     }
                     
-                    /* Footer */
                     .footer {
-                        margin-top: 30px;
+                        margin-top: 25px;
                         text-align: center;
                         font-size: 10pt;
                     }
                     
+                    .info-row {
+                        margin-bottom: 6px;
+                    }
+                    
+                    /* Print styles - header FIXED di setiap halaman */
                     @media print {
                         body {
-                            padding: 10px;
+                            margin: 0;
+                            padding: 0;
                         }
+                        
+                        .container {
+                            padding: 15px;
+                            margin-top: 105px;
+                        }
+                        
+                        /* Header fixed di setiap halaman */
+                        .print-header {
+                            display: block;
+                            position: fixed;
+                            top: 10px;
+                            left: 15px;
+                            right: 15px;
+                            background: white;
+                            z-index: 1000;
+                        }
+                        
                         .no-print {
                             display: none;
                         }
+                        
                         .dokumentasi-item {
                             break-inside: avoid;
                         }
-                        .table {
+                        
+                        .signature-wrapper {
                             break-inside: avoid;
+                        }
+                        
+                        .table {
+                            break-inside: auto;
+                        }
+                        
+                        .table thead {
+                            display: table-header-group;
                         }
                     }
                 </style>
             </head>
             <body>
+                <!-- HEADER FIXED - muncul di setiap halaman -->
+                <div class="print-header">
+                    ${headerHTML}
+                </div>
+                
+                <!-- KONTEN UTAMA -->
                 <div class="container">
-                    <!-- Header Table dengan Logo -->
-                    <table class="header-table">
-                        <tr>
-                            <td rowspan="2" class="logo-cell" style="vertical-align: middle; text-align: center;">
-                                ${logoSvg}
-                            </td>
-                            <td class="title-cell" colspan="2">
-                                <strong>LAPORAN PERJALANAN DINAS (LPD)</strong>
-                            </td>
-                            <td class="label-cell">Tanggal :</td>
-                            <td class="value-cell">${getCurrentDate()}</td>
-                        </tr>
-                        <tr>
-                            <td class="subtitle-cell" colspan="2">
-                                ${kegiatanData?.kegiatan || '-'}
-                            </td>
-                            <td class="label-cell">Halaman :</td>
-                            <td class="value-cell">1 dari 1</td>
-                        </tr>
-                    </table>
-                    
                     <!-- A. Dasar Pelaksanaan Kegiatan -->
                     <div class="section">
                         <div class="section-title">A. Dasar Pelaksanaan Kegiatan</div>
                         <div class="section-content">
-                            <div class="info-row" style="margin-bottom: 10px;">
+                            <div class="info-row">
                                 Surat Perintah Melaksanakan Tugas Kepala Balai Besar Pengawas Obat dan Makanan Di Palangka Raya
                             </div>
                             <table class="info-table-inline">
-                                <tr>
-                                    <td class="label-cell">Nomor</td>
-                                    <td class="value-cell"> : ${kegiatanData?.no_st || '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">Tanggal</td>
-                                    <td class="value-cell"> : ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
-                                </tr>
+                                <tbody>
+                                    <tr>
+                                        <td class="label-cell" style="width: 65px;">Nomor</td>
+                                        <td class="value-cell">: ${kegiatanData?.no_st || '-'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="label-cell" style="width: 65px;">Tanggal</td>
+                                        <td class="value-cell">: ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -469,28 +542,9 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         <div class="section-title">B. Petugas Pelaksana</div>
                         <div class="section-content">
                             <table class="info-table-inline">
-                                <tr>
-                                    <td class="label-cell">Nama</td>
-                                    <td class="value-cell"> : ${firstPegawai?.nama || '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">NIP</td>
-                                    <td class="value-cell"> : ${firstPegawai?.nip || '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">Pangkat / Golongan</td>
-                                    <td class="value-cell"> : ${firstPegawai?.pangkat_golongan || '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">Jabatan</td>
-                                    <td class="value-cell"> : ${firstPegawai?.jabatan || '-'}</td>
-                                </tr>
-                                ${pegawaiList.length > 1 ? `
-                                <tr>
-                                    <td class="label-cell">Pegawai Lainnya</td>
-                                    <td class="value-cell"> : ${pegawaiList.slice(1).map(p => p.nama).join(', ')}</td>
-                                </tr>
-                                ` : ''}
+                                <tbody>
+                                    ${generateAllPegawaiHTML()}
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -500,18 +554,20 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         <div class="section-title">C. Waktu dan Tempat Pelaksanaan</div>
                         <div class="section-content">
                             <table class="info-table-inline">
-                                <tr>
-                                    <td class="label-cell">Lama Perjalanan</td>
-                                    <td class="value-cell"> : ${hitungLamaPerjalanan()}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">Tanggal</td>
-                                    <td class="value-cell"> : ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td class="label-cell">Tempat Pelaksanaan</td>
-                                    <td class="value-cell"> : ${kegiatanData?.tempat || '-'}</td>
-                                </tr>
+                                <tbody>
+                                    <tr>
+                                        <td class="label-cell" style="width: 130px;">Lama Perjalanan</td>
+                                        <td class="value-cell">: ${hitungLamaPerjalanan()}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="label-cell" style="width: 130px;">Tanggal</td>
+                                        <td class="value-cell">: ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="label-cell" style="width: 130px;">Tempat Pelaksanaan</td>
+                                        <td class="value-cell">: ${kegiatanData?.tempat || '-'}</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -520,14 +576,16 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     <div class="section">
                         <div class="section-title">D. Pembiayaan</div>
                         <div class="section-content">
-                            <div class="info-row" style="margin-bottom: 5px;">
+                            <div class="info-row">
                                 DIPA BBPOM di Palangka Raya No.SP DIPA.63.01.2.432872/2026 Tanggal 24 Desember 2025.
                             </div>
                             <table class="info-table-inline">
-                                <tr>
-                                    <td class="label-cell">Mata Anggaran :</td>
-                                    <td class="value-cell">${mak}</td>
-                                </tr>
+                                <tbody>
+                                    <tr>
+                                        <td class="label-cell" style="width: 130px;">Mata Anggaran :</td>
+                                        <td class="value-cell">${mak}</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -538,9 +596,9 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th style="width: 5%; text-align: center;">No</th>
-                                    <th style="width: 20%; text-align: center;">Tanggal</th>
-                                    <th style="width: 75%; text-align: center;">Kegiatan</th>
+                                    <th style="width: 5%;">No</th>
+                                    <th style="width: 20%;">Tanggal</th>
+                                    <th style="width: 75%;">Kegiatan</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -562,61 +620,63 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     <!-- F. Dokumentasi Kegiatan -->
                     <div class="section">
                         <div class="section-title">F. Dokumentasi Kegiatan</div>
-                        ${dokumentasi.length > 0 ? `
-                            <div class="dokumentasi-grid">
-                                ${dokumentasi.map(doc => {
-                                    const filename = doc.file_path?.split('/').pop();
-                                    const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
-                                    const isImage = doc.file_type?.startsWith('image/');
-                                    
-                                    if (isImage) {
-                                        return `
-                                            <div class="dokumentasi-item">
-                                                <img src="${imageUrl}" alt="${doc.keterangan || 'Dokumentasi'}" />
-                                                <div class="keterangan">${doc.keterangan || ''}</div>
-                                            </div>
-                                        `;
-                                    } else {
-                                        return `
-                                            <div class="dokumentasi-item">
-                                                <div class="file-placeholder">
-                                                    📄
+                        <div class="section-content">
+                            ${dokumentasi.length > 0 ? `
+                                <div class="dokumentasi-grid">
+                                    ${dokumentasi.map(doc => {
+                                        const filename = doc.file_path?.split('/').pop();
+                                        const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
+                                        const isImage = doc.file_type?.startsWith('image/');
+                                        
+                                        if (isImage) {
+                                            return `
+                                                <div class="dokumentasi-item">
+                                                    <img src="${imageUrl}" alt="${doc.keterangan || 'Dokumentasi'}" />
+                                                    <div class="keterangan">${doc.keterangan || ''}</div>
                                                 </div>
-                                                <div class="keterangan">${doc.file_name || 'File'}</div>
-                                                <div class="keterangan">${doc.keterangan || ''}</div>
-                                            </div>
-                                        `;
-                                    }
-                                }).join('')}
-                            </div>
-                        ` : '<p>- Tidak ada dokumentasi -</p>'}
+                                            `;
+                                        } else {
+                                            return `
+                                                <div class="dokumentasi-item">
+                                                    <div class="file-placeholder">
+                                                        📄
+                                                    </div>
+                                                    <div class="keterangan">${doc.file_name || 'File'}</div>
+                                                    <div class="keterangan">${doc.keterangan || ''}</div>
+                                                </div>
+                                            `;
+                                        }
+                                    }).join('')}
+                                </div>
+                            ` : '<p>- Tidak ada dokumentasi -</p>'}
+                        </div>
                     </div>
                     
                     <!-- Tanda Tangan -->
-                    <div class="ttd-section">
-                        <div class="ttd-box">
-                            <div class="ttd-title">Mengetahui/Menyetujui,</div>
-                            <div class="ttd-title">Kepala Bagian Tata Usaha/Ketua Tim Kerja</div>
-                            <div class="ttd-line"></div>
-                            <div class="ttd-name">${ttdKatim || '-'}</div>
-                            <div class="ttd-date">NIP. -</div>
+                    <div class="signature-wrapper">
+                        <div class="signature-box">
+                            <div class="signature-title">Mengetahui/Menyetujui,</div>
+                            <div class="signature-title">Kepala Bagian Tata Usaha/Ketua Tim Kerja</div>
+                            <div class="signature-line"></div>
+                            <div class="signature-name">${ttdKatim || '-'}</div>
+                            <div class="signature-nip">NIP. -</div>
                         </div>
-                        <div class="ttd-box">
-                            <div class="ttd-title">Menyetujui,</div>
-                            <div class="ttd-title">Kepala Balai Besar POM di Palangka Raya</div>
-                            <div class="ttd-line"></div>
-                            <div class="ttd-name">${ttdKabalai || '-'}</div>
-                            <div class="ttd-date">NIP. -</div>
+                        <div class="signature-box">
+                            <div class="signature-title">Menyetujui,</div>
+                            <div class="signature-title">Kepala Balai Besar POM di Palangka Raya</div>
+                            <div class="signature-line"></div>
+                            <div class="signature-name">${ttdKabalai || '-'}</div>
+                            <div class="signature-nip">NIP. -</div>
                         </div>
                     </div>
                     
-                    <div class="ttd-section" style="margin-top: 20px;">
-                        <div class="ttd-box">
-                            <div class="ttd-title">Dibuat Oleh,</div>
-                            <div class="ttd-title">Petugas Pelaksana</div>
-                            <div class="ttd-line"></div>
-                            <div class="ttd-name">${firstPegawai?.nama || '-'}</div>
-                            <div class="ttd-date">NIP. ${firstPegawai?.nip || '-'}</div>
+                    <div class="signature-wrapper" style="margin-top: 15px;">
+                        <div class="signature-box">
+                            <div class="signature-title">Dibuat Oleh,</div>
+                            <div class="signature-title">Petugas Pelaksana</div>
+                            <div class="signature-line"></div>
+                            <div class="signature-name">${firstPegawai?.nama || '-'}</div>
+                            <div class="signature-nip">NIP. ${firstPegawai?.nip || '-'}</div>
                         </div>
                     </div>
                     
@@ -626,8 +686,8 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                 </div>
                 
                 <div class="no-print" style="text-align: center; margin-top: 20px; position: fixed; bottom: 20px; left: 0; right: 0;">
-                    <button onclick="window.print()" style="padding: 10px 20px; margin: 10px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 5px;">🖨️ Cetak</button>
-                    <button onclick="window.close()" style="padding: 10px 20px; margin: 10px; cursor: pointer; background: #f44336; color: white; border: none; border-radius: 5px;">❌ Tutup</button>
+                    <button onclick="window.print()" style="padding: 8px 16px; margin: 8px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px;">🖨️ Cetak</button>
+                    <button onclick="window.close()" style="padding: 8px 16px; margin: 8px; cursor: pointer; background: #f44336; color: white; border: none; border-radius: 4px;">❌ Tutup</button>
                 </div>
             </body>
             </html>
@@ -651,5 +711,4 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
 
 export const generateLPDHtml = (lpdData, kegiatanData, session) => {
     // Fungsi ini bisa digunakan untuk generate HTML tanpa auto print
-    // Sama seperti di atas tapi tanpa tombol print otomatis
 };
