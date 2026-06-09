@@ -1,6 +1,6 @@
 // components/laporan/SummaryCards.js
 import React from 'react';
-import { FaUsers, FaBriefcase, FaCalendarWeek, FaMoneyBillWave } from 'react-icons/fa';
+import { FaUsers, FaBriefcase, FaMoneyBillWave, FaBus, FaChartLine } from 'react-icons/fa';
 
 export default function SummaryCards({ summary, filters, formatRupiah }) {
   const cards = [
@@ -21,34 +21,34 @@ export default function SummaryCards({ summary, filters, formatRupiah }) {
       description: 'Jumlah kegiatan perjadin'
     },
     {
-      title: 'Total Hari Dinas',
-      value: summary?.total_hari_dinas || 0,
-      icon: <FaCalendarWeek className="text-orange-500 text-2xl" />,
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-200',
-      description: 'Akumulasi hari perjalanan'
-    },
-    {
       title: 'Total Uang Harian',
       value: `Rp ${formatRupiah(summary?.total_uang_harian || 0)}`,
       icon: <FaMoneyBillWave className="text-purple-500 text-2xl" />,
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
       description: 'Total uang harian dibayarkan'
+    },
+    {
+      title: 'Total Transport Lokal',
+      value: `Rp ${formatRupiah(summary?.total_transport || 0)}`,
+      icon: <FaBus className="text-blue-500 text-2xl" />,
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200',
+      description: 'Total transport perjalanan lokal'
+    },
+    {
+      title: 'Total Keseluruhan',
+      value: `Rp ${formatRupiah(summary?.total_keseluruhan || 0)}`,
+      icon: <FaChartLine className="text-indigo-500 text-2xl" />,
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-indigo-200',
+      description: 'UH + Transport Lokal'
     }
   ];
   
-  // Hitung rata-rata
-  const avgPerjalananPerPegawai = summary?.total_pegawai > 0 
-    ? (summary.total_perjalanan / summary.total_pegawai).toFixed(1) 
-    : 0;
-  const avgHariPerPerjalanan = summary?.total_perjalanan > 0 
-    ? (summary.total_hari_dinas / summary.total_perjalanan).toFixed(1) 
-    : 0;
-  
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {cards.map((card, idx) => (
           <div
             key={idx}
@@ -68,8 +68,6 @@ export default function SummaryCards({ summary, filters, formatRupiah }) {
         ))}
       </div>
       
-      
-      
       {/* Filter Info */}
       {filters && (
         <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
@@ -77,6 +75,7 @@ export default function SummaryCards({ summary, filters, formatRupiah }) {
           {filters.bulan !== 'all' && ` - Bulan ${filters.bulan}`}
           {filters.pegawai_id !== 'all' && ' - Filter Pegawai Aktif'}
           {filters.status_2 && ` - Status: ${filters.status_2}`}
+          {filters.jenis_spm && ` - Jenis SPM: ${filters.jenis_spm}`}
         </div>
       )}
     </div>

@@ -336,6 +336,8 @@ export default function LaporanContainer({ session: propSession, status: propSta
                         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                         th { background-color: #f2f2f2; }
                         .summary { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 5px; }
+                        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+                        .summary-item { text-align: center; padding: 10px; background: #fff; border-radius: 5px; }
                         .footer { margin-top: 30px; font-size: 12px; text-align: center; color: #666; }
                         @media print {
                             button { display: none; }
@@ -348,10 +350,13 @@ export default function LaporanContainer({ session: propSession, status: propSta
                         <p><strong>Periode:</strong> ${filters.tahun} ${filters.bulan !== 'all' ? `- Bulan ${getBulanName(filters.bulan)}` : '(Semua Bulan)'}</p>
                         <p><strong>Status SPM:</strong> ${filters.status_2 === 'all' ? 'Semua' : filters.status_2}</p>
                         <p><strong>Jenis SPM:</strong> ${filters.jenis_spm === 'all' ? 'Semua' : filters.jenis_spm}</p>
-                        <p><strong>Total Pegawai:</strong> ${summary?.total_pegawai || 0}</p>
-                        <p><strong>Total Perjalanan:</strong> ${summary?.total_perjalanan || 0}</p>
-                        <p><strong>Total Hari Dinas:</strong> ${summary?.total_hari_dinas || 0}</p>
-                        <p><strong>Total Uang Harian:</strong> Rp ${formatRupiah(summary?.total_uang_harian || 0)}</p>
+                        <div class="summary-grid">
+                            <div class="summary-item"><strong>Total Pegawai:</strong><br/>${summary?.total_pegawai || 0}</div>
+                            <div class="summary-item"><strong>Total Perjalanan:</strong><br/>${summary?.total_perjalanan || 0}</div>
+                            <div class="summary-item"><strong>Total Uang Harian:</strong><br/>Rp ${formatRupiah(summary?.total_uang_harian || 0)}</div>
+                            <div class="summary-item"><strong>Total Transport Lokal:</strong><br/>Rp ${formatRupiah(summary?.total_transport || 0)}</div>
+                            <div class="summary-item"><strong>Total Keseluruhan:</strong><br/>Rp ${formatRupiah(summary?.total_keseluruhan || 0)}</div>
+                        </div>
                     </div>
                     ${generatePrintTable()}
                     <div class="footer">
@@ -374,39 +379,42 @@ export default function LaporanContainer({ session: propSession, status: propSta
         if (laporanData.length === 0) return '<p>Tidak ada data</p>';
         
         return `
-            <table>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
                 <thead>
-                    <tr>
-                        <th>No</th>
-                        <th>Nama Pegawai</th>
-                        <th>NIP</th>
-                        <th>Pangkat</th>
-                        <th>Jabatan</th>
-                        <th>Jml Perjalanan</th>
-                        <th>Total Hari</th>
-                        <th>Total UH</th>
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">No</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nama Pegawai</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">NIP</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Pangkat</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Jabatan</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Jml Perjalanan</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total UH</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total Transport</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total Keseluruhan</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${laporanData.map((item, idx) => `
                         <tr>
-                            <td>${idx + 1}</td>
-                            <td>${item.pegawai_nama || '-'}</td>
-                            <td>${item.pegawai_nip || '-'}</td>
-                            <td>${item.pegawai_pangkat || '-'}</td>
-                            <td>${item.pegawai_jabatan || '-'}</td>
-                            <td>${item.jumlah_perjalanan}</td>
-                            <td>${item.total_hari_dinas}</td>
-                            <td>Rp ${formatRupiah(item.total_uang_harian)}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${idx + 1}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${item.pegawai_nama || '-'}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${item.pegawai_nip || '-'}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${item.pegawai_pangkat || '-'}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${item.pegawai_jabatan || '-'}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.jumlah_perjalanan || 0}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Rp ${formatRupiah(item.total_uang_harian || 0)}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Rp ${formatRupiah(item.total_transport || 0)}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">Rp ${formatRupiah(item.total_keseluruhan || 0)}</td>
                         </tr>
                     `).join('')}
                 </tbody>
                 <tfoot>
                     <tr style="background-color: #f2f2f2; font-weight: bold;">
-                        <td colspan="5">TOTAL</td>
-                        <td>${laporanData.reduce((sum, item) => sum + item.jumlah_perjalanan, 0)}</td>
-                        <td>${laporanData.reduce((sum, item) => sum + item.total_hari_dinas, 0)}</td>
-                        <td>Rp ${formatRupiah(laporanData.reduce((sum, item) => sum + item.total_uang_harian, 0))}</td>
+                        <td colspan="5" style="border: 1px solid #ddd; padding: 8px; text-align: right;">TOTAL</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${laporanData.reduce((sum, item) => sum + (item.jumlah_perjalanan || 0), 0)}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Rp ${formatRupiah(laporanData.reduce((sum, item) => sum + (item.total_uang_harian || 0), 0))}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Rp ${formatRupiah(laporanData.reduce((sum, item) => sum + (item.total_transport || 0), 0))}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Rp ${formatRupiah(laporanData.reduce((sum, item) => sum + (item.total_keseluruhan || 0), 0))}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -493,7 +501,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                         {userType.isKabalai && <span className="ml-2 text-purple-600">(Kepala Balai - Laporan Perjadin)</span>}
                     </p>
                     <p className="text-sm text-gray-500 mt-1">
-                        Rekapitulasi perjalanan dinas per pegawai berdasarkan status SPM
+                        Rekapitulasi perjalanan dinas per pegawai (Uang Harian + Transport Lokal)
                     </p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -560,7 +568,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                                <span className="text-xs">Menampilkan total UH, hari dinas, dan jumlah perjalanan</span>
+                                <span className="text-xs">Transport hanya untuk perjalanan lokal (Palangkaraya)</span>
                             </div>
                         </div>
                     </div>

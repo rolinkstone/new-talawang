@@ -99,12 +99,37 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
                   Total Hari {getSortIcon('total_hari_dinas')}
                 </div>
               </th>
+              
               <th 
                 className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('total_uang_harian')}
               >
                 <div className="flex items-center justify-end gap-1">
                   Total Uang Harian {getSortIcon('total_uang_harian')}
+                </div>
+              </th>
+              <th 
+                className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_hari_transport_lokal')}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  Hari Transport Lokal {getSortIcon('total_hari_transport_lokal')}
+                </div>
+              </th>
+              <th 
+                className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_transport')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Total Transport Lokal {getSortIcon('total_transport')}
+                </div>
+              </th>
+              <th 
+                className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_keseluruhan')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Total Keseluruhan {getSortIcon('total_keseluruhan')}
                 </div>
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
@@ -130,8 +155,20 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
                     {item.total_hari_dinas} Hari
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
                   Rp {formatRupiah(item.total_uang_harian)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    {item.total_hari_transport_lokal || 0} Hari
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-blue-600">
+                  Rp {formatRupiah(item.total_transport || 0)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-purple-600">
+                  Rp {formatRupiah(item.total_keseluruhan || 0)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                   <button
@@ -151,8 +188,15 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
       {/* Footer Info */}
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
         <div className="flex justify-between items-center text-sm text-gray-500">
-          <span>Menampilkan {sortedData.length} dari {data.length} pegawai</span>
-          <span>Total UH: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + item.total_uang_harian, 0))}</span>
+          <div className="flex flex-wrap gap-4">
+            <span>Menampilkan {sortedData.length} dari {data.length} pegawai</span>
+            <span>Total Hari Transport Lokal: {sortedData.reduce((sum, item) => sum + (item.total_hari_transport_lokal || 0), 0)} Hari</span>
+          </div>
+          <div className="flex gap-6">
+            <span>Total UH: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + (item.total_uang_harian || 0), 0))}</span>
+            <span>Total Transport: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + (item.total_transport || 0), 0))}</span>
+            <span className="font-semibold text-gray-700">Total Keseluruhan: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + (item.total_keseluruhan || 0), 0))}</span>
+          </div>
         </div>
       </div>
     </div>

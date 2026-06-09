@@ -2,7 +2,8 @@
 import React from 'react';
 import { 
   FaTimes, FaUser, FaIdCard, FaBriefcase, FaMoneyBillWave, 
-  FaCalendarAlt, FaMapMarkerAlt, FaFileAlt, FaCalendarWeek 
+  FaCalendarAlt, FaMapMarkerAlt, FaFileAlt, FaCalendarWeek,
+  FaBus, FaChartLine
 } from 'react-icons/fa';
 
 export default function DetailModal({ isOpen, onClose, pegawai, detail, loading, formatRupiah, formatDateFn }) {
@@ -50,12 +51,35 @@ export default function DetailModal({ isOpen, onClose, pegawai, detail, loading,
                 </div>
                 
                 <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 mb-6">
-                  <h4 className="font-semibold text-gray-700 mb-3">Ringkasan Perjalanan Dinas</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center"><p className="text-2xl font-bold text-blue-600">{detail.ringkasan?.total_perjalanan || 0}</p><p className="text-xs text-gray-500">Total Perjalanan</p></div>
-                    <div className="text-center"><p className="text-2xl font-bold text-green-600">{detail.ringkasan?.total_hari_dinas || 0}</p><p className="text-xs text-gray-500">Total Hari Dinas</p></div>
-                    <div className="text-center"><p className="text-2xl font-bold text-orange-600">Rp {formatRupiah(detail.ringkasan?.total_uang_harian || 0)}</p><p className="text-xs text-gray-500">Total Uang Harian</p></div>
-                    <div className="text-center"><p className="text-2xl font-bold text-purple-600">Rp {formatRupiah(detail.ringkasan?.rata_rata_uang_harian_per_hari || 0)}</p><p className="text-xs text-gray-500">Rata-rata / Hari</p></div>
+                  <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <FaChartLine className="text-blue-600" />
+                    Ringkasan Perjalanan Dinas
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{detail.ringkasan?.total_perjalanan || 0}</p>
+                      <p className="text-xs text-gray-500">Total Perjalanan</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">{detail.ringkasan?.total_hari_dinas || 0}</p>
+                      <p className="text-xs text-gray-500">Total Hari Dinas</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-yellow-600">{detail.ringkasan?.total_hari_transport_lokal || 0}</p>
+                      <p className="text-xs text-gray-500">Hari Transport Lokal</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-orange-600">Rp {formatRupiah(detail.ringkasan?.total_uang_harian || 0)}</p>
+                      <p className="text-xs text-gray-500">Total Uang Harian</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">Rp {formatRupiah(detail.ringkasan?.total_transport || 0)}</p>
+                      <p className="text-xs text-gray-500">Total Transport Lokal</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-purple-600">Rp {formatRupiah(detail.ringkasan?.total_keseluruhan || 0)}</p>
+                      <p className="text-xs text-gray-500">Total Keseluruhan</p>
+                    </div>
                   </div>
                 </div>
                 
@@ -66,21 +90,71 @@ export default function DetailModal({ isOpen, onClose, pegawai, detail, loading,
                   </h4>
                   <div className="space-y-4">
                     {detail.detail_perjalanan?.map((perjalanan, idx) => (
-                      <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div key={idx} className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${perjalanan.is_lokal ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}`}>
                         <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h5 className="font-semibold text-gray-800">{perjalanan.kegiatan_nama}</h5>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h5 className="font-semibold text-gray-800">{perjalanan.kegiatan_nama}</h5>
+                              {perjalanan.is_lokal && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+                                  <FaBus size={10} /> Lokal
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-500">MAK: {perjalanan.mak || '-'}</p>
                           </div>
                           <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">#{idx + 1}</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          <div className="flex items-center gap-2"><FaFileAlt className="text-gray-400" /><span className="text-gray-600">No ST:</span><span className="font-medium">{perjalanan.no_st || '-'}</span></div>
-                          <div className="flex items-center gap-2"><FaCalendarAlt className="text-gray-400" /><span className="text-gray-600">Tgl ST:</span><span className="font-medium">{perjalanan.tgl_st || '-'}</span></div>
-                          <div className="flex items-center gap-2"><FaCalendarAlt className="text-gray-400" /><span className="text-gray-600">Periode:</span><span className="font-medium">{perjalanan.tgl_mulai} s/d {perjalanan.tgl_selesai}</span></div>
-                          <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-gray-400" /><span className="text-gray-600">Lokasi:</span><span className="font-medium">{perjalanan.lokasi || '-'}</span></div>
-                          <div className="flex items-center gap-2"><FaCalendarWeek className="text-gray-400" /><span className="text-gray-600">Jumlah Hari:</span><span className="font-medium">{perjalanan.jumlah_hari} Hari</span></div>
-                          <div className="flex items-center gap-2"><FaMoneyBillWave className="text-gray-400" /><span className="text-gray-600">Uang Harian:</span><span className="font-medium text-green-600">Rp {formatRupiah(perjalanan.uang_harian)}</span></div>
+                          <div className="flex items-center gap-2">
+                            <FaFileAlt className="text-gray-400" />
+                            <span className="text-gray-600">No ST:</span>
+                            <span className="font-medium">{perjalanan.no_st || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaCalendarAlt className="text-gray-400" />
+                            <span className="text-gray-600">Tgl ST:</span>
+                            <span className="font-medium">{perjalanan.tgl_st || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaCalendarAlt className="text-gray-400" />
+                            <span className="text-gray-600">Periode:</span>
+                            <span className="font-medium">{perjalanan.tgl_mulai} s/d {perjalanan.tgl_selesai}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaMapMarkerAlt className="text-gray-400" />
+                            <span className="text-gray-600">Lokasi:</span>
+                            <span className="font-medium">{perjalanan.lokasi || '-'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaCalendarWeek className="text-gray-400" />
+                            <span className="text-gray-600">Jumlah Hari:</span>
+                            <span className="font-medium">{perjalanan.jumlah_hari} Hari</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaBus className="text-gray-400" />
+                            <span className="text-gray-600">Hari Transport Lokal:</span>
+                            <span className={`font-medium ${perjalanan.hari_transport_lokal > 0 ? 'text-blue-600' : 'text-gray-500'}`}>
+                              {perjalanan.hari_transport_lokal || 0} Hari
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaMoneyBillWave className="text-gray-400" />
+                            <span className="text-gray-600">Uang Harian:</span>
+                            <span className="font-medium text-green-600">Rp {formatRupiah(perjalanan.uang_harian)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FaBus className="text-gray-400" />
+                            <span className="text-gray-600">Transport Lokal:</span>
+                            <span className={`font-medium ${perjalanan.transport > 0 ? 'text-blue-600' : 'text-gray-500'}`}>
+                              Rp {formatRupiah(perjalanan.transport)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 md:col-span-2">
+                            <FaMoneyBillWave className="text-purple-400" />
+                            <span className="text-gray-600">Total (UH + Transport):</span>
+                            <span className="font-bold text-purple-600">Rp {formatRupiah(perjalanan.total)}</span>
+                          </div>
                         </div>
                         {perjalanan.status_2 && (
                           <div className="mt-3 pt-3 border-t border-gray-100">

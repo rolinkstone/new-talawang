@@ -86,6 +86,15 @@ const isValidNip = (nip) => {
     return true;
 };
 
+// Helper untuk mengecek apakah lokasi adalah Palangkaraya (lokal)
+const isLokasiPalangkaraya = (lokasi) => {
+    if (!lokasi) return false;
+    const lokasiLower = lokasi.toLowerCase();
+    return lokasiLower.includes('palangkaraya') || 
+           lokasiLower.includes('palangka raya') ||
+           lokasiLower === 'palangkaraya';
+};
+
 // ========== TEST ROUTE ==========
 router.get('/test', keycloakAuth, async (req, res) => {
     res.status(200).json({
@@ -102,13 +111,11 @@ router.get('/test', keycloakAuth, async (req, res) => {
 });
 
 // ========== LAPORAN REKAP PEGAWAI PERJADIN ==========
-// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
 router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
     console.log(`📊 ${username} mengakses laporan rekap pegawai perjadin`);
     
-    // PERBAIKAN: Cek akses untuk Admin, Kabag TU, atau Kepala Balai
     if (!canAccessLaporan(req.user)) {
         return res.status(403).json({
             success: false,
@@ -160,7 +167,10 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                 MAX(pegawai_jabatan) as pegawai_jabatan,
                 SUM(jumlah_perjalanan) as jumlah_perjalanan,
                 SUM(total_hari_dinas) as total_hari_dinas,
-                SUM(total_uang_harian) as total_uang_harian
+                SUM(total_hari_transport_lokal) as total_hari_transport_lokal,
+                SUM(total_uang_harian) as total_uang_harian,
+                SUM(total_transport) as total_transport,
+                SUM(total_uang_harian + total_transport) as total_keseluruhan
             FROM (
                 SELECT 
                     REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
@@ -170,12 +180,26 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                     MAX(p.jabatan) as pegawai_jabatan,
                     1 as jumlah_perjalanan,
                     MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
+                    SUM(CASE 
+                        WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                        THEN (DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1)
+                        ELSE 0
+                    END) as total_hari_transport_lokal,
                     SUM(COALESCE((
                         SELECT SUM(uh.total)
                         FROM accounting.nominatif_uang_harian_items uh
                         INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
                         WHERE bk.pegawai_id = p.id
-                    ), 0)) as total_uang_harian
+                    ), 0)) as total_uang_harian,
+                    SUM(COALESCE((
+                        SELECT SUM(t.total)
+                        FROM accounting.nominatif_transportasi t
+                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
+                        WHERE bk.pegawai_id = p.id
+                            AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                                OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                    ), 0)) as total_transport
                 FROM accounting.nominatif_pegawai p
                 INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
                 ${whereClause}
@@ -196,7 +220,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             HAVING pegawai_nip_normalized IS NOT NULL 
                 AND pegawai_nip_normalized != ''
                 AND pegawai_nip_normalized NOT REGEXP '^-+$'
-            ORDER BY total_uang_harian DESC, pegawai_nama ASC
+            ORDER BY total_keseluruhan DESC, pegawai_nama ASC
         `;
         
         console.log(`📝 Executing query with params:`, params);
@@ -211,7 +235,10 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                     total_pegawai: 0,
                     total_perjalanan: 0,
                     total_hari_dinas: 0,
-                    total_uang_harian: 0
+                    total_hari_transport_lokal: 0,
+                    total_uang_harian: 0,
+                    total_transport: 0,
+                    total_keseluruhan: 0
                 }
             });
         }
@@ -225,12 +252,21 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             pegawai_jabatan: row.pegawai_jabatan,
             jumlah_perjalanan: parseInt(row.jumlah_perjalanan) || 0,
             total_hari_dinas: parseInt(row.total_hari_dinas) || 0,
+            total_hari_transport_lokal: parseInt(row.total_hari_transport_lokal) || 0,
             total_uang_harian: parseFloat(row.total_uang_harian) || 0,
+            total_transport: parseFloat(row.total_transport) || 0,
+            total_keseluruhan: parseFloat(row.total_keseluruhan) || 0,
             rata_rata_uang_harian_per_hari: row.total_hari_dinas > 0 
                 ? Math.round((parseFloat(row.total_uang_harian) || 0) / (parseInt(row.total_hari_dinas) || 1)) 
                 : 0,
             rata_rata_uang_harian_per_perjalanan: row.jumlah_perjalanan > 0 
                 ? Math.round((parseFloat(row.total_uang_harian) || 0) / (parseInt(row.jumlah_perjalanan) || 1)) 
+                : 0,
+            rata_rata_transport_per_perjalanan: row.jumlah_perjalanan > 0 
+                ? Math.round((parseFloat(row.total_transport) || 0) / (parseInt(row.jumlah_perjalanan) || 1)) 
+                : 0,
+            rata_rata_total_per_perjalanan: row.jumlah_perjalanan > 0 
+                ? Math.round((parseFloat(row.total_keseluruhan) || 0) / (parseInt(row.jumlah_perjalanan) || 1)) 
                 : 0
         }));
         
@@ -238,7 +274,10 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             total_pegawai: dataRekap.length,
             total_perjalanan: dataRekap.reduce((sum, item) => sum + item.jumlah_perjalanan, 0),
             total_hari_dinas: dataRekap.reduce((sum, item) => sum + item.total_hari_dinas, 0),
-            total_uang_harian: dataRekap.reduce((sum, item) => sum + item.total_uang_harian, 0)
+            total_hari_transport_lokal: dataRekap.reduce((sum, item) => sum + item.total_hari_transport_lokal, 0),
+            total_uang_harian: dataRekap.reduce((sum, item) => sum + item.total_uang_harian, 0),
+            total_transport: dataRekap.reduce((sum, item) => sum + item.total_transport, 0),
+            total_keseluruhan: dataRekap.reduce((sum, item) => sum + item.total_keseluruhan, 0)
         };
         
         console.log(`✅ Laporan rekap berhasil dihasilkan: ${dataRekap.length} pegawai`);
@@ -260,8 +299,342 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     }
 });
 
-// ========== GET DROPDOWN OPTIONS ==========
-// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
+// ========== LAPORAN DETAIL PER PEGAWAI ==========
+router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
+    const { nip } = req.params;
+    const username = getUsername(req.user);
+    
+    if (!canAccessLaporan(req.user)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengakses laporan ini.'
+        });
+    }
+    
+    if (!nip) {
+        return res.status(400).json({
+            success: false,
+            message: 'NIP pegawai tidak valid'
+        });
+    }
+    
+    try {
+        const { tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
+        const filterTahun = tahun || new Date().getFullYear();
+        const normalizedNip = nip.replace(/\s/g, '');
+        
+        const query = `
+            SELECT 
+                p.nama as pegawai_nama,
+                p.nip as pegawai_nip,
+                p.pangkat as pegawai_pangkat,
+                p.jabatan as pegawai_jabatan,
+                k.kegiatan as kegiatan_nama,
+                k.mak,
+                k.jenis_spm,
+                k.no_st as original_no_st,
+                k.kota_kab_kecamatan as lokasi,
+                CASE 
+                    WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
+                    WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
+                    ELSE k.no_st
+                END as normalized_no_st,
+                DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st,
+                DATE_FORMAT(k.rencana_tanggal_pelaksanaan, '%Y-%m-%d') as tgl_mulai,
+                DATE_FORMAT(k.rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as tgl_selesai,
+                DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1 as jumlah_hari,
+                CASE 
+                    WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                        OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                    THEN DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1
+                    ELSE 0
+                END as hari_transport_lokal,
+                COALESCE((
+                    SELECT SUM(uh.total)
+                    FROM accounting.nominatif_uang_harian_items uh
+                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
+                    WHERE bk.pegawai_id = p.id
+                ), 0) as uang_harian,
+                COALESCE((
+                    SELECT SUM(t.total)
+                    FROM accounting.nominatif_transportasi t
+                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
+                    WHERE bk.pegawai_id = p.id
+                        AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                ), 0) as transport,
+                k.status,
+                k.status_2,
+                k.catatan_status_2,
+                k.created_at
+            FROM accounting.nominatif_pegawai p
+            INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
+            WHERE REPLACE(p.nip, ' ', '') = ?
+                AND k.status = 'selesai'
+                AND k.status_2 = ?
+                AND k.jenis_spm = ?
+                AND (YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))
+            ORDER BY k.tgl_st DESC, k.created_at DESC
+        `;
+        
+        const [rows] = await db.query(query, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Pegawai tidak ditemukan atau tidak memiliki perjalanan dinas'
+            });
+        }
+        
+        const pegawaiInfo = {
+            id: normalizedNip,
+            nama: rows[0].pegawai_nama,
+            nip: rows[0].pegawai_nip,
+            pangkat: rows[0].pegawai_pangkat,
+            jabatan: rows[0].pegawai_jabatan
+        };
+        
+        const groupedByTrip = {};
+        
+        for (const row of rows) {
+            const tripKey = row.normalized_no_st;
+            
+            if (!groupedByTrip[tripKey]) {
+                groupedByTrip[tripKey] = {
+                    no_st: row.original_no_st,
+                    normalized_no_st: row.normalized_no_st,
+                    kegiatan_nama: [],
+                    mak: row.mak,
+                    jenis_spm: row.jenis_spm,
+                    tgl_st: row.tgl_st,
+                    tgl_mulai: row.tgl_mulai,
+                    tgl_selesai: row.tgl_selesai,
+                    jumlah_hari: parseInt(row.jumlah_hari) || 0,
+                    hari_transport_lokal: parseInt(row.hari_transport_lokal) || 0,
+                    lokasi: row.lokasi,
+                    uang_harian: 0,
+                    transport: 0,
+                    total: 0,
+                    status: row.status,
+                    status_2: row.status_2,
+                    catatan_status_2: row.catatan_status_2
+                };
+            }
+            
+            if (!groupedByTrip[tripKey].kegiatan_nama.includes(row.kegiatan_nama)) {
+                groupedByTrip[tripKey].kegiatan_nama.push(row.kegiatan_nama);
+            }
+            
+            groupedByTrip[tripKey].uang_harian += parseFloat(row.uang_harian) || 0;
+            groupedByTrip[tripKey].transport += parseFloat(row.transport) || 0;
+            groupedByTrip[tripKey].total = groupedByTrip[tripKey].uang_harian + groupedByTrip[tripKey].transport;
+        }
+        
+        let totalPerjalanan = 0;
+        let totalHariDinas = 0;
+        let totalHariTransportLokal = 0;
+        let totalUangHarian = 0;
+        let totalTransport = 0;
+        let totalKeseluruhan = 0;
+        
+        const detailPerjalanan = Object.values(groupedByTrip).map(item => {
+            totalPerjalanan++;
+            totalHariDinas += item.jumlah_hari;
+            totalHariTransportLokal += item.hari_transport_lokal;
+            totalUangHarian += item.uang_harian;
+            totalTransport += item.transport;
+            totalKeseluruhan += item.total;
+            
+            return {
+                no_st: item.no_st,
+                kegiatan_nama: item.kegiatan_nama.join(' / '),
+                mak: item.mak,
+                jenis_spm: item.jenis_spm,
+                tgl_st: item.tgl_st,
+                tgl_mulai: item.tgl_mulai,
+                tgl_selesai: item.tgl_selesai,
+                jumlah_hari: item.jumlah_hari,
+                hari_transport_lokal: item.hari_transport_lokal,
+                lokasi: item.lokasi,
+                uang_harian: item.uang_harian,
+                transport: item.transport,
+                total: item.total,
+                is_lokal: isLokasiPalangkaraya(item.lokasi),
+                status: item.status,
+                status_2: item.status_2,
+                catatan_status_2: item.catatan_status_2
+            };
+        });
+        
+        res.status(200).json({
+            success: true,
+            message: 'Detail laporan pegawai berhasil diambil',
+            data: {
+                pegawai: pegawaiInfo,
+                ringkasan: {
+                    total_perjalanan: totalPerjalanan,
+                    total_hari_dinas: totalHariDinas,
+                    total_hari_transport_lokal: totalHariTransportLokal,
+                    total_uang_harian: totalUangHarian,
+                    total_transport: totalTransport,
+                    total_keseluruhan: totalKeseluruhan,
+                    rata_rata_uang_harian_per_hari: totalHariDinas > 0 
+                        ? Math.round(totalUangHarian / totalHariDinas) 
+                        : 0,
+                    rata_rata_transport_per_perjalanan: totalPerjalanan > 0
+                        ? Math.round(totalTransport / totalPerjalanan)
+                        : 0,
+                    rata_rata_total_per_perjalanan: totalPerjalanan > 0
+                        ? Math.round(totalKeseluruhan / totalPerjalanan)
+                        : 0
+                },
+                detail_perjalanan: detailPerjalanan
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error generating laporan pegawai detail:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan saat mengambil data laporan pegawai',
+            error: error.message
+        });
+    }
+});
+
+// ========== EXPORT LAPORAN (CSV) ==========
+router.get('/export/csv', keycloakAuth, async (req, res) => {
+    const username = getUsername(req.user);
+    
+    if (!canAccessLaporan(req.user)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengexport laporan.'
+        });
+    }
+    
+    try {
+        const { bulan, tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
+        const filterTahun = tahun || new Date().getFullYear();
+        
+        let whereConditions = [
+            `k.status = 'selesai'`,
+            `k.status_2 = ?`,
+            `k.jenis_spm = ?`
+        ];
+        let params = [status_2, jenis_spm];
+        
+        if (bulan && bulan !== 'all') {
+            whereConditions.push(`(MONTH(k.tgl_st) = ? OR (k.tgl_st IS NULL AND MONTH(k.created_at) = ?))`);
+            params.push(bulan, bulan);
+        }
+        
+        whereConditions.push(`(YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))`);
+        params.push(filterTahun, filterTahun);
+        
+        const query = `
+            SELECT 
+                pegawai_nip_normalized,
+                MAX(pegawai_nip) as NIP,
+                MAX(pegawai_nama) as Nama_Pegawai,
+                MAX(pegawai_pangkat) as Pangkat,
+                MAX(pegawai_jabatan) as Jabatan,
+                SUM(jumlah_perjalanan) as Jumlah_Perjalanan,
+                SUM(total_hari_dinas) as Total_Hari_Dinas,
+                SUM(total_hari_transport_lokal) as Total_Hari_Transport_Lokal,
+                SUM(total_uang_harian) as Total_Uang_Harian,
+                SUM(total_transport) as Total_Transport,
+                SUM(total_uang_harian + total_transport) as Total_Keseluruhan
+            FROM (
+                SELECT 
+                    REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
+                    MAX(p.nip) as pegawai_nip,
+                    MAX(p.nama) as pegawai_nama,
+                    MAX(p.pangkat) as pegawai_pangkat,
+                    MAX(p.jabatan) as pegawai_jabatan,
+                    1 as jumlah_perjalanan,
+                    MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
+                    SUM(CASE 
+                        WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                        THEN (DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1)
+                        ELSE 0
+                    END) as total_hari_transport_lokal,
+                    SUM(COALESCE((
+                        SELECT SUM(uh.total)
+                        FROM accounting.nominatif_uang_harian_items uh
+                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
+                        WHERE bk.pegawai_id = p.id
+                    ), 0)) as total_uang_harian,
+                    SUM(COALESCE((
+                        SELECT SUM(t.total)
+                        FROM accounting.nominatif_transportasi t
+                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
+                        WHERE bk.pegawai_id = p.id
+                            AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
+                                OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                    ), 0)) as total_transport
+                FROM accounting.nominatif_pegawai p
+                INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
+                WHERE ${whereConditions.join(' AND ')}
+                    AND p.nip IS NOT NULL 
+                    AND TRIM(p.nip) != ''
+                    AND TRIM(p.nip) != '-'
+                    AND TRIM(p.nip) != '--'
+                    AND TRIM(p.nip) != '---'
+                    AND TRIM(p.nip) NOT REGEXP '^-+$'
+                GROUP BY REPLACE(p.nip, ' ', ''), 
+                    CASE 
+                        WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
+                        WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
+                        ELSE k.no_st
+                    END
+            ) as per_st
+            GROUP BY pegawai_nip_normalized
+            ORDER BY Nama_Pegawai ASC
+        `;
+        
+        const [rows] = await db.query(query, params);
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=laporan_perjadin_${filterTahun}_${bulan || 'semua'}_${jenis_spm}.csv`);
+        
+        if (rows.length === 0) {
+            return res.send('Tidak ada data untuk periode yang dipilih');
+        }
+        
+        const headers = ['No', 'Nama Pegawai', 'NIP', 'Pangkat', 'Jabatan', 'Jumlah Perjalanan', 'Total Hari Dinas', 'Total Hari Transport Lokal', 'Total Uang Harian', 'Total Transport (Lokal)', 'Total Keseluruhan'];
+        let csv = headers.join(',') + '\n';
+        
+        rows.forEach((row, idx) => {
+            const values = [
+                idx + 1,
+                `"${(row.Nama_Pegawai || '').replace(/"/g, '""')}"`,
+                `"${(row.NIP || '').replace(/"/g, '""')}"`,
+                `"${(row.Pangkat || '').replace(/"/g, '""')}"`,
+                `"${(row.Jabatan || '').replace(/"/g, '""')}"`,
+                row.Jumlah_Perjalanan || 0,
+                row.Total_Hari_Dinas || 0,
+                row.Total_Hari_Transport_Lokal || 0,
+                row.Total_Uang_Harian || 0,
+                row.Total_Transport || 0,
+                row.Total_Keseluruhan || 0
+            ];
+            csv += values.join(',') + '\n';
+        });
+        
+        res.send(csv);
+        
+    } catch (error) {
+        console.error('❌ Error exporting CSV:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengexport data',
+            error: error.message
+        });
+    }
+});
+
 router.get('/options', keycloakAuth, async (req, res) => {
     const username = getUsername(req.user);
     
@@ -342,286 +715,6 @@ router.get('/options', keycloakAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Gagal mengambil data opsi filter',
-            error: error.message
-        });
-    }
-});
-
-// ========== LAPORAN DETAIL PER PEGAWAI ==========
-// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
-router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
-    const { nip } = req.params;
-    const username = getUsername(req.user);
-    
-    if (!canAccessLaporan(req.user)) {
-        return res.status(403).json({
-            success: false,
-            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengakses laporan ini.'
-        });
-    }
-    
-    if (!nip) {
-        return res.status(400).json({
-            success: false,
-            message: 'NIP pegawai tidak valid'
-        });
-    }
-    
-    try {
-        const { tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
-        const filterTahun = tahun || new Date().getFullYear();
-        const normalizedNip = nip.replace(/\s/g, '');
-        
-        const query = `
-            SELECT 
-                p.nama as pegawai_nama,
-                p.nip as pegawai_nip,
-                p.pangkat as pegawai_pangkat,
-                p.jabatan as pegawai_jabatan,
-                k.kegiatan as kegiatan_nama,
-                k.mak,
-                k.jenis_spm,
-                k.no_st as original_no_st,
-                CASE 
-                    WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
-                    WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
-                    ELSE k.no_st
-                END as normalized_no_st,
-                DATE_FORMAT(k.tgl_st, '%Y-%m-%d') as tgl_st,
-                DATE_FORMAT(k.rencana_tanggal_pelaksanaan, '%Y-%m-%d') as tgl_mulai,
-                DATE_FORMAT(k.rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as tgl_selesai,
-                DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1 as jumlah_hari,
-                k.kota_kab_kecamatan as lokasi,
-                COALESCE((
-                    SELECT SUM(uh.total)
-                    FROM accounting.nominatif_uang_harian_items uh
-                    INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
-                    WHERE bk.pegawai_id = p.id
-                ), 0) as uang_harian,
-                k.status,
-                k.status_2,
-                k.catatan_status_2,
-                k.created_at
-            FROM accounting.nominatif_pegawai p
-            INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
-            WHERE REPLACE(p.nip, ' ', '') = ?
-                AND k.status = 'selesai'
-                AND k.status_2 = ?
-                AND k.jenis_spm = ?
-                AND (YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))
-            ORDER BY k.tgl_st DESC, k.created_at DESC
-        `;
-        
-        const [rows] = await db.query(query, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
-        
-        if (rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Pegawai tidak ditemukan atau tidak memiliki perjalanan dinas'
-            });
-        }
-        
-        const pegawaiInfo = {
-            id: normalizedNip,
-            nama: rows[0].pegawai_nama,
-            nip: rows[0].pegawai_nip,
-            pangkat: rows[0].pegawai_pangkat,
-            jabatan: rows[0].pegawai_jabatan
-        };
-        
-        const groupedByTrip = {};
-        
-        for (const row of rows) {
-            const tripKey = row.normalized_no_st;
-            
-            if (!groupedByTrip[tripKey]) {
-                groupedByTrip[tripKey] = {
-                    no_st: row.original_no_st,
-                    normalized_no_st: row.normalized_no_st,
-                    kegiatan_nama: [],
-                    mak: row.mak,
-                    jenis_spm: row.jenis_spm,
-                    tgl_st: row.tgl_st,
-                    tgl_mulai: row.tgl_mulai,
-                    tgl_selesai: row.tgl_selesai,
-                    jumlah_hari: parseInt(row.jumlah_hari) || 0,
-                    lokasi: row.lokasi,
-                    uang_harian: 0,
-                    status: row.status,
-                    status_2: row.status_2,
-                    catatan_status_2: row.catatan_status_2
-                };
-            }
-            
-            if (!groupedByTrip[tripKey].kegiatan_nama.includes(row.kegiatan_nama)) {
-                groupedByTrip[tripKey].kegiatan_nama.push(row.kegiatan_nama);
-            }
-            
-            groupedByTrip[tripKey].uang_harian += parseFloat(row.uang_harian) || 0;
-        }
-        
-        let totalPerjalanan = 0;
-        let totalHariDinas = 0;
-        let totalUangHarian = 0;
-        
-        const detailPerjalanan = Object.values(groupedByTrip).map(item => {
-            totalPerjalanan++;
-            totalHariDinas += item.jumlah_hari;
-            totalUangHarian += item.uang_harian;
-            
-            return {
-                no_st: item.no_st,
-                kegiatan_nama: item.kegiatan_nama.join(' / '),
-                mak: item.mak,
-                jenis_spm: item.jenis_spm,
-                tgl_st: item.tgl_st,
-                tgl_mulai: item.tgl_mulai,
-                tgl_selesai: item.tgl_selesai,
-                jumlah_hari: item.jumlah_hari,
-                lokasi: item.lokasi,
-                uang_harian: item.uang_harian,
-                status: item.status,
-                status_2: item.status_2,
-                catatan_status_2: item.catatan_status_2
-            };
-        });
-        
-        res.status(200).json({
-            success: true,
-            message: 'Detail laporan pegawai berhasil diambil',
-            data: {
-                pegawai: pegawaiInfo,
-                ringkasan: {
-                    total_perjalanan: totalPerjalanan,
-                    total_hari_dinas: totalHariDinas,
-                    total_uang_harian: totalUangHarian,
-                    rata_rata_uang_harian_per_hari: totalHariDinas > 0 
-                        ? Math.round(totalUangHarian / totalHariDinas) 
-                        : 0
-                },
-                detail_perjalanan: detailPerjalanan
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error generating laporan pegawai detail:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan saat mengambil data laporan pegawai',
-            error: error.message
-        });
-    }
-});
-
-// ========== EXPORT LAPORAN (CSV) ==========
-// ========== PERBAIKAN: Tambahkan Kabag TU ke akses ==========
-router.get('/export/csv', keycloakAuth, async (req, res) => {
-    const username = getUsername(req.user);
-    
-    if (!canAccessLaporan(req.user)) {
-        return res.status(403).json({
-            success: false,
-            message: 'Akses ditolak. Hanya Admin, Kabag TU, dan Kepala Balai yang dapat mengexport laporan.'
-        });
-    }
-    
-    try {
-        const { bulan, tahun, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
-        const filterTahun = tahun || new Date().getFullYear();
-        
-        let whereConditions = [
-            `k.status = 'selesai'`,
-            `k.status_2 = ?`,
-            `k.jenis_spm = ?`
-        ];
-        let params = [status_2, jenis_spm];
-        
-        if (bulan && bulan !== 'all') {
-            whereConditions.push(`(MONTH(k.tgl_st) = ? OR (k.tgl_st IS NULL AND MONTH(k.created_at) = ?))`);
-            params.push(bulan, bulan);
-        }
-        
-        whereConditions.push(`(YEAR(k.tgl_st) = ? OR (k.tgl_st IS NULL AND YEAR(k.created_at) = ?))`);
-        params.push(filterTahun, filterTahun);
-        
-        const query = `
-            SELECT 
-                pegawai_nip_normalized,
-                MAX(pegawai_nip) as NIP,
-                MAX(pegawai_nama) as Nama_Pegawai,
-                MAX(pegawai_pangkat) as Pangkat,
-                MAX(pegawai_jabatan) as Jabatan,
-                SUM(jumlah_perjalanan) as Jumlah_Perjalanan,
-                SUM(total_hari_dinas) as Total_Hari_Dinas,
-                SUM(total_uang_harian) as Total_Uang_Harian
-            FROM (
-                SELECT 
-                    REPLACE(p.nip, ' ', '') as pegawai_nip_normalized,
-                    MAX(p.nip) as pegawai_nip,
-                    MAX(p.nama) as pegawai_nama,
-                    MAX(p.pangkat) as pegawai_pangkat,
-                    MAX(p.jabatan) as pegawai_jabatan,
-                    1 as jumlah_perjalanan,
-                    MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
-                    SUM(COALESCE((
-                        SELECT SUM(uh.total)
-                        FROM accounting.nominatif_uang_harian_items uh
-                        INNER JOIN accounting.nominatif_biaya_kegiatan bk ON uh.biaya_id = bk.id
-                        WHERE bk.pegawai_id = p.id
-                    ), 0)) as total_uang_harian
-                FROM accounting.nominatif_pegawai p
-                INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
-                WHERE ${whereConditions.join(' AND ')}
-                    AND p.nip IS NOT NULL 
-                    AND TRIM(p.nip) != ''
-                    AND TRIM(p.nip) != '-'
-                    AND TRIM(p.nip) != '--'
-                    AND TRIM(p.nip) != '---'
-                    AND TRIM(p.nip) NOT REGEXP '^-+$'
-                GROUP BY REPLACE(p.nip, ' ', ''), 
-                    CASE 
-                        WHEN k.no_st REGEXP '[0-9]{7}$' THEN RIGHT(k.no_st, 7)
-                        WHEN k.no_st REGEXP '[0-9]+' THEN SUBSTRING(k.no_st, LENGTH(k.no_st) - 6, 7)
-                        ELSE k.no_st
-                    END
-            ) as per_st
-            GROUP BY pegawai_nip_normalized
-            ORDER BY Nama_Pegawai ASC
-        `;
-        
-        const [rows] = await db.query(query, params);
-        
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename=laporan_perjadin_${filterTahun}_${bulan || 'semua'}_${jenis_spm}.csv`);
-        
-        if (rows.length === 0) {
-            return res.send('Tidak ada data untuk periode yang dipilih');
-        }
-        
-        const headers = ['No', 'Nama Pegawai', 'NIP', 'Pangkat', 'Jabatan', 'Jumlah Perjalanan', 'Total Hari Dinas', 'Total Uang Harian'];
-        let csv = headers.join(',') + '\n';
-        
-        rows.forEach((row, idx) => {
-            const values = [
-                idx + 1,
-                `"${(row.Nama_Pegawai || '').replace(/"/g, '""')}"`,
-                `"${(row.NIP || '').replace(/"/g, '""')}"`,
-                `"${(row.Pangkat || '').replace(/"/g, '""')}"`,
-                `"${(row.Jabatan || '').replace(/"/g, '""')}"`,
-                row.Jumlah_Perjalanan || 0,
-                row.Total_Hari_Dinas || 0,
-                row.Total_Uang_Harian || 0
-            ];
-            csv += values.join(',') + '\n';
-        });
-        
-        res.send(csv);
-        
-    } catch (error) {
-        console.error('❌ Error exporting CSV:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Gagal mengexport data',
             error: error.message
         });
     }
