@@ -1314,15 +1314,22 @@ router.post('/reject-katim/:kegiatanId', keycloakAuth, async (req, res) => {
 });
 
 // ============ KABALAI APPROVE LPD ============
+// ============ KABALAI APPROVE LPD ============
 router.post('/approve-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
     const { kegiatanId } = req.params;
     const user = req.user;
     const userId = getUserId(user);
     const username = getUsername(user);
     const roleInfo = getUserRoleInfo(user);
-    const { catatan } = req.body;
+    const { catatan, nama_kabalai, nip_kabalai } = req.body;
     
-    console.log('✅ Kabalai approve LPD:', { kegiatanId, userId, username });
+    console.log('✅ Kabalai approve LPD:', { 
+        kegiatanId, 
+        userId, 
+        username,
+        nama_kabalai_from_body: nama_kabalai,
+        nip_kabalai_from_body: nip_kabalai
+    });
     
     if (!kegiatanId || isNaN(kegiatanId)) {
         return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
@@ -1358,8 +1365,41 @@ router.post('/approve-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
             });
         }
         
+        // 🔥 PERBAIKAN: Gunakan nama_kabalai dari request body jika ada, jika tidak coba ambil dari user_profiles
+        let kabalaiNama = nama_kabalai || username;
+        let kabalaiNip = nip_kabalai || user?.nip || '';
+        
+        // Jika nama_kabalai tidak dikirim dari frontend, coba ambil dari user_profiles
+        if (!nama_kabalai) {
+            try {
+                // 🔥 PERBAIKAN: Gunakan kolom yang benar di tabel user_profiles
+                // Coba beberapa kemungkinan nama kolom: name, full_name, nama_lengkap, display_name
+                const [userProfile] = await connection.query(`
+                    SELECT 
+                        COALESCE(name, full_name, nama_lengkap, display_name, username) as nama,
+                        nip 
+                    FROM user_profiles 
+                    WHERE user_id = ? OR REPLACE(nip, ' ', '') = ?
+                    LIMIT 1
+                `, [userId, kabalaiNip]);
+                
+                if (userProfile.length > 0 && userProfile[0].nama) {
+                    kabalaiNama = userProfile[0].nama;
+                    kabalaiNip = userProfile[0].nip || kabalaiNip;
+                    console.log(`📝 Data Kabalai dari user_profiles: nama=${kabalaiNama}, nip=${kabalaiNip}`);
+                } else {
+                    console.log(`⚠️ User profile tidak ditemukan untuk user_id: ${userId}, menggunakan username: ${username}`);
+                }
+            } catch (profileError) {
+                console.error('Error fetching user profile:', profileError);
+                // Jika query profile gagal, lanjutkan dengan data dari request
+            }
+        } else {
+            console.log(`📝 Menggunakan nama Kabalai dari request: ${kabalaiNama}`);
+        }
+        
         const ttdPath = await getTtdByUser(user);
-        console.log(`📝 TTD untuk Kabalai ${username}: ${ttdPath || 'Tidak ditemukan'}`);
+        console.log(`📝 TTD untuk Kabalai ${kabalaiNama}: ${ttdPath || 'Tidak ditemukan'}`);
         
         await connection.query(`
             UPDATE lpd_status 
@@ -1373,12 +1413,12 @@ router.post('/approve-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
                 catatan_kabalai = COALESCE(?, catatan_kabalai),
                 updated_at = NOW()
             WHERE kegiatan_id = ?
-        `, [userId, username, user?.nip || '', ttdPath || null, catatan || null, kegiatanId]);
+        `, [userId, kabalaiNama, kabalaiNip, ttdPath || null, catatan || null, kegiatanId]);
         
         await connection.commit();
         connection.release();
         
-        console.log(`✅ LPD kegiatan ${kegiatanId} disetujui oleh Kabalai ${username}`);
+        console.log(`✅ LPD kegiatan ${kegiatanId} disetujui oleh Kabalai ${kabalaiNama} (NIP: ${kabalaiNip})`);
         
         res.status(200).json({
             success: true,
@@ -1406,7 +1446,7 @@ router.post('/reject-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
     const userId = getUserId(user);
     const username = getUsername(user);
     const roleInfo = getUserRoleInfo(user);
-    const { catatan } = req.body;
+    const { catatan, nama_kabalai } = req.body;
     
     console.log('❌ Kabalai reject LPD:', { kegiatanId, userId, username });
     
@@ -1460,7 +1500,7 @@ router.post('/reject-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
         await connection.commit();
         connection.release();
         
-        console.log(`❌ LPD kegiatan ${kegiatanId} ditolak oleh Kabalai ${username}`);
+        console.log(`❌ LPD kegiatan ${kegiatanId} ditolak oleh ${username}`);
         
         res.status(200).json({
             success: true,

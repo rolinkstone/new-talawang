@@ -1,5 +1,5 @@
 // components/lpd/modals/PersetujuanKabalaiModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -8,10 +8,15 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
     const [loading, setLoading] = useState(false);
     const [catatan, setCatatan] = useState('');
     const [error, setError] = useState('');
+    const [manualNama, setManualNama] = useState('');
+    const [useManualNama, setUseManualNama] = useState(false);
 
+    // Reset form saat modal ditutup
     const resetForm = () => {
         setCatatan('');
         setError('');
+        setUseManualNama(false);
+        setManualNama('');
     };
 
     const handleClose = () => {
@@ -24,11 +29,36 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
         setError('');
 
         try {
+            const userData = session?.user || {};
+            
+            // Gunakan nama manual jika diaktifkan
+            let namaKabalai;
+            if (useManualNama && manualNama.trim()) {
+                namaKabalai = manualNama.trim();
+            } else {
+                namaKabalai = userData.name || 
+                              userData.full_name || 
+                              userData.fullName || 
+                              userData.nama || 
+                              userData.email || 
+                              'Unknown';
+            }
+            
+            const nipKabalai = userData.nip || '';
+
             const response = await axios.post(
                 `${API_BASE_URL}/lpd/approve-kabalai/${kegiatanId}`,
-                { catatan: catatan || '' },
+                { 
+                    catatan: catatan || '',
+                    nama_kabalai: namaKabalai,
+                    nip_kabalai: nipKabalai
+                },
                 {
-                    headers: { 'Authorization': `Bearer ${session?.accessToken}` }
+                    headers: { 
+                        'Authorization': `Bearer ${session?.accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
                 }
             );
 
@@ -39,8 +69,19 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
                 setError(response.data.message || 'Gagal menyetujui LPD');
             }
         } catch (err) {
-            console.error('Error approving LPD:', err);
-            setError(err.response?.data?.message || 'Terjadi kesalahan saat menyetujui LPD');
+            let errorMessage = 'Terjadi kesalahan saat menyetujui LPD';
+            
+            if (err.response) {
+                errorMessage = err.response.data?.message || 
+                              err.response.data?.error || 
+                              `Server error: ${err.response.status}`;
+            } else if (err.request) {
+                errorMessage = 'Tidak ada response dari server. Periksa koneksi Anda.';
+            } else {
+                errorMessage = err.message;
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -56,11 +97,32 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
         setError('');
 
         try {
+            const userData = session?.user || {};
+            
+            let namaKabalai;
+            if (useManualNama && manualNama.trim()) {
+                namaKabalai = manualNama.trim();
+            } else {
+                namaKabalai = userData.name || 
+                              userData.full_name || 
+                              userData.fullName || 
+                              userData.nama || 
+                              userData.email || 
+                              'Unknown';
+            }
+
             const response = await axios.post(
                 `${API_BASE_URL}/lpd/reject-kabalai/${kegiatanId}`,
-                { catatan: catatan },
+                { 
+                    catatan: catatan,
+                    nama_kabalai: namaKabalai
+                },
                 {
-                    headers: { 'Authorization': `Bearer ${session?.accessToken}` }
+                    headers: { 
+                        'Authorization': `Bearer ${session?.accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
                 }
             );
 
@@ -71,8 +133,19 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
                 setError(response.data.message || 'Gagal menolak LPD');
             }
         } catch (err) {
-            console.error('Error rejecting LPD:', err);
-            setError(err.response?.data?.message || 'Terjadi kesalahan saat menolak LPD');
+            let errorMessage = 'Terjadi kesalahan saat menolak LPD';
+            
+            if (err.response) {
+                errorMessage = err.response.data?.message || 
+                              err.response.data?.error || 
+                              `Server error: ${err.response.status}`;
+            } else if (err.request) {
+                errorMessage = 'Tidak ada response dari server. Periksa koneksi Anda.';
+            } else {
+                errorMessage = err.message;
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -104,19 +177,61 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
                                 <p className="text-xs text-green-600 mt-1">
                                     ✓ Telah disetujui oleh Katim/Kabag TU
                                 </p>
-                                <p className="text-xs text-blue-600 mt-1">
-                                    Tanda tangan akan diambil otomatis dari profile Anda
-                                </p>
                             </div>
                         </div>
 
-                        <div className="mt-4 space-y-4">
-                            {error && (
-                                <div className="p-3 text-sm text-red-700 bg-red-100 rounded-md">
-                                    {error}
+                        {/* Opsi Manual Input Nama */}
+                        <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                            <div className="flex items-start">
+                                <svg className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" clipRule="evenodd" />
+                                </svg>
+                                <div className="text-sm text-blue-700 w-full">
+                                    <p className="font-medium">✏️ Opsi Nama Kabalai:</p>
+                                    <label className="flex items-center mt-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={useManualNama}
+                                            onChange={(e) => setUseManualNama(e.target.checked)}
+                                            className="mr-2"
+                                        />
+                                        <span>Gunakan nama manual (jika nama otomatis tidak sesuai)</span>
+                                    </label>
+                                    
+                                    {useManualNama && (
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={manualNama}
+                                                onChange={(e) => setManualNama(e.target.value)}
+                                                placeholder="Masukkan nama Kabalai"
+                                                className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <p className="text-xs text-blue-600 mt-1">
+                                                Nama ini akan disimpan sebagai nama_kabalai di database
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
+                        </div>
 
+                        {/* Error Panel */}
+                        {error && (
+                            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                <div className="flex items-start">
+                                    <svg className="w-5 h-5 mr-2 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                    <div className="text-sm w-full">
+                                        <p className="font-medium text-red-800">Error:</p>
+                                        <p className="text-red-700">{error}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-4 space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Catatan (Opsional untuk Approve, Wajib untuk Tolak)
@@ -128,19 +243,6 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                     placeholder="Tambahkan catatan jika diperlukan..."
                                 />
-                            </div>
-
-                            <div className="p-3 bg-blue-50 rounded-md">
-                                <div className="flex items-start">
-                                    <svg className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                    </svg>
-                                    <div className="text-sm text-blue-700">
-                                        <p className="font-medium">Informasi:</p>
-                                        <p>Tanda tangan digital akan diambil otomatis dari profile Anda berdasarkan NIP.</p>
-                                        <p className="text-xs mt-1">Pastikan Anda telah mengupload tanda tangan di menu Profile.</p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>

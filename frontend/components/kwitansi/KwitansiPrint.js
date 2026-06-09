@@ -408,7 +408,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
               <tr>
                 <td style="width: 180px; padding: 4px 0;"> &nbsp; Nama dan Alamat Penginapan</td>
-                <td style="width: 10px; padding: 4px 0;">&nbsp; :</td>
+                <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
                 <td style="padding: 4px 0;"><strong> &nbsp;${namaDanAlamat}</strong></td>
               </tr>
               <tr>

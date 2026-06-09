@@ -884,7 +884,7 @@ export default function KegiatanContainer({ session, status }) {
         }
     };
 
-    // Filter effect
+    // PERBAIKAN: Filter effect dengan filter tanggal yang benar
     useEffect(() => {
         const filtered = kegiatanList.filter(item => {
             const matchesSearch = 
@@ -913,18 +913,34 @@ export default function KegiatanContainer({ session, status }) {
             const matchesCatatanStatus2 = !filterCatatanStatus2 || 
                 (item.catatan_status_2 && item.catatan_status_2.toLowerCase().includes(filterCatatanStatus2.toLowerCase()));
             
+            // PERBAIKAN: Filter tanggal menggunakan rencana_tanggal_pelaksanaan
             let matchesDate = true;
             if (filterDateFrom || filterDateTo) {
-                const itemDate = new Date(item.rencana_tanggal_pelaksanaan || item.created_at);
+                // Gunakan rencana_tanggal_pelaksanaan untuk filter
+                const itemDate = item.rencana_tanggal_pelaksanaan ? new Date(item.rencana_tanggal_pelaksanaan) : null;
                 const fromDate = filterDateFrom ? new Date(filterDateFrom) : null;
                 const toDate = filterDateTo ? new Date(filterDateTo) : null;
                 
-                if (fromDate && toDate) {
-                    matchesDate = itemDate >= fromDate && itemDate <= toDate;
-                } else if (fromDate) {
-                    matchesDate = itemDate >= fromDate;
-                } else if (toDate) {
-                    matchesDate = itemDate <= toDate;
+                // Set waktu ke 00:00:00 untuk perbandingan yang akurat
+                if (fromDate) {
+                    fromDate.setHours(0, 0, 0, 0);
+                }
+                if (toDate) {
+                    toDate.setHours(23, 59, 59, 999);
+                }
+                
+                if (itemDate) {
+                    itemDate.setHours(12, 0, 0, 0); // Set ke tengah hari untuk menghindari masalah timezone
+                    
+                    if (fromDate && toDate) {
+                        matchesDate = itemDate >= fromDate && itemDate <= toDate;
+                    } else if (fromDate) {
+                        matchesDate = itemDate >= fromDate;
+                    } else if (toDate) {
+                        matchesDate = itemDate <= toDate;
+                    }
+                } else {
+                    matchesDate = false; // Jika tidak ada tanggal, tidak masuk filter
                 }
             }
             
@@ -1058,7 +1074,7 @@ export default function KegiatanContainer({ session, status }) {
                 filterDateFrom={filterDateFrom}
                 setFilterDateFrom={setFilterDateFrom}
                 filterDateTo={filterDateTo}
-                setFilterDateTo={filterDateTo}
+                setFilterDateTo={setFilterDateTo}
                 filterMak={filterMak}
                 setFilterMak={setFilterMak}
                 filterLokasi={filterLokasi}
@@ -1562,15 +1578,15 @@ export default function KegiatanContainer({ session, status }) {
                                                                                     </div>
                                                                                 );
                                                                             })}
-                                                                          </td>
-                                                                      </tr>
+                                                                           </td>
+                                                                       </tr>
                                                                 )}
                                                             </React.Fragment>
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                              </td>
-                                          </tr>
+                                            </td>
+                                        </tr>
                                     )}
                                 </React.Fragment>
                             ))
@@ -1578,11 +1594,11 @@ export default function KegiatanContainer({ session, status }) {
                             <tr>
                                 <td colSpan={12} className="px-6 py-4 text-center text-gray-500">
                                     Tidak ada data kegiatan
-                                  </td>
-                              </tr>
+                                </td>
+                            </tr>
                         )}
                     </tbody>
-                  </table>
+                </table>
             </div>
 
             {/* Pagination */}

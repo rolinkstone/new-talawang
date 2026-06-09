@@ -55,30 +55,44 @@ export default function DetailModal({ isOpen, onClose, pegawai, detail, loading,
                     <FaChartLine className="text-blue-600" />
                     Ringkasan Perjalanan Dinas
                   </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{detail.ringkasan?.total_perjalanan || 0}</p>
-                      <p className="text-xs text-gray-500">Total Perjalanan</p>
+                  
+                  {/* Baris 1: Total Perjalanan & Total Hari Dinas */}
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                      <p className="text-3xl font-bold text-blue-600">{detail.ringkasan?.total_perjalanan || 0}</p>
+                      <p className="text-sm text-gray-500 mt-1">Total Perjalanan Dinas</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">{detail.ringkasan?.total_hari_dinas || 0}</p>
-                      <p className="text-xs text-gray-500">Total Hari Dinas</p>
+                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                      <p className="text-3xl font-bold text-green-600">{detail.ringkasan?.total_hari_dinas || 0}</p>
+                      <p className="text-sm text-gray-500 mt-1">Total Hari Dinas</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-yellow-600">{detail.ringkasan?.total_hari_transport_lokal || 0}</p>
-                      <p className="text-xs text-gray-500">Hari Transport Lokal</p>
+                  </div>
+                  
+                  {/* Baris 2: Uang Harian */}
+                  <div className="mb-6">
+                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                      <p className="text-3xl font-bold text-orange-600">Rp {formatRupiah(detail.ringkasan?.total_uang_harian || 0)}</p>
+                      <p className="text-sm text-gray-500 mt-1">Total Uang Harian</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-orange-600">Rp {formatRupiah(detail.ringkasan?.total_uang_harian || 0)}</p>
-                      <p className="text-xs text-gray-500">Total Uang Harian</p>
+                  </div>
+                  
+                  {/* Baris 3: Hari Transport Lokal & Total Transport Lokal */}
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                      <p className="text-3xl font-bold text-yellow-600">{detail.ringkasan?.total_hari_transport_lokal || 0}</p>
+                      <p className="text-sm text-gray-500 mt-1">Hari Transport Lokal</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">Rp {formatRupiah(detail.ringkasan?.total_transport || 0)}</p>
-                      <p className="text-xs text-gray-500">Total Transport Lokal</p>
+                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                      <p className="text-3xl font-bold text-blue-600">Rp {formatRupiah(detail.ringkasan?.total_transport || 0)}</p>
+                      <p className="text-sm text-gray-500 mt-1">Total Transport Lokal</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-purple-600">Rp {formatRupiah(detail.ringkasan?.total_keseluruhan || 0)}</p>
-                      <p className="text-xs text-gray-500">Total Keseluruhan</p>
+                  </div>
+                  
+                  {/* Baris 4: Total Keseluruhan */}
+                  <div>
+                    <div className="text-center p-3 bg-gradient-to-r from-purple-100 to-indigo-100 rounded-lg shadow-sm border border-purple-200">
+                      <p className="text-3xl font-bold text-purple-700">Rp {formatRupiah(detail.ringkasan?.total_keseluruhan || 0)}</p>
+                      <p className="text-sm text-gray-600 mt-1 font-medium">Total Keseluruhan (UH + Transport Lokal)</p>
                     </div>
                   </div>
                 </div>

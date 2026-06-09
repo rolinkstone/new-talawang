@@ -20,6 +20,56 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         
         const lpdData = result.data;
         
+        // ============ DEBUG: Cek semua kemungkinan lokasi path ============
+        console.log('========== DEBUG TANDA TANGAN LPD ==========');
+        console.log('1. lpdData lengkap:', JSON.stringify(lpdData, null, 2));
+        
+        // Cek semua kemungkinan lokasi path tanda tangan
+        const possiblePaths = [
+            lpdData?.ttd_kabalai_path,
+            lpdData?.ttd_kabalai,
+            lpdData?.ttd_kepala_balai_path,
+            lpdData?.ttd_kepala_balai,
+            lpdData?.kabalai_ttd_path,
+            lpdData?.kabalai_ttd,
+            lpdData?.signature_kabalai_path,
+            lpdData?.signature_kabalai,
+            kegiatanData?.ttd_kabalai_path,
+            kegiatanData?.ttd_kepala_balai_path,
+            kegiatanData?.kabalai_ttd_path,
+        ];
+        
+        console.log('2. Mencari path dari berbagai kemungkinan:');
+        let foundPath = null;
+        possiblePaths.forEach((path, idx) => {
+            if (path) {
+                console.log(`   - Kemungkinan ${idx + 1}: ${path}`);
+                if (!foundPath) foundPath = path;
+            }
+        });
+        
+        // Cek juga apakah ada di dalam object lain
+        if (lpdData?.ttd) {
+            console.log('3. lpdData.ttd:', lpdData.ttd);
+            if (lpdData.ttd.kabalai) foundPath = foundPath || lpdData.ttd.kabalai;
+            if (lpdData.ttd.kepala_balai) foundPath = foundPath || lpdData.ttd.kepala_balai;
+        }
+        
+        // Cek semua key yang mengandung kata "ttd" atau "kabalai"
+        const allKeys = Object.keys(lpdData || {});
+        const ttdKeys = allKeys.filter(key => key.toLowerCase().includes('ttd') || key.toLowerCase().includes('kabalai') || key.toLowerCase().includes('kepala'));
+        console.log('4. Key yang mengandung ttd/kabalai/kepala:', ttdKeys);
+        ttdKeys.forEach(key => {
+            console.log(`   - ${key}: ${lpdData[key]}`);
+            if (lpdData[key] && !foundPath && typeof lpdData[key] === 'string' && (lpdData[key].includes('.png') || lpdData[key].includes('.jpg') || lpdData[key].includes('.jpeg'))) {
+                foundPath = lpdData[key];
+            }
+        });
+        
+        console.log('5. Path yang ditemukan:', foundPath);
+        console.log('==============================================');
+        // ======================================================
+        
         // Buat iframe untuk printing
         const printFrame = document.createElement('iframe');
         printFrame.style.position = 'absolute';
@@ -80,7 +130,7 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
             return dateStr;
         };
         
-        // Format tanggal untuk rincian kegiatan
+        // PERBAIKAN: Format tanggal untuk rincian kegiatan menjadi DD-MM-YYYY
         const formatTanggalRincian = (date) => {
             if (!date) return '-';
             
@@ -90,42 +140,53 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
             if (dateStr.includes('/')) {
                 const parts = dateStr.split('/');
                 if (parts.length === 3) {
-                    tahun = parseInt(parts[0]);
-                    bulan = parseInt(parts[1]) - 1;
-                    hari = parseInt(parts[2]);
-                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
+                    tahun = parts[0];
+                    bulan = parts[1];
+                    hari = parts[2];
+                    // Format menjadi DD-MM-YYYY (hari-bulan-tahun)
+                    return `${hari.toString().padStart(2, '0')}-${bulan.toString().padStart(2, '0')}-${tahun}`;
                 }
             }
             else if (dateStr.includes('-')) {
                 const parts = dateStr.split('-');
                 if (parts.length === 3) {
-                    tahun = parseInt(parts[0]);
-                    bulan = parseInt(parts[1]) - 1;
-                    hari = parseInt(parts[2]);
-                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
+                    // Jika format YYYY-MM-DD, ubah ke DD-MM-YYYY
+                    if (parts[0].length === 4) {
+                        tahun = parts[0];
+                        bulan = parts[1];
+                        hari = parts[2];
+                        return `${hari.toString().padStart(2, '0')}-${bulan.toString().padStart(2, '0')}-${tahun}`;
+                    } 
+                    // Jika sudah DD-MM-YYYY atau MM-DD-YYYY
+                    else {
+                        return dateStr;
+                    }
                 }
             }
             else if (date instanceof Date && !isNaN(date)) {
-                hari = date.getDate();
-                bulan = date.getMonth();
+                hari = date.getDate().toString().padStart(2, '0');
+                bulan = (date.getMonth() + 1).toString().padStart(2, '0');
                 tahun = date.getFullYear();
-                return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
+                return `${hari}-${bulan}-${tahun}`;
             }
             else {
                 const parsedDate = new Date(date);
                 if (!isNaN(parsedDate.getTime())) {
-                    hari = parsedDate.getDate();
-                    bulan = parsedDate.getMonth();
+                    hari = parsedDate.getDate().toString().padStart(2, '0');
+                    bulan = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
                     tahun = parsedDate.getFullYear();
-                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
+                    return `${hari}-${bulan}-${tahun}`;
                 }
             }
             
             return '-';
         };
         
-        // Format tanggal untuk header
-        const getCurrentDate = () => {
+        // Format tanggal untuk header menggunakan created_at dari kegiatanData
+        const getHeaderDate = () => {
+            if (kegiatanData?.created_at) {
+                return formatTanggalIndonesia(kegiatanData.created_at);
+            }
             const now = new Date();
             const hari = now.getDate().toString().padStart(2, '0');
             const bulan = namaBulan[now.getMonth()];
@@ -173,19 +234,35 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         // Dapatkan dokumentasi
         const dokumentasi = lpdData?.dokumentasi || [];
         
-        // Tanda tangan
-        const ttdKatim = lpdData?.ttd_katim || '';
-        const ttdKabalai = lpdData?.ttd_kabalai || '';
+        // ============ TANDA TANGAN KEPALA BALAI ============
+        // Cari path dari berbagai kemungkinan
+        let ttdKabalaiPath = foundPath || '';
+        let ttdKabalaiNama = lpdData?.ttd_kabalai || kegiatanData?.kabalai_nama || '-';
+        let ttdKabalaiNip = kegiatanData?.kabalai_nip || '-';
         
-        // Logo SVG
-        const logoSvg = `
-            <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="45" fill="#1a56db" stroke="#1e3a8a" stroke-width="3"/>
-                <circle cx="50" cy="50" r="35" fill="white"/>
-                <path d="M50 25 L58 40 L75 42 L62 54 L65 71 L50 63 L35 71 L38 54 L25 42 L42 40 L50 25Z" fill="#1a56db" stroke="#1e3a8a" stroke-width="2"/>
-                <text x="50" y="55" text-anchor="middle" font-size="8" fill="#1a56db" font-weight="bold">BPOM</text>
-            </svg>
-        `;
+        console.log('6. ttdKabalaiPath final:', ttdKabalaiPath);
+        console.log('7. ttdKabalaiNama:', ttdKabalaiNama);
+        
+        // Fungsi untuk mendapatkan URL gambar tanda tangan
+        const getTtdImageUrl = (path) => {
+            if (!path) return null;
+            if (path.startsWith('http')) return path;
+            if (path.startsWith('/uploads')) {
+                return `${BACKEND_URL}${path}`;
+            }
+            return `${BACKEND_URL}/uploads/ttd/${path}`;
+        };
+        
+        const ttdKabalaiUrl = getTtdImageUrl(ttdKabalaiPath);
+        const hasTtdKabalai = ttdKabalaiUrl && ttdKabalaiPath !== '';
+        
+        console.log('8. ttdKabalaiUrl:', ttdKabalaiUrl);
+        console.log('9. hasTtdKabalai:', hasTtdKabalai);
+        console.log('==============================================');
+        // ======================================================
+        
+        // Logo dari folder frontend public/images
+        const logoSrc = '/images/badan_pom.png';
         
         // Generate HTML untuk semua pegawai
         const generateAllPegawaiHTML = () => {
@@ -219,28 +296,218 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
             return html;
         };
         
-        const headerHTML = `
+        // Fungsi untuk membuat header table
+        const createHeaderTable = (pageNum, totalPages) => `
             <table class="header-table">
                 <tr>
                     <td rowspan="2" class="logo-cell">
-                        ${logoSvg}
+                        <img src="${logoSrc}" alt="Logo BBPOM" style="width: 120px; height: 120px; object-fit: contain;" />
                     </td>
                     <td class="title-cell" colspan="2">
                         <strong>LAPORAN PERJALANAN DINAS (LPD)</strong>
                     </td>
-                    <td class="label-cell-header">Tanggal :</td>
-                    <td class="value-cell-header">${getCurrentDate()}</td>
+                    <td class="label-cell-header" style="width: 100px; text-align: center;">Tanggal : <br> ${getHeaderDate()}</td>
                 </tr>
                 <tr>
                     <td class="subtitle-cell" colspan="2">
                         ${kegiatanData?.kegiatan || '-'}
                     </td>
-                    <td class="label-cell-header">Halaman :</td>
-                    <td class="value-cell-header">
-                        <span class="pageNumber"></span> dari <span class="totalPages"></span>
-                    </td>
+                    <td class="label-cell-header" style="width: 180px; text-align: center;">Halaman : ${pageNum} dari ${totalPages}</td>
                 </tr>
             </table>
+        `;
+        
+        // Fungsi untuk membuat konten halaman 1
+        const createPage1Content = () => `
+            <!-- A. Dasar Pelaksanaan Kegiatan -->
+            <div class="section">
+                <div class="section-title">A. Dasar Pelaksanaan Kegiatan</div>
+                <div class="section-content">
+                    <div class="info-row">
+                        Surat Perintah Melaksanakan Tugas Kepala Balai Besar Pengawas Obat dan Makanan Di Palangka Raya
+                    </div>
+                    <table class="info-table-inline">
+                        <tbody>
+                            <tr>
+                                <td class="label-cell" style="width: 65px;">Nomor</td>
+                                <td class="value-cell">: ${kegiatanData?.no_st || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td class="label-cell" style="width: 65px;">Tanggal</td>
+                                <td class="value-cell">: ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- B. Petugas Pelaksana -->
+            <div class="section">
+                <div class="section-title">B. Petugas Pelaksana</div>
+                <div class="section-content">
+                    <table class="info-table-inline">
+                        <tbody>
+                            ${generateAllPegawaiHTML()}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- C. Waktu dan Tempat Pelaksanaan -->
+            <div class="section">
+                <div class="section-title">C. Waktu dan Tempat Pelaksanaan</div>
+                <div class="section-content">
+                    <table class="info-table-inline">
+                        <tbody>
+                            <tr>
+                                <td class="label-cell" style="width: 130px;">Lama Perjalanan</td>
+                                <td class="value-cell">: ${hitungLamaPerjalanan()}</td>
+                            </tr>
+                            <tr>
+                                <td class="label-cell" style="width: 130px;">Tanggal</td>
+                                <td class="value-cell">: ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
+                            </tr>
+                            <tr>
+                                <td class="label-cell" style="width: 130px;">Tempat Pelaksanaan</td>
+                                <td class="value-cell">: ${kegiatanData?.tempat || '-'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- D. Pembiayaan -->
+            <div class="section">
+                <div class="section-title">D. Pembiayaan</div>
+                <div class="section-content">
+                    <div class="info-row">
+                        DIPA BBPOM di Palangka Raya No.SP DIPA.63.01.2.432872/2026 Tanggal 24 Desember 2025.
+                    </div>
+                    <table class="info-table-inline">
+                        <tbody>
+                            <tr>
+                                <td class="label-cell" style="width: 130px;">Mata Anggaran :</td>
+                                <td class="value-cell">${mak}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- E. Rincian Hasil Kegiatan -->
+            <div class="section">
+                <div class="section-title">E. Rincian Hasil Kegiatan</div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">No</th>
+                            <th style="width: 20%;">Tanggal</th>
+                            <th style="width: 75%;">Kegiatan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rincianKegiatan.length > 0 ? rincianKegiatan.map((item, index) => `
+                        <tr>
+                            <td style="text-align: center;">${index + 1}</td>
+                            <td style="text-align: center;">${formatTanggalRincian(item.tanggal)}</td>
+                            <td>${item.kegiatan || '-'}</td>
+                        </tr>
+                        `).join('') : `
+                        <tr>
+                            <td colspan="3" style="text-align: center;">- Tidak ada rincian kegiatan -</td>
+                        </tr>
+                        `}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        // Fungsi untuk membuat konten halaman 2
+        const createPage2Content = () => {
+            let dokumentasiHtml = '';
+            if (dokumentasi.length > 0) {
+                dokumentasiHtml = `
+                    <div class="dokumentasi-grid">
+                        ${dokumentasi.map(doc => {
+                            const filename = doc.file_path?.split('/').pop();
+                            const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
+                            const isImage = doc.file_type?.startsWith('image/');
+                            
+                            if (isImage) {
+                                return `
+                                    <div class="dokumentasi-item">
+                                        <img src="${imageUrl}" alt="${doc.keterangan || 'Dokumentasi'}" />
+                                        <div class="keterangan">${doc.keterangan || ''}</div>
+                                    </div>
+                                `;
+                            } else {
+                                return `
+                                    <div class="dokumentasi-item">
+                                        <div class="file-placeholder">
+                                            📄
+                                        </div>
+                                        <div class="keterangan">${doc.file_name || 'File'}</div>
+                                        <div class="keterangan">${doc.keterangan || ''}</div>
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
+                    </div>
+                `;
+            } else {
+                dokumentasiHtml = '<p>- Tidak ada dokumentasi -</p>';
+            }
+            
+            return `
+                <!-- F. Dokumentasi Kegiatan -->
+                <div class="section">
+                    <div class="section-title">F. Dokumentasi Kegiatan</div>
+                    <div class="section-content">
+                        ${dokumentasiHtml}
+                    </div>
+                </div>
+                <div class="footer">
+                    <p>Laporan ini telah diverifikasi Kepala Bagian Tata Usaha/Ketua Tim Kerja</p>
+                </div>
+                
+                <!-- Tanda Tangan -->
+                <div class="signature-wrapper">
+                    <div class="signature-box">
+                       
+                        <div class="signature-title">Kepala Balai Besar POM di Palangka Raya</div>
+                        ${hasTtdKabalai ? `
+                            <div class="signature-ttd-image" style="margin: 10px 0;">
+                                <img src="${ttdKabalaiUrl}" alt="Tanda Tangan" style="max-height: 80px; max-width: 200px; object-fit: contain;" />
+                            </div>
+                        ` : '<div style="color: #999; margin: 10px 0;">(Tanda tangan belum tersedia)</div>'}
+                    
+                        <div class="signature-name">${ttdKabalaiNama}</div>
+                       
+                    </div>
+                </div>
+                
+              
+            `;
+        };
+        
+        const totalPages = 2;
+        
+        let pagesHtml = '';
+        
+        pagesHtml += `
+            <div class="page">
+                ${createHeaderTable(1, totalPages)}
+                ${createPage1Content()}
+            </div>
+        `;
+        
+        pagesHtml += `<div class="page-break"></div>`;
+        
+        pagesHtml += `
+            <div class="page">
+                ${createHeaderTable(2, totalPages)}
+                ${createPage2Content()}
+            </div>
         `;
         
         const html = `
@@ -263,22 +530,17 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         color: #000;
                         background: white;
                         margin: 0;
-                        padding: 0;
+                        padding: 20px;
                     }
                     
-                    /* Header untuk print - muncul di setiap halaman */
-                    .print-header {
-                        display: none;
+                    .page-break {
+                        page-break-before: always;
                     }
                     
-                    /* Konten utama */
-                    .container {
-                        max-width: 100%;
-                        margin: 0 auto;
-                        padding: 20px 25px;
+                    .page {
+                        margin-bottom: 20px;
                     }
                     
-                    /* Header Table */
                     .header-table {
                         width: 100%;
                         border-collapse: collapse;
@@ -310,17 +572,16 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                     }
                     
                     .label-cell-header {
-                        font-weight: bold;
-                        width: 65px;
-                        text-align: right;
+                        text-align: center;
+                        vertical-align: middle;
+                        width: 70px;
                     }
                     
                     .value-cell-header {
-                        text-align: left;
-                        width: 100px;
+                        text-align: center;
+                        vertical-align: middle;
                     }
                     
-                    /* Section */
                     .section {
                         margin-bottom: 15px;
                     }
@@ -329,14 +590,12 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         font-weight: bold;
                         font-size: 12pt;
                         margin-bottom: 8px;
-                        text-decoration: underline;
                     }
                     
                     .section-content {
                         margin-left: 0px;
                     }
                     
-                    /* Info Table */
                     .info-table-inline {
                         width: 100%;
                         border: none;
@@ -361,7 +620,6 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         padding-left: 8px;
                     }
                     
-                    /* Tabel Rincian */
                     .table {
                         width: 100%;
                         border-collapse: collapse;
@@ -382,7 +640,6 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         text-align: center;
                     }
                     
-                    /* Dokumentasi */
                     .dokumentasi-grid {
                         display: flex;
                         flex-wrap: wrap;
@@ -418,11 +675,10 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         font-size: 35px;
                     }
                     
-                    /* Tanda Tangan */
                     .signature-wrapper {
                         margin-top: 30px;
                         display: flex;
-                        justify-content: space-between;
+                        justify-content: flex-end;
                     }
                     
                     .signature-box {
@@ -452,6 +708,10 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         margin-top: 3px;
                     }
                     
+                    .signature-ttd-image {
+                        margin: 10px 0;
+                    }
+                    
                     .footer {
                         margin-top: 25px;
                         text-align: center;
@@ -462,27 +722,14 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                         margin-bottom: 6px;
                     }
                     
-                    /* Print styles - header FIXED di setiap halaman */
                     @media print {
                         body {
                             margin: 0;
                             padding: 0;
                         }
                         
-                        .container {
-                            padding: 15px;
-                            margin-top: 105px;
-                        }
-                        
-                        /* Header fixed di setiap halaman */
-                        .print-header {
-                            display: block;
-                            position: fixed;
-                            top: 10px;
-                            left: 15px;
-                            right: 15px;
-                            background: white;
-                            z-index: 1000;
+                        .page-break {
+                            page-break-before: always;
                         }
                         
                         .no-print {
@@ -508,182 +755,7 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
                 </style>
             </head>
             <body>
-                <!-- HEADER FIXED - muncul di setiap halaman -->
-                <div class="print-header">
-                    ${headerHTML}
-                </div>
-                
-                <!-- KONTEN UTAMA -->
-                <div class="container">
-                    <!-- A. Dasar Pelaksanaan Kegiatan -->
-                    <div class="section">
-                        <div class="section-title">A. Dasar Pelaksanaan Kegiatan</div>
-                        <div class="section-content">
-                            <div class="info-row">
-                                Surat Perintah Melaksanakan Tugas Kepala Balai Besar Pengawas Obat dan Makanan Di Palangka Raya
-                            </div>
-                            <table class="info-table-inline">
-                                <tbody>
-                                    <tr>
-                                        <td class="label-cell" style="width: 65px;">Nomor</td>
-                                        <td class="value-cell">: ${kegiatanData?.no_st || '-'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="label-cell" style="width: 65px;">Tanggal</td>
-                                        <td class="value-cell">: ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <!-- B. Petugas Pelaksana -->
-                    <div class="section">
-                        <div class="section-title">B. Petugas Pelaksana</div>
-                        <div class="section-content">
-                            <table class="info-table-inline">
-                                <tbody>
-                                    ${generateAllPegawaiHTML()}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <!-- C. Waktu dan Tempat Pelaksanaan -->
-                    <div class="section">
-                        <div class="section-title">C. Waktu dan Tempat Pelaksanaan</div>
-                        <div class="section-content">
-                            <table class="info-table-inline">
-                                <tbody>
-                                    <tr>
-                                        <td class="label-cell" style="width: 130px;">Lama Perjalanan</td>
-                                        <td class="value-cell">: ${hitungLamaPerjalanan()}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="label-cell" style="width: 130px;">Tanggal</td>
-                                        <td class="value-cell">: ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="label-cell" style="width: 130px;">Tempat Pelaksanaan</td>
-                                        <td class="value-cell">: ${kegiatanData?.tempat || '-'}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <!-- D. Pembiayaan -->
-                    <div class="section">
-                        <div class="section-title">D. Pembiayaan</div>
-                        <div class="section-content">
-                            <div class="info-row">
-                                DIPA BBPOM di Palangka Raya No.SP DIPA.63.01.2.432872/2026 Tanggal 24 Desember 2025.
-                            </div>
-                            <table class="info-table-inline">
-                                <tbody>
-                                    <tr>
-                                        <td class="label-cell" style="width: 130px;">Mata Anggaran :</td>
-                                        <td class="value-cell">${mak}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <!-- E. Rincian Hasil Kegiatan -->
-                    <div class="section">
-                        <div class="section-title">E. Rincian Hasil Kegiatan</div>
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 5%;">No</th>
-                                    <th style="width: 20%;">Tanggal</th>
-                                    <th style="width: 75%;">Kegiatan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rincianKegiatan.length > 0 ? rincianKegiatan.map((item, index) => `
-                                <tr>
-                                    <td style="text-align: center;">${index + 1}</td>
-                                    <td style="text-align: center;">${formatTanggalRincian(item.tanggal)}</td>
-                                    <td>${item.kegiatan || '-'}</td>
-                                </tr>
-                                `).join('') : `
-                                <tr>
-                                    <td colspan="3" style="text-align: center;">- Tidak ada rincian kegiatan -</td>
-                                </tr>
-                                `}
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- F. Dokumentasi Kegiatan -->
-                    <div class="section">
-                        <div class="section-title">F. Dokumentasi Kegiatan</div>
-                        <div class="section-content">
-                            ${dokumentasi.length > 0 ? `
-                                <div class="dokumentasi-grid">
-                                    ${dokumentasi.map(doc => {
-                                        const filename = doc.file_path?.split('/').pop();
-                                        const imageUrl = `${BACKEND_URL}/uploads/lpd-dokumentasi/${filename}`;
-                                        const isImage = doc.file_type?.startsWith('image/');
-                                        
-                                        if (isImage) {
-                                            return `
-                                                <div class="dokumentasi-item">
-                                                    <img src="${imageUrl}" alt="${doc.keterangan || 'Dokumentasi'}" />
-                                                    <div class="keterangan">${doc.keterangan || ''}</div>
-                                                </div>
-                                            `;
-                                        } else {
-                                            return `
-                                                <div class="dokumentasi-item">
-                                                    <div class="file-placeholder">
-                                                        📄
-                                                    </div>
-                                                    <div class="keterangan">${doc.file_name || 'File'}</div>
-                                                    <div class="keterangan">${doc.keterangan || ''}</div>
-                                                </div>
-                                            `;
-                                        }
-                                    }).join('')}
-                                </div>
-                            ` : '<p>- Tidak ada dokumentasi -</p>'}
-                        </div>
-                    </div>
-                    
-                    <!-- Tanda Tangan -->
-                    <div class="signature-wrapper">
-                        <div class="signature-box">
-                            <div class="signature-title">Mengetahui/Menyetujui,</div>
-                            <div class="signature-title">Kepala Bagian Tata Usaha/Ketua Tim Kerja</div>
-                            <div class="signature-line"></div>
-                            <div class="signature-name">${ttdKatim || '-'}</div>
-                            <div class="signature-nip">NIP. -</div>
-                        </div>
-                        <div class="signature-box">
-                            <div class="signature-title">Menyetujui,</div>
-                            <div class="signature-title">Kepala Balai Besar POM di Palangka Raya</div>
-                            <div class="signature-line"></div>
-                            <div class="signature-name">${ttdKabalai || '-'}</div>
-                            <div class="signature-nip">NIP. -</div>
-                        </div>
-                    </div>
-                    
-                    <div class="signature-wrapper" style="margin-top: 15px;">
-                        <div class="signature-box">
-                            <div class="signature-title">Dibuat Oleh,</div>
-                            <div class="signature-title">Petugas Pelaksana</div>
-                            <div class="signature-line"></div>
-                            <div class="signature-name">${firstPegawai?.nama || '-'}</div>
-                            <div class="signature-nip">NIP. ${firstPegawai?.nip || '-'}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Laporan ini dibuat dengan sebenar-benarnya dan dapat dipertanggungjawabkan.</p>
-                    </div>
-                </div>
+                ${pagesHtml}
                 
                 <div class="no-print" style="text-align: center; margin-top: 20px; position: fixed; bottom: 20px; left: 0; right: 0;">
                     <button onclick="window.print()" style="padding: 8px 16px; margin: 8px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px;">🖨️ Cetak</button>
@@ -696,7 +768,6 @@ export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) =>
         printDocument.write(html);
         printDocument.close();
         
-        // Auto print setelah load
         printFrame.onload = () => {
             setTimeout(() => {
                 printFrame.contentWindow.print();
