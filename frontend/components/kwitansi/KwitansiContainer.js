@@ -122,40 +122,27 @@ export default function KwitansiContainer() {
     }, [session]);
     
     // Filter data untuk tab Diri Sendiri
-    // Filter data untuk tab Diri Sendiri
-const filterSelfData = (data) => {
-    if (!data || data.length === 0) return [];
-    
-    const filtered = data.filter(kegiatan => {
-        const hasCurrentUser = kegiatan.pegawai?.some(p => p.isCurrentUser === true);
-        return hasCurrentUser;
-    }).map(kegiatan => {
-        const currentUserPegawai = kegiatan.pegawai?.filter(p => p.isCurrentUser === true);
+    const filterSelfData = (data) => {
+        if (!data || data.length === 0) return [];
         
-        // Log untuk debugging - tampilkan status sebenarnya dari database
-        if (currentUserPegawai && currentUserPegawai.length > 0) {
-            console.log(`📊 [Diri Sendiri - DB DATA] User ${currentUserPegawai[0].nama}:`, {
-                status_pegawai: currentUserPegawai[0].status_pegawai,
-                status_ppk: currentUserPegawai[0].status_ppk,
-                status_bendahara: currentUserPegawai[0].status_bendahara,
-                kwitansi_id: currentUserPegawai[0].kwitansi_id,
-                lpd_status: kegiatan.lpd_status
-            });
-        }
+        const filtered = data.filter(kegiatan => {
+            const hasCurrentUser = kegiatan.pegawai?.some(p => p.isCurrentUser === true);
+            return hasCurrentUser;
+        }).map(kegiatan => {
+            const currentUserPegawai = kegiatan.pegawai?.filter(p => p.isCurrentUser === true);
+            
+            return {
+                ...kegiatan,
+                pegawai: currentUserPegawai,
+                semua_pegawai_approve: currentUserPegawai?.every(p => p.status_pegawai === 'sudah') || false,
+                semua_ppk_approve: currentUserPegawai?.every(p => p.status_ppk === 'sudah') || false,
+                semua_bendahara_approve: currentUserPegawai?.every(p => p.status_bendahara === 'sudah') || false
+            };
+        });
         
-        return {
-            ...kegiatan,
-            pegawai: currentUserPegawai,
-            // Hitung ulang status approval berdasarkan data terbaru
-            semua_pegawai_approve: currentUserPegawai?.every(p => p.status_pegawai === 'sudah') || false,
-            semua_ppk_approve: currentUserPegawai?.every(p => p.status_ppk === 'sudah') || false,
-            semua_bendahara_approve: currentUserPegawai?.every(p => p.status_bendahara === 'sudah') || false
-        };
-    });
-    
-    console.log(`👤 Tab "Diri Sendiri": ${filtered.length} kegiatan`);
-    return filtered;
-};
+        console.log(`👤 Tab "Diri Sendiri": ${filtered.length} kegiatan`);
+        return filtered;
+    };
     
     // Filter data untuk tab Pegawai Lain (hanya untuk creator kegiatan)
     const filterOtherData = (data) => {
@@ -178,47 +165,41 @@ const filterSelfData = (data) => {
         return filtered;
     };
     
- const filterPpkApprovalData = (data) => {
-    if (!data || data.length === 0) return [];
-    
-    const filtered = data.filter(kegiatan => {
-        // Cek apakah ada pegawai yang butuh persetujuan PPK
-        // Syarat: status_pegawai = 'sudah' DAN status_ppk = 'belum'
-        const hasWaitingPpk = kegiatan.pegawai?.some(p => 
-            p.status_ppk === 'belum' && 
-            p.status_pegawai === 'sudah'
-        );
+    const filterPpkApprovalData = (data) => {
+        if (!data || data.length === 0) return [];
         
-        // Log untuk debugging
-        if (hasWaitingPpk) {
-            console.log(`📋 Kegiatan ${kegiatan.id} memiliki kwitansi yang menunggu PPK`);
-            // Log detail pegawai yang butuh approve
-            const waitingPegawai = kegiatan.pegawai?.filter(p => 
-                p.status_ppk === 'belum' && p.status_pegawai === 'sudah'
+        const filtered = data.filter(kegiatan => {
+            const hasWaitingPpk = kegiatan.pegawai?.some(p => 
+                p.status_ppk === 'belum' && 
+                p.status_pegawai === 'sudah'
             );
-            waitingPegawai.forEach(p => {
-                console.log(`   - Pegawai: ${p.nama}, status_pegawai=${p.status_pegawai}, status_ppk=${p.status_ppk}`);
-            });
-        }
+            
+            if (hasWaitingPpk) {
+                console.log(`📋 Kegiatan ${kegiatan.id} memiliki kwitansi yang menunggu PPK`);
+                const waitingPegawai = kegiatan.pegawai?.filter(p => 
+                    p.status_ppk === 'belum' && p.status_pegawai === 'sudah'
+                );
+                waitingPegawai.forEach(p => {
+                    console.log(`   - Pegawai: ${p.nama}, status_pegawai=${p.status_pegawai}, status_ppk=${p.status_ppk}`);
+                });
+            }
+            
+            return hasWaitingPpk;
+        }).map(kegiatan => {
+            const waitingPegawai = kegiatan.pegawai?.filter(p => 
+                p.status_ppk === 'belum' && 
+                p.status_pegawai === 'sudah'
+            );
+            return {
+                ...kegiatan,
+                pegawai: waitingPegawai
+            };
+        });
         
-        return hasWaitingPpk;
-    }).map(kegiatan => {
-        // Filter hanya pegawai yang butuh persetujuan PPK
-        const waitingPegawai = kegiatan.pegawai?.filter(p => 
-            p.status_ppk === 'belum' && 
-            p.status_pegawai === 'sudah'
-        );
-        return {
-            ...kegiatan,
-            pegawai: waitingPegawai
-        };
-    });
+        console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan ditemukan`);
+        return filtered;
+    };
     
-    console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan ditemukan`);
-    return filtered;
-};
-    
-    // Filter data untuk tab Riwayat PPK (sudah disetujui PPK)
     const filterPpkHistoryData = (data) => {
         if (!data || data.length === 0) return [];
         
@@ -236,6 +217,65 @@ const filterSelfData = (data) => {
         return filtered;
     };
     
+    // ============ FILTER UNTUK BENDAHARA ============
+    const filterBendaharaApprovalData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        console.log('🔍 Filtering Bendahara Approval Data...');
+        
+        const filtered = data.filter(kegiatan => {
+            const hasWaitingBendahara = kegiatan.pegawai?.some(p => 
+                p.status_bendahara === 'belum' && 
+                p.status_pegawai === 'sudah' &&
+                p.status_ppk === 'sudah'
+            );
+            
+            if (hasWaitingBendahara) {
+                console.log(`💰 Kegiatan ${kegiatan.id} memiliki kwitansi yang menunggu Bendahara`);
+                const waitingPegawai = kegiatan.pegawai?.filter(p => 
+                    p.status_bendahara === 'belum' && 
+                    p.status_pegawai === 'sudah' &&
+                    p.status_ppk === 'sudah'
+                );
+                waitingPegawai.forEach(p => {
+                    console.log(`   - Pegawai: ${p.nama}, status_pegawai=${p.status_pegawai}, status_ppk=${p.status_ppk}, status_bendahara=${p.status_bendahara}`);
+                });
+            }
+            
+            return hasWaitingBendahara;
+        }).map(kegiatan => {
+            const waitingPegawai = kegiatan.pegawai?.filter(p => 
+                p.status_bendahara === 'belum' && 
+                p.status_pegawai === 'sudah' &&
+                p.status_ppk === 'sudah'
+            );
+            return {
+                ...kegiatan,
+                pegawai: waitingPegawai
+            };
+        });
+        
+        console.log(`💰 Tab "Persetujuan Bendahara": ${filtered.length} kegiatan ditemukan`);
+        return filtered;
+    };
+    
+    const filterBendaharaHistoryData = (data) => {
+        if (!data || data.length === 0) return [];
+        
+        const filtered = data.filter(kegiatan => {
+            const hasApprovedBendahara = kegiatan.pegawai?.some(p => p.status_bendahara === 'sudah');
+            return hasApprovedBendahara;
+        }).map(kegiatan => {
+            return {
+                ...kegiatan,
+                pegawai: kegiatan.pegawai?.filter(p => p.status_bendahara === 'sudah')
+            };
+        });
+        
+        console.log(`📜 Tab "Riwayat Bendahara": ${filtered.length} kegiatan`);
+        return filtered;
+    };
+    
     const filterDataByTab = (data, tab) => {
         if (!data || data.length === 0) {
             setFilteredKegiatan([]);
@@ -246,16 +286,16 @@ const filterSelfData = (data) => {
         
         if (tab === 'diri_sendiri') {
             filtered = filterSelfData(data);
-            console.log(`👤 Tab "Diri Sendiri": ${filtered.length} kegiatan`);
         } else if (tab === 'pegawai_lain') {
             filtered = filterOtherData(data);
-            console.log(`👥 Tab "Pegawai Lain": ${filtered.length} kegiatan`);
         } else if (tab === 'persetujuan_ppk') {
             filtered = filterPpkApprovalData(data);
-            console.log(`📋 Tab "Persetujuan PPK": ${filtered.length} kegiatan`);
         } else if (tab === 'riwayat_ppk') {
             filtered = filterPpkHistoryData(data);
-            console.log(`📜 Tab "Riwayat PPK": ${filtered.length} kegiatan`);
+        } else if (tab === 'persetujuan_bendahara') {
+            filtered = filterBendaharaApprovalData(data);
+        } else if (tab === 'riwayat_bendahara') {
+            filtered = filterBendaharaHistoryData(data);
         }
         
         setFilteredKegiatan(filtered);
@@ -367,6 +407,10 @@ const filterSelfData = (data) => {
                 result = filterPpkApprovalData(filtered);
             } else if (activeTab === 'riwayat_ppk') {
                 result = filterPpkHistoryData(filtered);
+            } else if (activeTab === 'persetujuan_bendahara') {
+                result = filterBendaharaApprovalData(filtered);
+            } else if (activeTab === 'riwayat_bendahara') {
+                result = filterBendaharaHistoryData(filtered);
             }
             setFilteredKegiatan(result);
             
@@ -645,8 +689,51 @@ const filterSelfData = (data) => {
         setCurrentPage(1);
     };
     
+    // ============ FUNGSI UNTUK MENENTUKAN APAKAH TOMBOL INPUT DITAMPILKAN ============
+    const shouldShowInputButton = (kegiatan, pegawai) => {
+        if (userType.isAdmin) return true;
+        if (kegiatan.isCreator === true) return true;
+        if (pegawai.isCurrentUser === true) return true;
+        if (kegiatan.can_input_kwitansi === true) return true;
+        return false;
+    };
+    
+    // ============ FUNGSI UNTUK MENENTUKAN APAKAH TOMBOL APPROVAL DITAMPILKAN ============
+    const shouldShowApproveButton = (kegiatan, pegawai) => {
+        if (userType.isAdmin) return true;
+        
+        if (pegawai.isCurrentUser && pegawai.status_pegawai === 'belum' && pegawai.kwitansi_status === 'sudah') {
+            return true;
+        }
+        
+        if (userType.isPPK && pegawai.status_ppk === 'belum' && pegawai.status_pegawai === 'sudah') {
+            return true;
+        }
+        
+        if (userType.isBendahara && pegawai.status_bendahara === 'belum' && pegawai.status_ppk === 'sudah') {
+            return true;
+        }
+        
+        return false;
+    };
+    
+    // ============ FUNGSI UNTUK MENDAPATKAN TEKS TOMBOL APPROVAL ============
+    const getApproveButtonText = (kegiatan, pegawai) => {
+        if (pegawai.isCurrentUser && pegawai.status_pegawai === 'belum' && pegawai.kwitansi_status === 'sudah') {
+            return 'Setujui Kwitansi';
+        }
+        if (userType.isPPK && pegawai.status_ppk === 'belum' && pegawai.status_pegawai === 'sudah') {
+            return 'Setujui sebagai PPK';
+        }
+        if (userType.isBendahara && pegawai.status_bendahara === 'belum' && pegawai.status_ppk === 'sudah') {
+            return 'Setujui sebagai Bendahara';
+        }
+        return 'Setujui / Tolak';
+    };
+    
     const canAccessPegawaiLain = userType.isAdmin || userType.isCreator;
     const canAccessPpkTabs = userType.isPPK || userType.isAdmin;
+    const canAccessBendaharaTabs = userType.isBendahara || userType.isAdmin;
     
     if (status === 'loading') return <LoadingSpinner />;
     if (!session) return null;
@@ -780,6 +867,41 @@ const filterSelfData = (data) => {
                             </button>
                         </>
                     )}
+                    
+                    {/* Tab Bendahara - Hanya untuk role Bendahara dan Admin */}
+                    {canAccessBendaharaTabs && (
+                        <>
+                            <button
+                                onClick={() => handleTabChange('persetujuan_bendahara')}
+                                className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                                    activeTab === 'persetujuan_bendahara'
+                                        ? 'bg-orange-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                Persetujuan Bendahara
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-yellow-500 text-white rounded-full">Menunggu</span>
+                            </button>
+                            
+                            <button
+                                onClick={() => handleTabChange('riwayat_bendahara')}
+                                className={`px-6 py-3 text-sm font-medium rounded-t-lg transition-all duration-200 flex items-center gap-2 ${
+                                    activeTab === 'riwayat_bendahara'
+                                        ? 'bg-green-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Riwayat Bendahara
+                                <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-200 text-green-800 rounded-full">Sudah</span>
+                            </button>
+                        </>
+                    )}
                 </nav>
             </div>
             
@@ -809,12 +931,16 @@ const filterSelfData = (data) => {
                         {activeTab === 'pegawai_lain' && 'Belum ada kegiatan yang memerlukan input kwitansi untuk pegawai lain.'}
                         {activeTab === 'persetujuan_ppk' && 'Belum ada kwitansi yang menunggu persetujuan PPK.'}
                         {activeTab === 'riwayat_ppk' && 'Belum ada kwitansi yang sudah disetujui PPK.'}
+                        {activeTab === 'persetujuan_bendahara' && 'Belum ada kwitansi yang menunggu persetujuan Bendahara.'}
+                        {activeTab === 'riwayat_bendahara' && 'Belum ada kwitansi yang sudah disetujui Bendahara.'}
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
                         {activeTab === 'diri_sendiri' && 'Setelah kegiatan selesai, Anda dapat menginput kwitansi di sini.'}
                         {activeTab === 'pegawai_lain' && 'Setelah pegawai lain menyelesaikan kegiatan, kwitansi akan muncul di sini.'}
                         {activeTab === 'persetujuan_ppk' && 'Semua kwitansi sudah diproses atau belum ada yang memerlukan persetujuan PPK.'}
                         {activeTab === 'riwayat_ppk' && 'Kwitansi yang sudah disetujui PPK akan muncul di sini.'}
+                        {activeTab === 'persetujuan_bendahara' && 'Semua kwitansi sudah diproses atau belum ada yang memerlukan persetujuan Bendahara.'}
+                        {activeTab === 'riwayat_bendahara' && 'Kwitansi yang sudah disetujui Bendahara akan muncul di sini.'}
                     </p>
                 </div>
             ) : (
@@ -827,20 +953,30 @@ const filterSelfData = (data) => {
                                 ? 'bg-gradient-to-r from-teal-50 to-teal-100'
                                 : activeTab === 'riwayat_ppk'
                                 ? 'bg-gradient-to-r from-green-50 to-green-100'
+                                : activeTab === 'persetujuan_bendahara'
+                                ? 'bg-gradient-to-r from-orange-50 to-orange-100'
+                                : activeTab === 'riwayat_bendahara'
+                                ? 'bg-gradient-to-r from-green-50 to-green-100'
                                 : 'bg-gradient-to-r from-blue-50 to-blue-100'
                         }`} onClick={() => toggleExpand(kegiatan.id)}>
                             <div className="flex items-center gap-2">
                                 <svg className={`h-5 w-5 ${
                                     activeTab === 'persetujuan_ppk' ? 'text-purple-600' : 
                                     activeTab === 'pegawai_lain' ? 'text-teal-600' : 
-                                    activeTab === 'riwayat_ppk' ? 'text-green-600' : 'text-blue-600'
+                                    activeTab === 'riwayat_ppk' ? 'text-green-600' : 
+                                    activeTab === 'persetujuan_bendahara' ? 'text-orange-600' :
+                                    activeTab === 'riwayat_bendahara' ? 'text-green-600' : 
+                                    'text-blue-600'
                                 } transform transition-transform ${expandedKegiatan[kegiatan.id] ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                                 <h3 className={`font-bold text-lg ${
                                     activeTab === 'persetujuan_ppk' ? 'text-purple-900' : 
                                     activeTab === 'pegawai_lain' ? 'text-teal-900' : 
-                                    activeTab === 'riwayat_ppk' ? 'text-green-900' : 'text-blue-900'
+                                    activeTab === 'riwayat_ppk' ? 'text-green-900' : 
+                                    activeTab === 'persetujuan_bendahara' ? 'text-orange-900' :
+                                    activeTab === 'riwayat_bendahara' ? 'text-green-900' : 
+                                    'text-blue-900'
                                 }`}>{kegiatan.kegiatan}</h3>
                                 {activeTab === 'diri_sendiri' && (
                                     <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Anda</span>
@@ -850,6 +986,12 @@ const filterSelfData = (data) => {
                                 )}
                                 {activeTab === 'riwayat_ppk' && (
                                     <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Sudah Disetujui PPK</span>
+                                )}
+                                {activeTab === 'persetujuan_bendahara' && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full">Menunggu Bendahara</span>
+                                )}
+                                {activeTab === 'riwayat_bendahara' && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Sudah Disetujui Bendahara</span>
                                 )}
                                 {activeTab === 'pegawai_lain' && kegiatan.isCreator && (
                                     <span className="ml-2 px-2 py-0.5 text-xs bg-teal-100 text-teal-700 rounded-full">Kegiatan Saya</span>
@@ -886,6 +1028,12 @@ const filterSelfData = (data) => {
                                 {activeTab === 'riwayat_ppk' && (
                                     <span className="ml-2 text-green-600">(Sudah disetujui PPK)</span>
                                 )}
+                                {activeTab === 'persetujuan_bendahara' && (
+                                    <span className="ml-2 text-orange-600">(Menunggu persetujuan Bendahara)</span>
+                                )}
+                                {activeTab === 'riwayat_bendahara' && (
+                                    <span className="ml-2 text-green-600">(Sudah disetujui Bendahara)</span>
+                                )}
                             </div>
                         </div>
                         
@@ -909,8 +1057,10 @@ const filterSelfData = (data) => {
                                         <tbody className="bg-white divide-y divide-gray-200">
                                             {kegiatan.pegawai.map((pegawai, idx) => {
                                                 const sudahInput = pegawai.kwitansi_status === 'sudah';
-                                                const isWaitingPpk = pegawai.status_ppk === 'belum' && pegawai.status_pegawai === 'sudah';
-                                                const isApprovedPpk = pegawai.status_ppk === 'sudah';
+                                                const showInputBtn = shouldShowInputButton(kegiatan, pegawai);
+                                                const showApproveBtn = shouldShowApproveButton(kegiatan, pegawai);
+                                                const approveButtonText = getApproveButtonText(kegiatan, pegawai);
+                                                
                                                 return (
                                                     <tr key={pegawai.id} className="hover:bg-gray-50">
                                                         <td className="px-4 py-3">{idx + 1}</td>
@@ -919,11 +1069,8 @@ const filterSelfData = (data) => {
                                                             {pegawai.isCurrentUser && (
                                                                 <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">Anda</span>
                                                             )}
-                                                            {isWaitingPpk && (
-                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">Menunggu PPK</span>
-                                                            )}
-                                                            {isApprovedPpk && (
-                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">✓ Disetujui PPK</span>
+                                                            {kegiatan.isCreator && !pegawai.isCurrentUser && (
+                                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-teal-100 text-teal-700 rounded">Pegawai Saya</span>
                                                             )}
                                                         </td>
                                                         <td className="px-4 py-3">{pegawai.nip || '-'}</td>
@@ -960,10 +1107,7 @@ const filterSelfData = (data) => {
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex justify-center gap-2 flex-wrap">
                                                                 {!sudahInput ? (
-                                                                    // ============ PERBAIKAN: Tampilkan tombol input untuk SEMUA peserta ============
-                                                                    // Cek apakah user adalah peserta perjadin (isCurrentUser = true)
-                                                                    // Tidak perlu cek role
-                                                                    pegawai.isCurrentUser && (
+                                                                    showInputBtn && (
                                                                         <button 
                                                                             onClick={() => handleInputKwitansi(kegiatan, pegawai)} 
                                                                             className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
@@ -973,12 +1117,14 @@ const filterSelfData = (data) => {
                                                                     )
                                                                 ) : (
                                                                     <>
-                                                                        <button 
-                                                                            onClick={() => handleViewDetail(pegawai, kegiatan)} 
-                                                                            className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
-                                                                        >
-                                                                            Setujui / Tolak
-                                                                        </button>
+                                                                        {showApproveBtn && (
+                                                                            <button 
+                                                                                onClick={() => handleViewDetail(pegawai, kegiatan)} 
+                                                                                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                                                                            >
+                                                                                {approveButtonText}
+                                                                            </button>
+                                                                        )}
                                                                         <button 
                                                                             onClick={() => handlePrint(pegawai, kegiatan, { no_lpd: pegawai.no_lpd, id: pegawai.kwitansi_id })} 
                                                                             className="px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
@@ -1000,15 +1146,6 @@ const filterSelfData = (data) => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                         </svg>
                                         <p>Tidak ada data pegawai untuk kegiatan ini.</p>
-                                        <p className="text-sm mt-1">
-                                            {activeTab === 'diri_sendiri' 
-                                                ? 'Anda tidak terdaftar sebagai pegawai dalam kegiatan ini.'
-                                                : activeTab === 'pegawai_lain'
-                                                ? 'Tidak ada pegawai lain dalam kegiatan yang Anda buat.'
-                                                : activeTab === 'persetujuan_ppk'
-                                                ? 'Tidak ada kwitansi yang menunggu persetujuan PPK.'
-                                                : 'Tidak ada kwitansi yang sudah disetujui PPK.'}
-                                        </p>
                                     </div>
                                 )}
                             </div>

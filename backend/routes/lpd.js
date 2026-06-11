@@ -1521,4 +1521,233 @@ router.post('/reject-kabalai/:kegiatanId', keycloakAuth, async (req, res) => {
     }
 });
 
+
+// routes/lpd.js - Tambahkan endpoint ini di bagian akhir file (sebelum module.exports)
+
+// ============ GET LPD untuk PRINT (data lengkap untuk dicetak) ============
+// routes/lpd.js - Perbaiki query untuk mengambil data kabalai dari lpd_status
+
+// routes/lpd.js - Perbaiki query untuk /print/:kegiatanId
+
+router.get('/print/:kegiatanId', keycloakAuth, async (req, res) => {
+    try {
+        const { kegiatanId } = req.params;
+        const user = req.user;
+        const userId = getUserId(user);
+        const userNip = user?.nip || '';
+        const roleInfo = getUserRoleInfo(user);
+        const cleanUserNip = normalizeNip(userNip);
+        
+        console.log(`🖨️ Print LPD request for kegiatan: ${kegiatanId}`);
+        console.log(`👤 User: ${cleanUserNip}, Roles:`, roleInfo);
+        
+        // ============ CEK AKSES ============
+        let hasAccess = false;
+        
+        if (roleInfo.isAdmin) {
+            hasAccess = true;
+            console.log('👑 Admin access granted');
+        }
+        else if (roleInfo.isPPK) {
+            const [ppkCheck] = await db.query(`
+                SELECT id FROM nominatif_kegiatan 
+                WHERE id = ? AND (ppk_id = ? OR REPLACE(ppk_nip, ' ', '') = ?)
+            `, [kegiatanId, userId, cleanUserNip]);
+            hasAccess = ppkCheck.length > 0;
+            console.log(`📋 PPK access: ${hasAccess}`);
+        }
+        else if (roleInfo.isBendahara) {
+            const [bendaharaCheck] = await db.query(`
+                SELECT id FROM nominatif_kegiatan 
+                WHERE id = ? AND (bendahara_id = ? OR REPLACE(bendahara_nip, ' ', '') = ?)
+            `, [kegiatanId, userId, cleanUserNip]);
+            hasAccess = bendaharaCheck.length > 0;
+            console.log(`💰 Bendahara access: ${hasAccess}`);
+        }
+        else {
+            const [creatorCheck] = await db.query(`
+                SELECT id FROM nominatif_kegiatan WHERE id = ? AND user_id = ?
+            `, [kegiatanId, userId]);
+            const isCreator = creatorCheck.length > 0;
+            
+            const [pesertaCheck] = await db.query(`
+                SELECT p.id FROM nominatif_pegawai p 
+                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
+            `, [kegiatanId, cleanUserNip]);
+            const isPeserta = pesertaCheck.length > 0;
+            
+            hasAccess = isCreator || isPeserta;
+            console.log(`👤 Regular user access: isCreator=${isCreator}, isPeserta=${isPeserta}`);
+        }
+        
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Anda tidak memiliki akses ke LPD ini.'
+            });
+        }
+        
+        // ============ AMBIL DATA DARI NOMINATIF_KEGIATAN ============
+        const [kegiatan] = await db.query(`
+            SELECT 
+                n.id,
+                n.no_st,
+                n.tgl_st,
+                n.kegiatan as nama_kegiatan,
+                n.mak,
+                n.kota_kab_kecamatan as tempat_pelaksanaan,
+                n.rencana_tanggal_pelaksanaan as tgl_mulai,
+                n.rencana_tanggal_pelaksanaan_akhir as tgl_selesai,
+                n.ppk_nama,
+                n.ppk_nip,
+                n.bendahara_nama,
+                n.bendahara_nip,
+                n.created_at,
+                COALESCE(l.lpd_status, 'draft') as lpd_status,
+                l.katim_nama,
+                l.katim_nip,
+                l.katim_ttd_path,
+                l.kabalai_nama,
+                l.kabalai_nip,
+                l.kabalai_ttd_path,
+                l.submitted_at,
+                l.created_at as lpd_created_at
+            FROM nominatif_kegiatan n
+            LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
+            WHERE n.id = ?
+        `, [kegiatanId]);
+        
+        if (kegiatan.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
+        }
+        
+        const kegiatanData = kegiatan[0];
+        
+        console.log('📊 Data dari nominatif_kegiatan:', {
+            id: kegiatanData.id,
+            tgl_mulai: kegiatanData.tgl_mulai,
+            tgl_selesai: kegiatanData.tgl_selesai,
+            tempat_pelaksanaan: kegiatanData.tempat_pelaksanaan,
+            no_st: kegiatanData.no_st,
+            tgl_st: kegiatanData.tgl_st,
+            mak: kegiatanData.mak,
+            nama_kegiatan: kegiatanData.nama_kegiatan
+        });
+        
+        // Ambil petugas pelaksana
+        const [pegawaiList] = await db.query(`
+            SELECT 
+                p.id,
+                p.nama,
+                p.nip,
+                p.pangkat as pangkat_golongan,
+                p.jabatan
+            FROM nominatif_pegawai p
+            WHERE p.kegiatan_id = ?
+            ORDER BY p.id ASC
+        `, [kegiatanId]);
+        
+        // Ambil rincian kegiatan
+        const [rincianKegiatan] = await db.query(`
+            SELECT 
+                id,
+                tanggal,
+                kegiatan,
+                urutan
+            FROM lpd_rincian_kegiatan
+            WHERE kegiatan_id = ?
+            ORDER BY urutan ASC, tanggal ASC
+        `, [kegiatanId]);
+        
+        // Ambil dokumentasi
+        const [dokumentasi] = await db.query(`
+            SELECT 
+                id,
+                file_path,
+                file_name,
+                file_type,
+                file_size,
+                keterangan,
+                created_at
+            FROM lpd_dokumentasi
+            WHERE kegiatan_id = ?
+            ORDER BY created_at ASC
+        `, [kegiatanId]);
+        
+        // Format tanggal
+        const formatTanggal = (date) => {
+            if (!date) return null;
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return null;
+            const tgl = d.getDate().toString().padStart(2, '0');
+            const bln = (d.getMonth() + 1).toString().padStart(2, '0');
+            const thn = d.getFullYear();
+            return `${tgl}-${bln}-${thn}`;
+        };
+        
+        // Hitung lama perjalanan
+        let lamaPerjalanan = 1;
+        if (kegiatanData.tgl_mulai && kegiatanData.tgl_selesai) {
+            const start = new Date(kegiatanData.tgl_mulai);
+            const end = new Date(kegiatanData.tgl_selesai);
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                lamaPerjalanan = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            }
+        }
+        
+        const responseData = {
+            kegiatan_id: parseInt(kegiatanId),
+            nama_kegiatan: kegiatanData.nama_kegiatan,
+            no_st: kegiatanData.no_st,
+            tgl_st: kegiatanData.tgl_st,
+            mak: kegiatanData.mak,
+            tgl_mulai: kegiatanData.tgl_mulai,
+            tgl_selesai: kegiatanData.tgl_selesai,
+            tempat_pelaksanaan: kegiatanData.tempat_pelaksanaan || '-',
+            lama_perjalanan: `${lamaPerjalanan} (${lamaPerjalanan} hari)`,
+            petugas_pelaksana: pegawaiList.map(p => ({
+                nama: p.nama,
+                nip: p.nip,
+                pangkat_golongan: p.pangkat_golongan || '-',
+                jabatan: p.jabatan || '-'
+            })),
+            rincian_kegiatan: rincianKegiatan.map(rk => ({
+                tanggal: rk.tanggal,
+                kegiatan: rk.kegiatan
+            })),
+            dokumentasi: dokumentasi.map(doc => ({
+                file_path: doc.file_path,
+                file_name: doc.file_name,
+                file_type: doc.file_type,
+                keterangan: doc.keterangan
+            })),
+            ttd_kabalai_path: kegiatanData.kabalai_ttd_path,
+            ttd_kabalai: kegiatanData.kabalai_nama,
+            kabalai_nama: kegiatanData.kabalai_nama,
+            kabalai_nip: kegiatanData.kabalai_nip,
+            ttd_katim_path: kegiatanData.katim_ttd_path,
+            ttd_katim: kegiatanData.katim_nama,
+            ppk_nama: kegiatanData.ppk_nama,
+            ppk_nip: kegiatanData.ppk_nip,
+            bendahara_nama: kegiatanData.bendahara_nama,
+            bendahara_nip: kegiatanData.bendahara_nip,
+            lpd_status: kegiatanData.lpd_status,
+            created_at: kegiatanData.lpd_created_at || kegiatanData.created_at
+        };
+        
+        console.log('📊 Response data yang akan dikirim:', {
+            tgl_mulai: responseData.tgl_mulai,
+            tgl_selesai: responseData.tgl_selesai,
+            tempat_pelaksanaan: responseData.tempat_pelaksanaan,
+            lama_perjalanan: responseData.lama_perjalanan
+        });
+        
+        res.status(200).json({ success: true, data: responseData });
+        
+    } catch (error) {
+        console.error('❌ Error in print LPD:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = router;
