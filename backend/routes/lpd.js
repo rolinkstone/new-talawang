@@ -1214,7 +1214,7 @@ router.post('/approve-katim/:kegiatanId', keycloakAuth, async (req, res) => {
         
         res.status(200).json({
             success: true,
-            message: 'LPD berhasil disetujui oleh Katim/Kabag TU, selanjutnya menunggu persetujuan Kabalai'
+            message: 'LPD berhasil disetujui oleh Kabag TU/Katim, selanjutnya menunggu persetujuan Kabalai'
         });
         
     } catch (error) {

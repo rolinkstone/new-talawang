@@ -175,46 +175,13 @@ export default function PersetujuanKabalaiModal({ show, onClose, kegiatanId, keg
                                     Kegiatan: <span className="font-medium">{kegiatanNama}</span>
                                 </p>
                                 <p className="text-xs text-green-600 mt-1">
-                                    ✓ Telah disetujui oleh Katim/Kabag TU
+                                    ✓ Telah diverifikasi oleh Kabag TU/Katim
                                 </p>
                             </div>
                         </div>
 
                         {/* Opsi Manual Input Nama */}
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                            <div className="flex items-start">
-                                <svg className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" clipRule="evenodd" />
-                                </svg>
-                                <div className="text-sm text-blue-700 w-full">
-                                    <p className="font-medium">✏️ Opsi Nama Kabalai:</p>
-                                    <label className="flex items-center mt-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={useManualNama}
-                                            onChange={(e) => setUseManualNama(e.target.checked)}
-                                            className="mr-2"
-                                        />
-                                        <span>Gunakan nama manual (jika nama otomatis tidak sesuai)</span>
-                                    </label>
-                                    
-                                    {useManualNama && (
-                                        <div className="mt-2">
-                                            <input
-                                                type="text"
-                                                value={manualNama}
-                                                onChange={(e) => setManualNama(e.target.value)}
-                                                placeholder="Masukkan nama Kabalai"
-                                                className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                            <p className="text-xs text-blue-600 mt-1">
-                                                Nama ini akan disimpan sebagai nama_kabalai di database
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                        
 
                         {/* Error Panel */}
                         {error && (

@@ -564,9 +564,9 @@ export default function LpdContainer({ session, status }) {
         if (lpdStatus === 'selesai') {
             return { text: 'Selesai', color: 'bg-green-100 text-green-800' };
         } else if (lpdStatus === 'menunggu_kabalai') {
-            return { text: 'Menunggu Kabalai', color: 'bg-purple-100 text-purple-800' };
+            return { text: 'Menunggu Persetujuan Kabalai', color: 'bg-purple-100 text-purple-800' };
         } else if (lpdStatus === 'menunggu_katim') {
-            return { text: 'Menunggu Katim', color: 'bg-yellow-100 text-yellow-800' };
+            return { text: 'Menunggu Verifikasi Kabag TU / Katim', color: 'bg-yellow-100 text-yellow-800' };
         } else if (lpdStatus === 'ditolak_katim') {
             return { text: 'Ditolak Katim - Perbaiki', color: 'bg-red-100 text-red-800' };
         } else if (lpdStatus === 'ditolak_kabalai') {
@@ -863,7 +863,7 @@ export default function LpdContainer({ session, status }) {
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                     >
-                        Kegiatan Pegawai Lain
+                        Kegiatan Saya & Pegawai Lain
                         {otherKegiatanCount > 0 && (
                             <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-600">
                                 {otherKegiatanCount}
@@ -942,8 +942,8 @@ export default function LpdContainer({ session, status }) {
                             >
                                 <option value="">Semua</option>
                                 <option value="selesai">Selesai</option>
-                                <option value="menunggu_katim">Menunggu Katim</option>
-                                <option value="menunggu_kabalai">Menunggu Kabalai</option>
+                                <option value="menunggu_katim">Menunggu Verifikasi Kabag TU/Katim</option>
+                                <option value="menunggu_kabalai">Menunggu Persetujuan Kabalai</option>
                             </select>
                         </div>
                         <div>
@@ -1124,7 +1124,7 @@ export default function LpdContainer({ session, status }) {
                                                                 
                                                                 {lpdStatus === 'menunggu_katim' && (
                                                                     <div className="text-center text-sm text-yellow-600 bg-yellow-50 px-2 py-1 rounded-md">
-                                                                        ⏳ Menunggu Persetujuan Katim
+                                                                        ⏳ Menunggu Persetujuan Kabag TU / Katim
                                                                     </div>
                                                                 )}
                                                             </>
@@ -1149,7 +1149,7 @@ export default function LpdContainer({ session, status }) {
 
                                                         {activeTab === 'approval_katim' && item.lpd_status === 'menunggu_kabalai' && (
                                                             <div className="text-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
-                                                                ✓ Sudah disetujui, menunggu Kabalai
+                                                                ✓ Sudah disetujui, menunggu persetujuan Kabalai
                                                             </div>
                                                         )}
 

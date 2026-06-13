@@ -384,8 +384,8 @@ const generateSptjmPenginapanRows = () => {
                     <tbody>
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nama dan Alamat Penginapan</td>
-                            <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
-                            <td style="padding: 4px 0 4px 8px; vertical-align: top;"><strong>${namaDanAlamat}</strong></td>
+                            <td style="width: 15px; padding: 4px 0; text-align: center;">&nbsp;:</td>
+                            <td style="padding: 4px 0 4px 8px; vertical-align: top;"><strong>&nbsp;${namaDanAlamat}</strong></td>
                         </tr>
                         <tr>
                             <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
@@ -394,8 +394,8 @@ const generateSptjmPenginapanRows = () => {
                         </tr>
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nomor kamar</td>
-                            <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
-                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">${penginapan.nomor_kamar || '-'}</td>
+                            <td style="width: 15px; padding: 4px 0; text-align: center;">&nbsp;:</td>
+                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;${penginapan.nomor_kamar || '-'}</td>
                         </tr>
                         <tr>
                             <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
@@ -404,8 +404,8 @@ const generateSptjmPenginapanRows = () => {
                         </tr>
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Tarif hotel</td>
-                            <td style="width: 15px; padding: 4px 0; text-align: center;">:</td>
-                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">Rp ${formatRupiah(penginapan.tarif_hotel)} / hari (tanggal ${tglMenginapFormatted})</td>
+                            <td style="width: 15px; padding: 4px 0; text-align: center;">&nbsp;:</td>
+                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;Rp ${formatRupiah(penginapan.tarif_hotel)} / hari (tanggal ${tglMenginapFormatted})</td>
                         </tr>
                     </tbody>
                 </table>
@@ -420,18 +420,18 @@ const generateSptjmPenginapanRows = () => {
                     <tbody>
                         <tr>
                             <td style="width: 180px; padding: 4px 0;">Nama dan Alamat Penginapan</td>
-                            <td style="width: 10px; padding: 4px 0;">:</td>
-                            <td style="padding: 4px 0;"><strong>${namaDanAlamat}</strong></td>
+                            <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
+                            <td style="padding: 4px 0;"><strong>&nbsp;${namaDanAlamat}</strong></td>
                         </tr>
                         <tr>
                             <td style="width: 180px; padding: 4px 0;">Nomor kamar</td>
-                            <td style="width: 10px; padding: 4px 0;">:</td>
-                            <td style="padding: 4px 0;">-</td>
+                            <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
+                            <td style="padding: 4px 0;">&nbsp;-</td>
                         </tr>
                         <tr>
                             <td style="width: 180px; padding: 4px 0;">Tarif hotel</td>
-                            <td style="width: 10px; padding: 4px 0;">:</td>
-                            <td style="padding: 4px 0;">Rp ${formatRupiah(p.total)} / hari</td>
+                            <td style="width: 10px; padding: 4px 0;">&nbsp;:</td>
+                            <td style="padding: 4px 0;">&nbsp;Rp ${formatRupiah(p.total)} / hari</td>
                         </tr>
                     </tbody>
                 </table>
@@ -596,7 +596,6 @@ const generateSptjmPenginapanRows = () => {
       </head>
       <body>
         <div class="kwitansi-container">
-          ${isFullyApproved ? '<div class="approved-stamp">✓ DISETUJUI</div>' : ''}
           <div class="header">
             <div class="info-box">
               <div class="info-row"><div class="label">TA</div><div>: ${new Date().getFullYear()}</div></div>

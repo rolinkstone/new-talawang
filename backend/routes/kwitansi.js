@@ -172,6 +172,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
+                WHERE COALESCE(l.lpd_status, 'belum_ada') = 'selesai'
                 ORDER BY n.created_at DESC
             `;
             queryParams = [];
@@ -179,6 +180,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         } 
         else {
             // ============ PERBAIKAN UNTUK USER BIASA ============
+            // Semua user hanya bisa melihat kegiatan dengan LPD selesai
             kegiatanQuery = `
                 SELECT DISTINCT 
                     n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
@@ -190,30 +192,28 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.user_id,
                     n.rencana_tanggal_pelaksanaan,
                     n.rencana_tanggal_pelaksanaan_akhir,
-                    COALESCE(l.lpd_status, 'belum_ada') as lpd_status
+                    l.lpd_status
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-                LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
+                INNER JOIN lpd_status l ON n.id = l.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND UPPER(n.status_2) = 'SELESAI'
+                AND l.lpd_status = 'selesai'
                 AND (
                     -- KONDISI 1: User adalah CREATOR
                     n.user_id = ?
                     OR
-                    -- KONDISI 2: User adalah PESERTA PERJADIN (perlu LPD selesai)
+                    -- KONDISI 2: User adalah PESERTA PERJADIN
                     (
-                        l.lpd_status = 'selesai'
-                        AND REPLACE(p.nip, ' ', '') = ?
+                        REPLACE(p.nip, ' ', '') = ?
                     )
                     OR
                     -- KONDISI 3: User adalah PEJABAT PPK
                     (
-                        l.lpd_status = 'selesai'
-                        AND (n.ppk_id = ? OR REPLACE(n.ppk_nip, ' ', '') = ?)
+                        n.ppk_id = ? OR REPLACE(n.ppk_nip, ' ', '') = ?
                     )
                     OR
                     -- KONDISI 4: User adalah PEJABAT BENDAHARA
-                    -- Bisa melihat kegiatan yang sudah LPD selesai ATAU yang status_kwitansi sudah di-approve PPK
                     (
                         n.bendahara_id = ? OR REPLACE(n.bendahara_nip, ' ', '') = ?
                     )
@@ -221,7 +221,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 ORDER BY n.created_at DESC
             `;
             queryParams = [userId, normalizedUserNip, userId, normalizedUserNip, userId, normalizedUserNip];
-            console.log('👤 User mode (Bendahara bisa melihat kegiatan yang terdaftar)');
+            console.log('👤 User mode (hanya LPD selesai)');
         }
         
         console.log('📝 Query:', kegiatanQuery);
@@ -315,7 +315,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 }];
             }
             
-            const isLpdSelesai = kegiatan.lpd_status === 'selesai';
+            const isLpdSelesai = true; // Karena sudah difilter di query, pasti true
             
             // ============ CEK PERAN USER ============
             const currentUserPegawai = pegawaiList.find(p => 
@@ -346,13 +346,11 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             // KASUS 1: User adalah CREATOR - bisa lihat SEMUA pegawai
             if (isCreator) {
                 filteredPegawaiList = pegawaiList;
-                if (isLpdSelesai) {
-                    canInputKwitansi = filteredPegawaiList.some(p => p.kwitansi_status === 'belum');
-                }
+                canInputKwitansi = filteredPegawaiList.some(p => p.kwitansi_status === 'belum');
                 console.log(`👑 Creator mode: ${filteredPegawaiList.length} pegawai, canInput=${canInputKwitansi}`);
             }
             // KASUS 2: User adalah PESERTA PERJADIN - hanya lihat dirinya sendiri
-            else if (isPesertaPerjadin && isLpdSelesai) {
+            else if (isPesertaPerjadin) {
                 filteredPegawaiList = pegawaiList.filter(p => 
                     normalizeNip(p.nip) === normalizedUserNip
                 );
@@ -370,7 +368,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 console.log(`👤 Peserta mode: ${filteredPegawaiList.length} pegawai`);
             }
             // KASUS 3: User adalah PEJABAT PPK - lihat pegawai yang butuh approve PPK
-            else if (isPejabatPPK && isLpdSelesai) {
+            else if (isPejabatPPK) {
                 filteredPegawaiList = pegawaiList.filter(p => 
                     p.status_pegawai === 'sudah' && p.status_ppk === 'belum'
                 );
@@ -383,7 +381,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             }
             // KASUS 4: User adalah PEJABAT BENDAHARA
             else if (isPejabatBendahara) {
-                // ============ PERBAIKAN UNTUK BENDAHARA ============
                 // Bendahara bisa melihat:
                 // 1. Pegawai yang sudah di-approve PPK dan menunggu approve Bendahara (status_bendahara = 'belum')
                 // 2. Pegawai yang sudah di-approve Bendahara (status_bendahara = 'sudah') - untuk riwayat
@@ -444,7 +441,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 sudah_input: pegawaiList.filter(p => p.kwitansi_status === 'sudah').length,
                 pegawai: filteredPegawaiList,
                 lpd_status: kegiatan.lpd_status,
-                is_lpd_selesai: isLpdSelesai,
+                is_lpd_selesai: true, // Karena sudah difilter
                 can_input_kwitansi: canInputKwitansi,
                 can_approve: canApprove,
                 approve_role: approveRole,
@@ -473,8 +470,6 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         console.log(`✅ Sending ${result.length} kegiatan to frontend`);
         console.log(`📊 can_input_kwitansi=true: ${result.filter(r => r.can_input_kwitansi).length}`);
         console.log(`📊 can_approve=true: ${result.filter(r => r.can_approve).length}`);
-        console.log(`📊 is_pejabat_ppk=true: ${result.filter(r => r.is_pejabat_ppk).length}`);
-        console.log(`📊 is_pejabat_bendahara=true: ${result.filter(r => r.is_pejabat_bendahara).length}`);
         
         res.status(200).json({ success: true, data: result });
         
