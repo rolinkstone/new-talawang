@@ -216,7 +216,8 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 l.submitted_at
             FROM nominatif_kegiatan n
             LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
-            WHERE n.status = 'selesai'
+            WHERE n.status = 'selesai' 
+            AND n.status_2 = 'selesai'
         `;
         
         const params = [];
