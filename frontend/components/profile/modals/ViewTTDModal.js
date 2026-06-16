@@ -6,27 +6,18 @@ export default function ViewTTDModal({ show, onClose, ttdUrl, userName }) {
     const [loading, setLoading] = useState(true);
     const [fullImageUrl, setFullImageUrl] = useState(null);
 
-    // Proses URL TTD seperti pola kwitansi
+    // Proses URL TTD
 useEffect(() => {
     if (ttdUrl) {
-        // Base URL yang benar
-        const baseUrl = 'https://api-talawang.bbpompky.id';
-        
-        // Ambil nama file dari path (ambil semua setelah /ttd/)
-        const ttdMatch = ttdUrl.match(/\/ttd\/([^?]+)/);
-        
-        if (ttdMatch && ttdMatch[1]) {
-            const fileName = ttdMatch[1];
-            const fixedUrl = `${baseUrl}/uploads/ttd/${fileName}`;
-            console.log('Fixed URL:', fixedUrl);
-            setFullImageUrl(fixedUrl);
+        // Cek apakah URL sudah lengkap (http://...)
+        if (ttdUrl.startsWith('http://') || ttdUrl.startsWith('https://')) {
+            // URL sudah lengkap dari parent, gunakan langsung
+            setFullImageUrl(ttdUrl);
         } else {
-            // Fallback: perbaikan manual
-            let fixedUrl = ttdUrl
-                .replace(/^https?:\//, 'https://')  // Fix protocol
-                .replace(/-talawang/, 'api-talawang')  // Fix domain
-                .replace('/api/', '/');  // Remove /api
-            setFullImageUrl(fixedUrl);
+            // URL relatif, tambahkan base URL dari environment
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+            const cleanPath = ttdUrl.startsWith('/') ? ttdUrl : `/uploads/ttd/${ttdUrl}`;
+            setFullImageUrl(`${baseUrl}${cleanPath}`);
         }
     }
 }, [ttdUrl]);
