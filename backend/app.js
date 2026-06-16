@@ -14,6 +14,7 @@ const searchRoutes = require('./routes/search');
 const lpdRoutes = require('./routes/lpd');
 const laporanRoutes = require('./routes/laporan');
 const notifikasiRoutes = require('./routes/notifikasi');
+const paguRoutes = require('./routes/pagu');
 const app = express();
 
 // ========== MIDDLEWARE SETUP ==========
@@ -98,6 +99,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 app.use('/api/laporan', laporanRoutes);
 app.use('/api/notifikasi', notifikasiRoutes);
+app.use('/api/pagu', paguRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

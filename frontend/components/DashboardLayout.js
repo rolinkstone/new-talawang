@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { 
   FaHome, FaCog, FaSignOutAlt, FaBell, FaClipboardList,
-  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar
+  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook
 } from 'react-icons/fa';
 import { useSession, signOut } from 'next-auth/react';
 import { useNotifications } from '../hooks/useNotifications';
@@ -267,6 +267,17 @@ export default function DashboardLayout({ children }) {
       ]
     }] : []),
     {
+      title: 'Anggaran',
+      items: [
+        { 
+          href: '/pagu', 
+          label: 'Pagu & Realisasi', 
+          icon: <FaBook />,
+          description: 'Kelola pagu dan realisasi anggaran per MAK'
+        }
+      ]
+    },
+    {
       title: 'Pengaturan',
       items: [
         { href: '/profile', label: 'Profile', icon: <FaCog /> },
@@ -439,6 +450,7 @@ export default function DashboardLayout({ children }) {
                  router.pathname === '/search' ? 'Batalkan Nominatif' :
                  router.pathname === '/laporan' ? 'Rekap Perjalanan Dinas Pegawai' :
                  router.pathname.startsWith('/lpd/') ? 'Laporan Perjalanan Dinas (LPD)' :
+                 router.pathname === '/pagu' ? 'Pagu & Realisasi' :
                  'Aplikasi Nominatif'}
               </h2>
             </div>

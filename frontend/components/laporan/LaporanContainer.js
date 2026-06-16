@@ -568,7 +568,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                                <span className="text-xs">Transport hanya untuk perjalanan lokal (Palangkaraya)</span>
+                                <span className="text-xs">Transport lokal berdasarkan MAK 524113 / 524119</span>
                             </div>
                         </div>
                     </div>

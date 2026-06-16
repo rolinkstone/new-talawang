@@ -86,13 +86,10 @@ const isValidNip = (nip) => {
     return true;
 };
 
-// Helper untuk mengecek apakah lokasi adalah Palangkaraya (lokal)
-const isLokasiPalangkaraya = (lokasi) => {
-    if (!lokasi) return false;
-    const lokasiLower = lokasi.toLowerCase();
-    return lokasiLower.includes('palangkaraya') || 
-           lokasiLower.includes('palangka raya') ||
-           lokasiLower === 'palangkaraya';
+// Helper untuk mengecek apakah MAK termasuk transport lokal (524113 / 524119)
+const isMakTransportLokal = (mak) => {
+    if (!mak) return false;
+    return mak.includes('524113') || mak.includes('524119');
 };
 
 // ========== TEST ROUTE ==========
@@ -124,7 +121,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
     }
     
     try {
-        const { bulan, tahun, pegawai_nip, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
+        const { bulan, tahun, pegawai_id, status_2 = 'selesai', jenis_spm = 'LS' } = req.query;
         const filterTahun = tahun || new Date().getFullYear();
         
         let whereConditions = [];
@@ -149,9 +146,9 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
             params.push(bulan, bulan);
         }
         
-        if (pegawai_nip && pegawai_nip !== 'all') {
+        if (pegawai_id && pegawai_id !== 'all') {
             whereConditions.push(`REPLACE(p.nip, ' ', '') = ?`);
-            params.push(pegawai_nip.replace(/\s/g, ''));
+            params.push(pegawai_id.replace(/\s/g, ''));
         }
         
         const whereClause = whereConditions.length > 0 
@@ -181,8 +178,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                     1 as jumlah_perjalanan,
                     MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
                     SUM(CASE 
-                        WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                        WHEN (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                         THEN (DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1)
                         ELSE 0
                     END) as total_hari_transport_lokal,
@@ -197,8 +193,7 @@ router.get('/rekap-pegawai', keycloakAuth, async (req, res) => {
                         FROM accounting.nominatif_transportasi t
                         INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
                         WHERE bk.pegawai_id = p.id
-                            AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                                OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                            AND (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                     ), 0)) as total_transport
                 FROM accounting.nominatif_pegawai p
                 INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id
@@ -344,8 +339,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                 DATE_FORMAT(k.rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as tgl_selesai,
                 DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1 as jumlah_hari,
                 CASE 
-                    WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                        OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                    WHEN (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                     THEN DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1
                     ELSE 0
                 END as hari_transport_lokal,
@@ -360,8 +354,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                     FROM accounting.nominatif_transportasi t
                     INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
                     WHERE bk.pegawai_id = p.id
-                        AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                        AND (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                 ), 0) as transport,
                 k.status,
                 k.status_2,
@@ -459,7 +452,7 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
                 uang_harian: item.uang_harian,
                 transport: item.transport,
                 total: item.total,
-                is_lokal: isLokasiPalangkaraya(item.lokasi),
+                is_lokal: isMakTransportLokal(item.mak),
                 status: item.status,
                 status_2: item.status_2,
                 catatan_status_2: item.catatan_status_2
@@ -555,8 +548,7 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
                     1 as jumlah_perjalanan,
                     MAX(DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1) as total_hari_dinas,
                     SUM(CASE 
-                        WHEN (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                            OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                        WHEN (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                         THEN (DATEDIFF(k.rencana_tanggal_pelaksanaan_akhir, k.rencana_tanggal_pelaksanaan) + 1)
                         ELSE 0
                     END) as total_hari_transport_lokal,
@@ -571,8 +563,7 @@ router.get('/export/csv', keycloakAuth, async (req, res) => {
                         FROM accounting.nominatif_transportasi t
                         INNER JOIN accounting.nominatif_biaya_kegiatan bk ON t.biaya_id = bk.id
                         WHERE bk.pegawai_id = p.id
-                            AND (LOWER(k.kota_kab_kecamatan) LIKE '%palangkaraya%' 
-                                OR LOWER(k.kota_kab_kecamatan) LIKE '%palangka raya%')
+                            AND (k.mak LIKE '%.524113.%' OR k.mak LIKE '%.524119.%')
                     ), 0)) as total_transport
                 FROM accounting.nominatif_pegawai p
                 INNER JOIN accounting.nominatif_kegiatan k ON p.kegiatan_id = k.id

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import axios from 'axios';
 import PegawaiForm from './PegawaiForm';
-import { formatRupiah } from '../../utils/formatters';
+import { formatRupiah, formatMak } from '../../utils/formatters';
 import { validateMakFormat, getMakPlaceholder, formatMakInput } from '../../utils/validators';
 
 const KegiatanForm = ({
@@ -38,6 +39,13 @@ const KegiatanForm = ({
     // State untuk Bendahara
     const [bendaharaList, setBendaharaList] = useState([]);
     const [selectedBendaharaId, setSelectedBendaharaId] = useState(formData.bendahara_id || '');
+    
+    // State untuk Pagu search
+    const [paguList, setPaguList] = useState([]);
+    const [showMakDropdown, setShowMakDropdown] = useState(false);
+    const [selectedPaguInfo, setSelectedPaguInfo] = useState(null);
+    const [makDisplay, setMakDisplay] = useState(formData.mak || '');
+    const makSelectingRef = useRef(false);
     const [selectedBendaharaNama, setSelectedBendaharaNama] = useState(formData.bendahara_nama || '');
     const [selectedBendaharaNip, setSelectedBendaharaNip] = useState(formData.bendahara_nip || '');
     const [loadingBendahara, setLoadingBendahara] = useState(false);
@@ -369,11 +377,94 @@ const KegiatanForm = ({
 
     const handleMakChange = (e) => {
         const value = formatMakInput(e.target.value);
-        setFormData(prev => ({
-            ...prev,
-            mak: value
-        }));
+        setMakDisplay(value);
+        setFormData(prev => ({ ...prev, mak: value }));
     };
+
+    // Fetch data pagu untuk search MAK
+    useEffect(() => {
+        if (!session?.accessToken) return;
+        
+        const fetchPagu = async () => {
+            try {
+                const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pagu`, {
+                    headers: { Authorization: `Bearer ${session.accessToken}` }
+                });
+                if (res.data.success) {
+                    setPaguList(res.data.data);
+                }
+            } catch (err) {
+                console.error('Gagal fetch pagu:', err);
+            }
+        };
+        fetchPagu();
+    }, [session]);
+
+    // Group pagu by formatted MAK & cari sisa
+    const groupedPagu = useMemo(() => {
+        const map = new Map();
+        paguList.forEach(item => {
+            const key = formatMak(item.mak);
+            if (map.has(key)) {
+                const g = map.get(key);
+                g.pagu += parseFloat(item.pagu) || 0;
+                g.realisasi += parseFloat(item.realisasi) || 0;
+            } else {
+                map.set(key, {
+                    mak: item.mak,
+                    formattedMak: key,
+                    pagu: parseFloat(item.pagu) || 0,
+                    realisasi: parseFloat(item.realisasi) || 0
+                });
+            }
+        });
+        return Array.from(map.values());
+    }, [paguList]);
+
+    // Filter pagu berdasarkan input MAK (pakai makDisplay)
+    const filteredPagu = useMemo(() => {
+        if (!makDisplay) return [];
+        const q = makDisplay.toLowerCase();
+        return groupedPagu.filter(item =>
+            item.formattedMak.toLowerCase().includes(q) ||
+            item.mak.toLowerCase().includes(q)
+        ).slice(0, 10);
+    }, [makDisplay, groupedPagu]);
+
+    // Update info sisa saat MAK dipilih dari dropdown
+    const handleSelectMak = useCallback((item) => {
+        makSelectingRef.current = true;
+        setFormData(prev => ({ ...prev, mak: item.mak, realisasi_anggaran_sebelumnya: item.realisasi }));
+        setMakDisplay(item.formattedMak);
+        setSelectedPaguInfo(item);
+        setShowMakDropdown(false);
+    }, [setFormData]);
+
+    // Reset selected info & display saat MAK diketik manual
+    useEffect(() => {
+        if (formData.mak && selectedPaguInfo && formData.mak !== selectedPaguInfo.mak) {
+            setSelectedPaguInfo(null);
+        }
+    }, [formData.mak, selectedPaguInfo]);
+
+    // Sinkron makDisplay saat formData.mak berubah dari luar (edit mode) — skip jika dari dropdown
+    useEffect(() => {
+        if (!makSelectingRef.current) {
+            setMakDisplay(formData.mak || '');
+        }
+        makSelectingRef.current = false;
+    }, [formData.mak]);
+
+    // Posisi dropdown fix di window agar ikut saat scroll
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+    const makInputRef = useRef(null);
+
+    useEffect(() => {
+        if (showMakDropdown && makInputRef.current) {
+            const rect = makInputRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+        }
+    }, [showMakDropdown, filteredPagu]);
 
     // ========== PERBAIKAN UTAMA: TAMBAHKAN PANGKAT KE DATA YANG DIKIRIM ==========
     const handleSubmitForm = async (e) => {
@@ -593,22 +684,21 @@ const KegiatanForm = ({
                                 <input
                                     type="text"
                                     name="mak"
-                                    value={formData.mak}
+                                    ref={makInputRef}
+                                    value={makDisplay}
                                     onChange={handleMakChange}
+                                    onFocus={() => setShowMakDropdown(true)}
+                                    onBlur={() => setTimeout(() => setShowMakDropdown(false), 200)}
                                     placeholder={getMakPlaceholder()}
-                                    className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
                                     required
                                     maxLength={29}
+                                    autoComplete="off"
                                 />
-                                <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
                                 {formData.mak && (
                                     <button
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, mak: '' }))}
+                                        onClick={() => { setFormData(prev => ({ ...prev, mak: '' })); setMakDisplay(''); }}
                                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -616,35 +706,67 @@ const KegiatanForm = ({
                                         </svg>
                                     </button>
                                 )}
-                                {formData.mak && (
-                                    <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                                        {validateMakFormat(formData.mak) ? (
-                                            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                                {/* Dropdown pencarian MAK dari Pagu */}
+                                {makDisplay && showMakDropdown && filteredPagu.length > 0 && (
+                                    <div
+                                        className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                        style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                                    >
+                                    {filteredPagu.map((item, i) => {
+                                        const sisa = item.pagu - item.realisasi;
+                                        return (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => handleSelectMak(item)}
+                                                className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b border-gray-100 last:border-0 transition"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-mono text-sm font-medium text-gray-900">{item.formattedMak}</span>
+                                                    <span className={`text-xs font-medium ${sisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                        Sisa: Rp {formatRupiah(sisa)}
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    Pagu: Rp {formatRupiah(item.pagu)} | Realisasi: Rp {formatRupiah(item.realisasi)}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                             <div className="mt-2">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-xs text-gray-500">
                                         Panjang: <span className="font-medium">{formData.mak.replace(/\./g, '').length}</span>/20 karakter
                                     </div>
                                     <div className="text-xs font-mono text-gray-600">
-                                        {formData.mak ? formData.mak : 'XXXX.XXX.XXX.XXX.XXXXXX.X'}
+                                        {makDisplay ? makDisplay : 'XXXX.XXX.XXX.XXX.XXXXXX.X'}
                                     </div>
                                 </div>
-                                {formData.mak && !validateMakFormat(formData.mak) && (
+                                {makDisplay && !validateMakFormat(makDisplay) && (
                                     <div className="mt-2 text-xs text-red-600">
                                         Format tidak valid. Pastikan sesuai pola: <span className="font-mono">XXXX.XXX.XXX.XXX.XXXXXX.X</span>
                                     </div>
                                 )}
+                                {/* Info sisa pagu jika MAK cocok dengan data pagu */}
+                                {selectedPaguInfo && (
+                                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-medium text-blue-700">
+                                                {selectedPaguInfo.formattedMak}
+                                            </span>
+                                            <span className={`text-sm font-bold ${(selectedPaguInfo.pagu - selectedPaguInfo.realisasi) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                Sisa: Rp {formatRupiah(selectedPaguInfo.pagu - selectedPaguInfo.realisasi)}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-blue-500 mt-1">
+                                            Pagu: Rp {formatRupiah(selectedPaguInfo.pagu)} | Realisasi: Rp {formatRupiah(selectedPaguInfo.realisasi)}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+                        </div>
                         </div>
                         
                         <div>

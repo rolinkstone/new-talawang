@@ -89,3 +89,47 @@ export const formatDateRange = (startDate, endDate) => {
   }
 };
 
+// Format MAK: ekstrak kode penting, susun ulang jadi singkatan
+// Ekstrak bagian-bagian MAK (digunakan oleh formatMak dan filter pagu)
+export const getMakParts = (mak) => {
+    const parts = mak.split('.');
+    if (parts.length < 15) return { kodeHuruf: '', kodeJenis: '' };
+    const match5 = parts[4].match(/^(\d+)([A-Za-z]+)/);
+    return {
+        kodeHuruf: match5 ? match5[2] : '',
+        kodeJenis: parts[2] || ''
+    };
+};
+
+export const formatMak = (mak) => {
+    if (!mak) return '-';
+    
+    // Coba format dengan kurung dulu: (524119), (6384), (EBA), dll
+    const parenMatches = mak.match(/\(([^)]+)\)/g);
+    if (parenMatches && parenMatches.length >= 3) {
+        const values = parenMatches.map(m => m.replace(/[()]/g, ''));
+        // values[0]=524119, values[1]=6384, values[2]=EBA, values[3]=994, values[4]=002, values[5]=J
+        if (values.length >= 6) {
+            return `${values[1]}.${values[2]}.${values[3]}.${values[4]}.${values[0]}.${values[5]}`;
+        }
+        return values.join('.');
+    }
+    
+    // Format tanpa kurung: 432872.043.524111.06301DR.3165AEA.A000000001...
+    const parts = mak.split('.');
+    if (parts.length >= 15) {
+        // parts[4] = "3165AEA" → pisah angka + huruf
+        const segment5Match = parts[4].match(/^(\d+)([A-Za-z]+)/);
+        const kode1 = segment5Match ? segment5Match[1] : parts[4];        // 3165
+        const kode2 = segment5Match ? segment5Match[2] : '';              // AEA
+        
+        // parts[14] = "0A" → ambil hurufnya saja
+        const segment15Match = parts[14].match(/[A-Za-z]+/);
+        const kode6 = segment15Match ? segment15Match[0] : parts[14];     // A
+        
+        return `${kode1}.${kode2}.${parts[12]}.${parts[13]}.${parts[2]}.${kode6}`;
+    }
+    
+    return mak;
+};
+

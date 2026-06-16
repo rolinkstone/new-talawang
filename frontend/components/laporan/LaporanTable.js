@@ -6,6 +6,8 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
   const [sortField, setSortField] = useState('total_uang_harian');
   const [sortDirection, setSortDirection] = useState('desc');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
   
   const handleSort = (field) => {
     if (sortField === field) {
@@ -45,6 +47,17 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
       return bVal.localeCompare(aVal);
     }
   });
+  
+  // Pagination
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortField, sortDirection]);
+  
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage) || 1;
+  const paginatedData = sortedData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
   
   if (data.length === 0) {
     return (
@@ -136,9 +149,11 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedData.map((item, idx) => (
+            {paginatedData.map((item, idx) => {
+                  const rowNumber = (currentPage - 1) * itemsPerPage + idx + 1;
+                  return (
               <tr key={item.pegawai_id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{idx + 1}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rowNumber}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="font-medium text-gray-900">{item.pegawai_nama}</div>
                   <div className="text-xs text-gray-500">{item.pegawai_jabatan || '-'}</div>
@@ -180,18 +195,59 @@ export default function LaporanTable({ data, onViewDetail, formatRupiah }) {
                   </button>
                 </td>
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>
       
+      {/* Pagination */}
+      {sortedData.length > 0 && (
+        <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t border-gray-200">
+          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+            <span>Menampilkan {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sortedData.length)} dari {filteredData.length} pegawai</span>
+            <span>Total Hari Transport Lokal: {sortedData.reduce((sum, item) => sum + (item.total_hari_transport_lokal || 0), 0)} Hari</span>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center px-6 py-3 bg-white border-t border-gray-200">
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`px-3 py-1 text-sm border rounded-md transition ${
+                  currentPage === page
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer Info */}
       <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
         <div className="flex justify-between items-center text-sm text-gray-500">
-          <div className="flex flex-wrap gap-4">
-            <span>Menampilkan {sortedData.length} dari {data.length} pegawai</span>
-            <span>Total Hari Transport Lokal: {sortedData.reduce((sum, item) => sum + (item.total_hari_transport_lokal || 0), 0)} Hari</span>
-          </div>
           <div className="flex gap-6">
             <span>Total UH: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + (item.total_uang_harian || 0), 0))}</span>
             <span>Total Transport: Rp {formatRupiah(sortedData.reduce((sum, item) => sum + (item.total_transport || 0), 0))}</span>
