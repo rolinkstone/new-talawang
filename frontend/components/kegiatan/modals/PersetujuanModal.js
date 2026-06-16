@@ -178,33 +178,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 </div>
                             </div>
                             
-                            {/* Info Session dengan NIP */}
-                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-blue-800">Info Pengguna (Session)</p>
-                                        <p className="text-xs text-blue-600 mt-1">
-                                            <span className="font-semibold">Nama:</span> {session?.user?.name || session?.user?.username || '-'}
-                                        </p>
-                                        <p className="text-xs text-blue-600">
-                                            <span className="font-semibold">NIP (dengan spasi):</span> 
-                                            <span className="font-mono ml-1 font-bold text-blue-800">
-                                                {session?.user?.nip_raw || session?.user?.nip || 'TIDAK ADA NIP!'}
-                                            </span>
-                                        </p>
-                                        <p className="text-xs text-blue-600">
-                                            <span className="font-semibold">Role:</span> {session?.user?.role || '-'}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs text-blue-500">Data yang akan dikirim:</div>
-                                        <div className="text-xs font-mono bg-blue-100 p-1 rounded mt-1">
-                                            nip: {session?.user?.nip_raw || session?.user?.nip || 'null'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
+                           
                             {kegiatan && (
                                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div className="bg-gray-50 p-3 rounded-lg">
