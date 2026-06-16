@@ -106,6 +106,7 @@ export const authOptions = {
         token.nip_raw = user.nip_raw; // NIP dengan spasi
         token.username = user.username;
         token.accessToken = account.access_token;
+        token.idToken = account.id_token;
         token.expiresAt = account.expires_at;
       }
       
@@ -128,6 +129,7 @@ export const authOptions = {
         };
         
         session.accessToken = token.accessToken;
+        session.idToken = token.idToken;
         session.expires = token.expiresAt ? 
           new Date(token.expiresAt * 1000).toISOString() : null;
       }

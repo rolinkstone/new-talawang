@@ -7,70 +7,7 @@ import {
   FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar
 } from 'react-icons/fa';
 import { useSession, signOut } from 'next-auth/react';
-
-// ============ CUSTOM HOOK UNTUK NOTIFIKASI ============
-function useNotifications() {
-  const { data: session } = useSession();
-  const [notifications, setNotifications] = useState({
-    lpd: 0,
-    kwitansi: 0,
-    total: 0
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchNotifications = async () => {
-    if (!session?.accessToken) {
-      console.log('🔔 No access token, skipping notification fetch');
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const url = `${apiUrl}/notifikasi/count`;
-      
-      console.log(`🔔 Fetching notifications from: ${url}`);
-      
-      const response = await fetch(url, {
-        headers: { 
-          'Authorization': `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
-      
-      console.log('🔔 Notifikasi response:', {
-        status: response.status,
-        success: data.success,
-        data: data.data,
-        error: data.message
-      });
-      
-      if (data.success) {
-        setNotifications(data.data);
-        console.log(`✅ Notifikasi berhasil: LPD=${data.data.lpd}, Kwitansi=${data.data.kwitansi}, Total=${data.data.total}`);
-      } else {
-        console.warn('⚠️ Notifikasi API returned success=false:', data.message);
-        setError(data.message);
-      }
-    } catch (err) {
-      console.error('❌ Error fetching notifications:', err.message);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [session?.accessToken]);
-
-  return { notifications, loading, error, refresh: fetchNotifications };
-}
+import { useNotifications } from '../hooks/useNotifications';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -198,7 +135,31 @@ export default function DashboardLayout({ children }) {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await signOut({ callbackUrl: "/login" });
+      // 1. Hancurkan semua token di localStorage/sessionStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('access_token');
+
+      // 2. Hancurkan cache user
+      try {
+        if (window.clearUserCache) window.clearUserCache();
+      } catch (_) {}
+
+      // 3. Ambil idToken dari session untuk Keycloak logout
+      const idToken = session?.idToken;
+
+      // 4. SignOut NextAuth (hapus cookie session)
+      await signOut({ redirect: false });
+
+      // 5. Redirect ke Keycloak logout dengan id_token_hint
+      if (idToken) {
+        const keycloakIssuer = 'https://auth.bbpompky.id/realms/master';
+        const redirectUri = encodeURIComponent(window.location.origin + '/login');
+        window.location.href = `${keycloakIssuer}/protocol/openid-connect/logout?id_token_hint=${idToken}&post_logout_redirect_uri=${redirectUri}&client_id=nextjs-local`;
+      } else {
+        window.location.href = '/login';
+      }
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";

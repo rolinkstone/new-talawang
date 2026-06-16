@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import axios from 'axios';
 
-export default function KwitansiDetailModal({ item, onClose, formatDateFn, formatRupiah, onRefresh }) {
+export default function KwitansiDetailModal({ item, onClose, formatDateForDisplay, formatRupiah, onRefresh }) {
     const { data: session } = useSession();
     const [fileUrl, setFileUrl] = useState(null);
     const [fileError, setFileError] = useState(false);
@@ -422,8 +422,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
     // Helper untuk format tanggal menginap
     const formatDateRange = (tglMulai, tglSelesai) => {
         if (!tglMulai && !tglSelesai) return '-';
-        if (tglMulai === tglSelesai) return formatDateFn(tglMulai);
-        return `${formatDateFn(tglMulai)} - ${formatDateFn(tglSelesai)}`;
+        if (tglMulai === tglSelesai) return formatDateForDisplay(tglMulai);
+        return `${formatDateForDisplay(tglMulai)} - ${formatDateForDisplay(tglSelesai)}`;
     };
     
     // Helper untuk mendapatkan icon file
@@ -584,7 +584,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                 </div>
                                 <div className="bg-gray-50 p-3 rounded">
                                     <p className="font-medium">Tanggal SPD</p>
-                                    <p>{item.tgl_spd ? formatDateFn(item.tgl_spd) : '-'}</p>
+                                    <p>{item.tgl_spd ? formatDateForDisplay(item.tgl_spd) : '-'}</p>
                                 </div>
                                 <div className="bg-gray-50 p-3 rounded">
                                     <p className="font-medium">Kegiatan</p>
@@ -601,7 +601,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                  
                                 <div className="bg-gray-50 p-3 rounded">
                                     <p className="font-medium">Tanggal Kwitansi</p>
-                                    <p>{item.tgl_kwitansi ? formatDateFn(item.tgl_kwitansi) : '-'}</p>
+                                    <p>{item.tgl_kwitansi ? formatDateForDisplay(item.tgl_kwitansi) : '-'}</p>
                                 </div>
                                
                             </div>
@@ -629,7 +629,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                                 <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
                                                     <span className="font-medium text-gray-700">Transport {idx + 1}</span>
                                                     <span className="text-xs text-gray-500">
-                                                        {formatDateFn(sptjm.created_at)}
+                                                        {formatDateForDisplay(sptjm.created_at)}
                                                     </span>
                                                 </div>
                                                 <div className="p-3">
@@ -721,7 +721,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                                 <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
                                                     <span className="font-medium text-gray-700">Penginapan {idx + 1}</span>
                                                     <span className="text-xs text-gray-500">
-                                                        {penginapan.created_at ? formatDateFn(penginapan.created_at) : '-'}
+                                                        {penginapan.created_at ? formatDateForDisplay(penginapan.created_at) : '-'}
                                                     </span>
                                                 </div>
                                                 <div className="p-3">
@@ -751,7 +751,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                                         <div>
                                                             <span className="text-gray-500">Tanggal Menginap:</span>
                                                             <p className="font-medium text-gray-800">
-                                                                {penginapan.tgl_menginap ? formatDateFn(penginapan.tgl_menginap) : '-'}
+                                                                {penginapan.tgl_menginap ? formatDateForDisplay(penginapan.tgl_menginap) : '-'}
                                                             </p>
                                                         </div>
                                                         {penginapan.kode_booking && (
@@ -818,7 +818,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusPegawai, 'Pegawai')}
-                                            {item.tgl_ttd_pegawai && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_pegawai)}</p>}
+                                            {item.tgl_ttd_pegawai && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_pegawai)}</p>}
                                         </div>
                                     </div>
                                     
@@ -829,7 +829,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusPpk, 'PPK')}
-                                            {item.tgl_ttd_ppk && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_ppk)}</p>}
+                                            {item.tgl_ttd_ppk && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_ppk)}</p>}
                                         </div>
                                     </div>
                                     
@@ -840,7 +840,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateFn, forma
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusBendahara, 'Bendahara')}
-                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400">{formatDateFn(item.tgl_ttd_bendahara)}</p>}
+                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_bendahara)}</p>}
                                         </div>
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 // components/kwitansi/KwitansiPrint.js
 import React, { useState, useEffect } from 'react';
-import { formatDateFn } from '../../utils/formatters';
+import { formatDateForDisplay } from '../../utils/formatters';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
 

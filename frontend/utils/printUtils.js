@@ -1,4 +1,4 @@
-// utils/printUtils.js - VERSION 4.1 (Perbaikan TTE dan QR Code)
+// utils/printUtils.js - VERSION 4.2 (Refactored - imports helpers from formatters.js & printHelpers.js)
 
 // ============================================
 // IMPORT LIBRARY (jika menggunakan module)
@@ -7,124 +7,8 @@
 // Pastikan qrcode.js diimpor di file HTML Anda
 // <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-// ============================================
-// FUNGSI UTAMA
-// ============================================
-
-// Fungsi terbilang untuk konversi angka ke kata
-export const terbilang = (angka) => {
-  if (angka === 0) return 'nol';
-  
-  const bilangan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
-  
-  const convert = (number) => {
-    if (number < 12) {
-      return bilangan[number];
-    } else if (number < 20) {
-      return convert(number - 10) + ' belas';
-    } else if (number < 100) {
-      return convert(Math.floor(number / 10)) + ' puluh ' + convert(number % 10);
-    } else if (number < 200) {
-      return 'seratus ' + convert(number - 100);
-    } else if (number < 1000) {
-      return convert(Math.floor(number / 100)) + ' ratus ' + convert(number % 100);
-    } else if (number < 2000) {
-      return 'seribu ' + convert(number - 1000);
-    } else if (number < 1000000) {
-      return convert(Math.floor(number / 1000)) + ' ribu ' + convert(number % 1000);
-    } else if (number < 1000000000) {
-      return convert(Math.floor(number / 1000000)) + ' juta ' + convert(number % 1000000);
-    }
-    return 'angka terlalu besar';
-  };
-  
-  return convert(angka).replace(/\s+/g, ' ').trim();
-};
-
-// Format Rupiah helper
-export const formatRupiah = (number) => {
-  if (number === undefined || number === null) return '0';
-  return Number(number).toLocaleString('id-ID');
-};
-
-// Format Date helper
-export const formatDateForDisplay = (dateString) => {
-  if (!dateString) return '-';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  } catch (error) {
-    return dateString;
-  }
-};
-
-// Format Date range untuk pelaksanaan
-export const formatDateRange = (startDate, endDate) => {
-  if (!startDate && !endDate) return '-';
-  
-  try {
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
-    
-    if (start && end) {
-      const startDay = start.getDate();
-      const startMonth = start.toLocaleDateString('id-ID', { month: 'long' });
-      const startYear = start.getFullYear();
-      const endDay = end.getDate();
-      const endMonth = end.toLocaleDateString('id-ID', { month: 'long' });
-      const endYear = end.getFullYear();
-      
-      if (startMonth === endMonth && startYear === endYear) {
-        return `${startDay} s.d. ${endDay} ${startMonth} ${startYear}`;
-      }
-      return `${startDay} ${startMonth} ${startYear} s.d. ${endDay} ${endMonth} ${endYear}`;
-    } else if (start) {
-      const day = start.getDate();
-      const month = start.toLocaleDateString('id-ID', { month: 'long' });
-      const year = start.getFullYear();
-      return `${day} ${month} ${year}`;
-    }
-    return formatDateForDisplay(startDate) || '-';
-  } catch (error) {
-    return `${formatDateForDisplay(startDate)} s.d. ${formatDateForDisplay(endDate)}`;
-  }
-};
-
-// Fungsi untuk menghitung total dari biaya_list
-export const calculateTotalFromBiayaList = (biayaList) => {
-  let total = 0;
-  
-  if (biayaList && biayaList.length > 0) {
-    biayaList.forEach(biaya => {
-      // Hitung transportasi
-      if (biaya.transportasi && biaya.transportasi.length > 0) {
-        biaya.transportasi.forEach(t => {
-          total += Number(t.total) || 0;
-        });
-      }
-      
-      // Hitung uang harian
-      if (biaya.uang_harian && biaya.uang_harian.length > 0) {
-        biaya.uang_harian.forEach(u => {
-          total += Number(u.total) || 0;
-        });
-      }
-      
-      // Hitung penginapan
-      if (biaya.penginapan && biaya.penginapan.length > 0) {
-        biaya.penginapan.forEach(p => {
-          total += Number(p.total) || 0;
-        });
-      }
-    });
-  }
-  
-  return total;
-};
+import { formatRupiah, formatDateForDisplay, formatDateRange } from './formatters';
+import { terbilang } from './printHelpers';
 
 // ============================================
 // QRCODE FUNCTIONS (Menggunakan QRCode.js)
@@ -249,11 +133,11 @@ const formatTTEDate = (dateString) => {
 // ============================================
 
 // Fungsi utama untuk handle print (satu halaman) - langsung print
-export const handlePrint = (item, pegawaiList = [], formatRupiahFn = formatRupiah, formatDateFn = formatDateForDisplay) => {
+export const handlePrint = (item, pegawaiList = [], formatRupiahFn = formatRupiah, formatDateForDisplayFn = formatDateForDisplay) => {
   const printWindow = window.open('', '_blank');
   
   // Generate print content satu halaman dengan detail
-  const printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateFn);
+  const printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateForDisplayFn);
   
   printWindow.document.write(printContent);
   printWindow.document.close();
@@ -326,7 +210,7 @@ const generateQRCodeInWindow = (win, item) => {
 };
 
 // Generate HTML content untuk print satu halaman DENGAN DETAIL
-export const generateOnePagePrintContentWithDetail = (item, pegawaiList = [], formatRupiahFn, formatDateFn) => {
+export const generateOnePagePrintContentWithDetail = (item, pegawaiList = [], formatRupiahFn, formatDateForDisplayFn) => {
   // Hitung total keseluruhan
   let totalNominatif = item.total_nominatif || 0;
   let totalPegawai = 0;
@@ -447,8 +331,8 @@ export const generateOnePagePrintContentWithDetail = (item, pegawaiList = [], fo
   const terbilangText = terbilang(totalNominatif);
   const dateRange = item.rencana_tanggal_pelaksanaan 
     ? (item.rencana_tanggal_pelaksanaan_akhir 
-        ? `${formatDateFn(item.rencana_tanggal_pelaksanaan)} - ${formatDateFn(item.rencana_tanggal_pelaksanaan_akhir)}`
-        : formatDateFn(item.rencana_tanggal_pelaksanaan))
+        ? `${formatDateForDisplayFn(item.rencana_tanggal_pelaksanaan)} - ${formatDateForDisplayFn(item.rencana_tanggal_pelaksanaan_akhir)}`
+        : formatDateForDisplayFn(item.rencana_tanggal_pelaksanaan))
     : '-';
   
   // Tentukan apakah QRCode harus ditampilkan
@@ -839,7 +723,7 @@ export const generateOnePagePrintContentWithDetail = (item, pegawaiList = [], fo
         <!-- HEADER -->
         <div class="header">
           <h1>DAFTAR RENCANA PERJALANAN DINAS JABATAN</h1>
-          <p><strong>No. ST:</strong> ${item.no_st || '-'} | <strong>Tanggal ST:</strong> ${formatDateFn(item.tgl_st) || '-'}</p>
+          <p><strong>No. ST:</strong> ${item.no_st || '-'} | <strong>Tanggal ST:</strong> ${formatDateForDisplayFn(item.tgl_st) || '-'}</p>
           <p><strong>Status Dokumen:</strong> ${item.status ? item.status.toUpperCase() : 'DRAFT'}</p>
           <p class="screen-only"><strong>Petunjuk:</strong> Preview akan otomatis dicetak. Gunakan Ctrl+P jika tidak otomatis.</p>
         </div>
@@ -1105,22 +989,22 @@ export const generateOnePagePrintContentWithDetail = (item, pegawaiList = [], fo
 // ============================================
 
 // Fungsi untuk print dengan preview (tanpa auto print)
-export const handlePrintWithPreview = (item, pegawaiList = [], formatRupiahFn = formatRupiah, formatDateFn = formatDateForDisplay) => {
+export const handlePrintWithPreview = (item, pegawaiList = [], formatRupiahFn = formatRupiah, formatDateForDisplayFn = formatDateForDisplay) => {
   const printWindow = window.open('', '_blank');
   
   // Generate content tanpa auto print
-  let printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateFn);
+  let printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateForDisplayFn);
   
   printWindow.document.write(printContent);
   printWindow.document.close();
 };
 
 // Fungsi untuk print detail (versi lama)
-export const handlePrintWithDetail = (item, detailData, formatRupiahFn = formatRupiah, formatDateFn = formatDateForDisplay) => {
+export const handlePrintWithDetail = (item, detailData, formatRupiahFn = formatRupiah, formatDateForDisplayFn = formatDateForDisplay) => {
   const printWindow = window.open('', '_blank');
   
   const pegawaiList = detailData?.[item.id]?.pegawai || [];
-  const printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateFn);
+  const printContent = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateForDisplayFn);
   
   printWindow.document.write(printContent);
   printWindow.document.close();
@@ -1131,7 +1015,7 @@ export const handlePrintWithDetail = (item, detailData, formatRupiahFn = formatR
 };
 
 // Versi ringkas tanpa detail
-export const generateOnePagePrintContent = (item, pegawaiList = [], formatRupiahFn, formatDateFn) => {
+export const generateOnePagePrintContent = (item, pegawaiList = [], formatRupiahFn, formatDateForDisplayFn) => {
   let totalNominatif = item.total_nominatif || 0;
   
   if (totalNominatif === 0 && pegawaiList && pegawaiList.length > 0) {
@@ -1169,7 +1053,7 @@ export const generateOnePagePrintContent = (item, pegawaiList = [], formatRupiah
         <tr><td>Kegiatan</td><td>${item.kegiatan || '-'}</td></tr>
         <tr><td>MAK</td><td>${item.mak || '-'}</td></tr>
         <tr><td>No. ST</td><td>${item.no_st || '-'}</td></tr>
-        <tr><td>Tanggal Pelaksanaan</td><td>${formatDateFn(item.rencana_tanggal_pelaksanaan) || '-'}</td></tr>
+        <tr><td>Tanggal Pelaksanaan</td><td>${formatDateForDisplayFn(item.rencana_tanggal_pelaksanaan) || '-'}</td></tr>
         <tr><td>Lokasi</td><td>${item.kota_kab_kecamatan || '-'}</td></tr>
       </table>
       
@@ -1184,8 +1068,8 @@ export const generateOnePagePrintContent = (item, pegawaiList = [], formatRupiah
 };
 
 // Generate content untuk preview
-export const generatePreviewContent = (item, pegawaiList = [], formatRupiahFn, formatDateFn) => {
-  let content = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateFn);
+export const generatePreviewContent = (item, pegawaiList = [], formatRupiahFn, formatDateForDisplayFn) => {
+  let content = generateOnePagePrintContentWithDetail(item, pegawaiList, formatRupiahFn, formatDateForDisplayFn);
   return content;
 };
 
@@ -1199,10 +1083,5 @@ export default {
   handlePrintWithDetail,
   generateOnePagePrintContentWithDetail,
   generateOnePagePrintContent,
-  generatePreviewContent,
-  terbilang,
-  formatRupiah,
-  formatDateForDisplay,
-  formatDateRange,
-  calculateTotalFromBiayaList
+  generatePreviewContent
 };

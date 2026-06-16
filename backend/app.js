@@ -1,7 +1,7 @@
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
-const KeycloakStrategy = require('passport-keycloak').Strategy;
+const KeycloakStrategy = require('passport-keycloak');
 const cors = require('cors');
 require('dotenv').config({ path: '.env.local' });
 
@@ -11,10 +11,9 @@ const keycloakRoutes = require('./routes/keycloak');
 const kegiatanRoutes = require('./routes/kegiatan');
 const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
-const indexRoutes = require('./routes/index');
-const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
-const laporanRoutes = require('./routes/lapran');  // TAMBAHKAN INI
-const notifikasiRoutes = require('./routes/notifikasi');  // TAMBAHKAN INI
+const lpdRoutes = require('./routes/lpd');
+const laporanRoutes = require('./routes/laporan');
+const notifikasiRoutes = require('./routes/notifikasi');
 const app = express();
 
 // ========== MIDDLEWARE SETUP ==========
@@ -97,8 +96,8 @@ app.use('/api/kegiatan', kegiatanRoutes);
 app.use('/api/kwitansi', kwitansiRoutes);  // TAMBAHKAN INI (jika belum ada)
 app.use('/api/search', searchRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
-app.use('/api/laporan', lpaoranRoutes);  // TAMBAHKAN INI
-app.use('/api/notifikasi', lpaoranRoutes);  // TAMBAHKAN INI
+app.use('/api/laporan', laporanRoutes);
+app.use('/api/notifikasi', notifikasiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

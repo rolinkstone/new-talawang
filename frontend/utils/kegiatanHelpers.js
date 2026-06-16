@@ -1,22 +1,7 @@
 // utils/kegiatanHelpers.js
-export const formatDateForDisplay = (dateString) => {
-  if (!dateString) return '-';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  } catch (error) {
-    return dateString;
-  }
-};
+import { formatDateForDisplay, formatRupiah } from './formatters';
 
-export const formatRupiah = (number) => {
-  if (number === undefined || number === null) return '0';
-  return Number(number).toLocaleString('id-ID');
-};
+export { formatDateForDisplay, formatRupiah };
 
 export const validateFormData = (formData) => {
   const errors = [];
@@ -63,10 +48,3 @@ export const prepareKegiatanPayload = (formData, pegawaiList) => {
     }))
   };
 };
-
-
-
-export const getAuthHeaders = (token) => ({
-  Authorization: `Bearer ${token}`,
-  'Content-Type': 'application/json'
-});

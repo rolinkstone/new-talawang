@@ -20,24 +20,6 @@ export const formatDateForDisplay = (dateString) => {
 };
 
 // formatters.js
-export const formatDateFn = (dateString) => {
-    if (!dateString) return '';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        
-        return `${day}/${month}/${year}`;
-    } catch (error) {
-        return dateString;
-    }
-};
-// Fungsi helper di luar komponen
-
 export const formatDateForInput = (dateString) => {
     if (!dateString) return '';
     
@@ -69,27 +51,41 @@ export const formatDateForInput = (dateString) => {
     }
     
     const year = date.getFullYear();
-    const month = String(date.getDate() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-};
-
-export const formatDateForBackend = (dateString) => {
-    if (!dateString) return null;
-    
-    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return dateString;
-    }
-    
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-        return null;
-    }
-    
-    const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     
     return `${year}-${month}-${day}`;
 };
+
+// Format Date range untuk pelaksanaan (Indonesian locale)
+export const formatDateRange = (startDate, endDate) => {
+  if (!startDate && !endDate) return '-';
+  
+  try {
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+    
+    if (start && end) {
+      const startDay = start.getDate();
+      const startMonth = start.toLocaleDateString('id-ID', { month: 'long' });
+      const startYear = start.getFullYear();
+      const endDay = end.getDate();
+      const endMonth = end.toLocaleDateString('id-ID', { month: 'long' });
+      const endYear = end.getFullYear();
+      
+      if (startMonth === endMonth && startYear === endYear) {
+        return `${startDay} s.d. ${endDay} ${startMonth} ${startYear}`;
+      }
+      return `${startDay} ${startMonth} ${startYear} s.d. ${endDay} ${endMonth} ${endYear}`;
+    } else if (start) {
+      const day = start.getDate();
+      const month = start.toLocaleDateString('id-ID', { month: 'long' });
+      const year = start.getFullYear();
+      return `${day} ${month} ${year}`;
+    }
+    return formatDateForDisplay(startDate) || '-';
+  } catch (error) {
+    return `${formatDateForDisplay(startDate)} s.d. ${formatDateForDisplay(endDate)}`;
+  }
+};
+

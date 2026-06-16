@@ -11,7 +11,7 @@ import SummaryCards from './SummaryCards';
 import ChartView from './ChartView';
 import NotificationModal from '../common/NotificationModal';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { formatDateFn, formatRupiah } from '../../utils/formatters';
+import { formatRupiah } from '../../utils/formatters';
 
 export default function LaporanContainer({ session: propSession, status: propStatus }) {
     const router = useRouter();
@@ -666,7 +666,6 @@ export default function LaporanContainer({ session: propSession, status: propSta
                     detail={pegawaiDetail}
                     loading={modalLoading}
                     formatRupiah={formatRupiah}
-                    formatDateFn={formatDateFn}
                 />
             )}
             

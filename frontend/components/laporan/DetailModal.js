@@ -6,7 +6,7 @@ import {
   FaBus, FaChartLine
 } from 'react-icons/fa';
 
-export default function DetailModal({ isOpen, onClose, pegawai, detail, loading, formatRupiah, formatDateFn }) {
+export default function DetailModal({ isOpen, onClose, pegawai, detail, loading, formatRupiah }) {
   if (!isOpen) return null;
   
   return (

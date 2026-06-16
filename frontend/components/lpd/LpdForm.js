@@ -1,7 +1,7 @@
 // components/lpd/LpdForm.js
 import React, { useState, useEffect } from 'react';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpenModal }) {
     const [activeTab, setActiveTab] = useState('pegawai');

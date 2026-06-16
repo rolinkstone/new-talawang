@@ -7,14 +7,10 @@ let userCache = {
     expiry: 10 * 60 * 1000 // 10 menit
 };
 
-// Helper untuk mendapatkan headers
-const getAuthHeaders = () => {
-    const token = localStorage.getItem('token') || 
-                  sessionStorage.getItem('token') ||
-                  localStorage.getItem('access_token');
-    
+// Helper untuk mendapatkan headers - gunakan token dari parameter (NextAuth session)
+const getAuthHeaders = (token) => {
     if (!token) {
-        console.warn('Token tidak ditemukan di localStorage/sessionStorage');
+        console.warn('Token tidak tersedia');
         return {};
     }
     
@@ -25,14 +21,22 @@ const getAuthHeaders = () => {
     };
 };
 
-// Fetch semua user dari API
-export const fetchAllUsers = async () => {
+// Fetch semua user dari API - membutuhkan accessToken dari session
+export const fetchAllUsers = async (accessToken) => {
     const now = Date.now();
     
     // Cek cache
     if (userCache.data.length > 0 && (now - userCache.timestamp) < userCache.expiry) {
         console.log('Menggunakan data cache');
         return userCache.data;
+    }
+    
+    // Fallback: coba ambil token dari sessionStorage jika tidak diberikan
+    const token = accessToken || sessionStorage.getItem('token') || localStorage.getItem('token');
+    
+    if (!token) {
+        console.warn('fetchAllUsers: Token tidak tersedia');
+        return [];
     }
     
     try {
@@ -46,7 +50,7 @@ export const fetchAllUsers = async () => {
             try {
                 console.log(`Mencoba fetch dari: ${endpoint}`);
                 const response = await fetch(endpoint, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(token)
                 });
                 
                 if (response.ok) {
@@ -74,16 +78,16 @@ export const fetchAllUsers = async () => {
 };
 
 // Search users untuk autocomplete
-export const searchUsers = async (searchTerm) => {
+export const searchUsers = async (searchTerm, accessToken) => {
     if (!searchTerm || searchTerm.trim() === '') {
-        return await fetchAllUsers();
+        return await fetchAllUsers(accessToken);
     }
     
     try {
         // Gunakan endpoint search jika tersedia
         const searchEndpoint = '/api/keycloak/users/search';
         const response = await fetch(`${searchEndpoint}?q=${encodeURIComponent(searchTerm)}`, {
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(accessToken)
         });
         
         if (response.ok) {
@@ -95,18 +99,18 @@ export const searchUsers = async (searchTerm) => {
         
         // Fallback ke client-side search
         console.log('Fallback ke client-side search');
-        return await fallbackSearch(searchTerm);
+        return await fallbackSearch(searchTerm, accessToken);
         
     } catch (error) {
         console.error('Error searching users:', error);
-        return await fallbackSearch(searchTerm);
+        return await fallbackSearch(searchTerm, accessToken);
     }
 };
 
 // Fallback client-side search
-const fallbackSearch = async (searchTerm) => {
+const fallbackSearch = async (searchTerm, accessToken) => {
     try {
-        const allUsers = await fetchAllUsers();
+        const allUsers = await fetchAllUsers(accessToken);
         const term = searchTerm.toLowerCase().trim();
         
         if (!term) return allUsers;
@@ -135,7 +139,7 @@ export const clearUserCache = () => {
 };
 
 // Force refresh cache
-export const refreshUserCache = () => {
+export const refreshUserCache = (accessToken) => {
     userCache.timestamp = 0;
-    return fetchAllUsers();
+    return fetchAllUsers(accessToken);
 };

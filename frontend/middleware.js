@@ -56,12 +56,10 @@ export default withAuth(
           return true;
         }
         
-        // Protected paths require authentication
+        // Protected paths require authentication - return boolean, redirect handled by withAuth
         if (!token) {
-          console.log("🛡️ Middleware - No token, redirecting to login");
-          const url = new URL('/login', req.url);
-          url.searchParams.set('callbackUrl', req.url);
-          return NextResponse.redirect(url);
+          console.log("🛡️ Middleware - No token, access denied");
+          return false;
         }
         
         console.log(`✅ Access granted for ${path} - User: ${token.name}, Role: ${token.role}`);

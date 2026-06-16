@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PegawaiForm from './PegawaiForm';
-import { formatRupiah, formatDateForBackend } from '../../utils/formatters';
+import { formatRupiah } from '../../utils/formatters';
 import { validateMakFormat, getMakPlaceholder, formatMakInput } from '../../utils/validators';
 
 const KegiatanForm = ({
@@ -416,11 +416,7 @@ const KegiatanForm = ({
         // Log untuk debugging
         console.log('📤 Data yang akan dikirim ke backend:', JSON.stringify(dataToSend, null, 2));
         
-        // Simpan data sementara agar bisa diakses oleh onSubmit
-        // Kemudian panggil onSubmit dengan event yang sudah dimodifikasi
-        window.__tempFormData = dataToSend;
-        
-        // Panggil onSubmit asli
+        // Panggil onSubmit dengan data yang sudah lengkap
         onSubmit(e);
     };
 

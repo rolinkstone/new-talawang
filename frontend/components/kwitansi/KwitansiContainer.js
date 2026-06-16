@@ -10,7 +10,7 @@ import KwitansiPrint from './KwitansiPrint';
 import NotificationModal from '../common/NotificationModal';
 import ConfirmDeleteModal from '../common/ConfirmDeleteModal';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { formatDateFn } from '../../utils/formatters';
+import { formatDateForDisplay } from '../../utils/formatters';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -1179,7 +1179,7 @@ export default function KwitansiContainer() {
                 <KwitansiDetailModal 
                     item={selectedKwitansi} 
                     onClose={closeModal} 
-                    formatDateFn={formatDateFn} 
+                    formatDateForDisplay={formatDateForDisplay} 
                     formatRupiah={formatRupiah}
                     onRefresh={refreshData}
                 />

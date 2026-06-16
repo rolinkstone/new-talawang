@@ -12,13 +12,13 @@ import KirimKeKatimModal from './modals/KirimKeKatimModal';
 import PersetujuanKatimModal from './modals/PersetujuanKatimModal';
 import PersetujuanKabalaiModal from './modals/PersetujuanKabalaiModal';
 import LihatLPDModal from './modals/LihatLPDModal';
-import { formatDateFn } from '../../utils/formatters';
+import { formatDateForDisplay } from '../../utils/formatters';
 import { printLPD } from './lpdPrint';
 
 
 const ITEMS_PER_PAGE = 10;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 export default function LpdContainer({ session, status }) {
     const router = useRouter();
@@ -161,6 +161,9 @@ export default function LpdContainer({ session, status }) {
                 setNotificationMessage('Timeout koneksi. Pastikan backend berjalan di ' + API_BASE_URL);
             } else if (error.response?.status === 401) {
                 setNotificationMessage('Session expired. Silakan login kembali.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('access_token');
+                sessionStorage.removeItem('token');
                 setTimeout(() => {
                     signOut({ callbackUrl: '/login' });
                 }, 2000);
@@ -1057,11 +1060,11 @@ export default function LpdContainer({ session, status }) {
                                                 <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
                                                         <div className="text-sm">{item.tempat || '-'}</div>
-                                                        <div className="text-xs text-gray-500">{item.tgl_st && `ST: ${formatDateFn(item.tgl_st)}`}</div>
+                                                        <div className="text-xs text-gray-500">{item.tgl_st && `ST: ${formatDateForDisplay(item.tgl_st)}`}</div>
                                                         {(item.tgl_mulai || item.tgl_selesai) && (
                                                             <div className="text-xs text-gray-500">
-                                                                Pelaksanaan: {item.tgl_mulai && formatDateFn(item.tgl_mulai)}
-                                                                {item.tgl_selesai && ` - ${formatDateFn(item.tgl_selesai)}`}
+                                                                Pelaksanaan: {item.tgl_mulai && formatDateForDisplay(item.tgl_mulai)}
+                                                                {item.tgl_selesai && ` - ${formatDateForDisplay(item.tgl_selesai)}`}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1178,7 +1181,7 @@ export default function LpdContainer({ session, status }) {
                                                                 </div>
                                                                 {item.kabalai_tgl_ttd && (
                                                                     <div className="text-xs text-gray-500 mt-1">
-                                                                        Disetujui: {formatDateFn(item.kabalai_tgl_ttd)}
+                                                                        Disetujui: {formatDateForDisplay(item.kabalai_tgl_ttd)}
                                                                     </div>
                                                                 )}
                                                             </div>

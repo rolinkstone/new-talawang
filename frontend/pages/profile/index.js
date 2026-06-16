@@ -1,4 +1,4 @@
-// pages/kegiatan/index.js
+// pages/profile/index.js
 import React from 'react';
 import { useSession } from 'next-auth/react';
 import { getSession } from 'next-auth/react';

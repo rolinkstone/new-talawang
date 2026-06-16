@@ -63,7 +63,8 @@ const enhancedAuth = async (req, res, next) => {
             '/api/validate', 
             '/api/refresh', 
             '/api/debug',
-            '/api/kegiatan/test/public'
+            '/api/kegiatan/test/public',
+            '/api/auth/logout'
         ];
         
         if (publicRoutes.some(route => req.path.startsWith(route))) {
@@ -161,6 +162,19 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 app.use('/api/laporan', laporanRoutes);  // TAMBAHKAN INI
 app.use('/api/notifikasi', notifikasiRoutes);  // TAMBAHKAN INI
+
+// ========== LOGOUT ENDPOINT (Public - no auth required) ==========
+app.get('/api/auth/logout', (req, res) => {
+    console.log('👋 Logging out via Keycloak...');
+    
+    // Redirect langsung ke Keycloak logout
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const redirectUri = encodeURIComponent(frontendUrl);
+    // Keycloak master realm menggunakan redirect_uri, bukan post_logout_redirect_uri
+    const logoutUrl = `${KEYCLOAK_CONFIG.url}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/logout?redirect_uri=${redirectUri}&client_id=${KEYCLOAK_CONFIG.clientId}`;
+    console.log('🚪 Redirecting to Keycloak logout URL:', logoutUrl);
+    res.redirect(logoutUrl);
+});
 
 // ========== AUTH ENDPOINTS ==========
 app.post('/api/login', async (req, res) => {

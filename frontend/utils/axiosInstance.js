@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Buat axios instance dengan interceptor
-const createAxiosInstance = (baseURL = 'http://localhost:5000/api') => {
+const createAxiosInstance = (baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') => {
   const instance = axios.create({
     baseURL,
     timeout: 30000, // 30 detik timeout
