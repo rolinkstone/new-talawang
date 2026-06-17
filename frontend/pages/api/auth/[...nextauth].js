@@ -151,19 +151,6 @@ export const authOptions = {
     maxAge: 4 * 60 * 60,
   },
 
-  cookies: {
-    sessionToken: {
-      name: 'next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 4 * 60 * 60,
-      }
-    }
-  },
-
   debug: process.env.NODE_ENV === 'development',
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
