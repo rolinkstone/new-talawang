@@ -155,11 +155,6 @@ export default function DashboardLayout({ children }) {
       const redirectUri = encodeURIComponent(window.location.origin + '/login');
       const logoutUrl = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
       
-      console.log("🔍 Logout URL:", logoutUrl);
-      console.log("🔍 clientId:", clientId);
-      console.log("🔍 session.clientId:", session?.clientId);
-      alert(`Logout URL: ${logoutUrl}`);
-      
       window.location.href = logoutUrl;
     } catch (err) {
       console.error("Logout error:", err);
