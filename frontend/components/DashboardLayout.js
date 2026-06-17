@@ -259,6 +259,18 @@ export default function DashboardLayout({ children }) {
           badgeColor: hasAdminRole() ? 'bg-red-500' : 
                       hasKabagTuRole() ? 'bg-blue-500' : 
                       'bg-purple-500'
+        },
+        { 
+          href: '/monev', 
+          label: 'Monev Perjadin', 
+          icon: <FaChartBar />,
+          description: 'Monitoring & Evaluasi perjalanan dinas per pegawai',
+          badge: hasAdminRole() ? 'Admin' : 
+                 hasKabagTuRole() ? 'Kabag TU' : 
+                 hasKepalaBalaiRole() ? 'Ka. Balai' : null,
+          badgeColor: hasAdminRole() ? 'bg-red-500' : 
+                      hasKabagTuRole() ? 'bg-blue-500' : 
+                      'bg-purple-500'
         }
       ]
     }] : []),

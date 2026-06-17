@@ -152,6 +152,7 @@ const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
 const laporanRoutes = require('./routes/laporan');  // TAMBAHKAN INI
 const notifikasiRoutes = require('./routes/notifikasi');  // TAMBAHKAN INI
 const paguRoutes = require('./routes/pagu');
+const monevRoutes = require('./routes/monev');
 
 // ========== MOUNT ROUTES ==========
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -164,6 +165,7 @@ app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 app.use('/api/laporan', laporanRoutes);  // TAMBAHKAN INI
 app.use('/api/notifikasi', notifikasiRoutes);  // TAMBAHKAN INI
 app.use('/api/pagu', paguRoutes);
+app.use('/api/monev', monevRoutes);
 
 // ========== LOGOUT ENDPOINT (Public - no auth required) ==========
 app.get('/api/auth/logout', (req, res) => {

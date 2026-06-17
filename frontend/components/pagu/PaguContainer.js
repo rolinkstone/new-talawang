@@ -158,6 +158,10 @@ export default function PaguContainer({ session, status }) {
         g.pagu += parseFloat(item.pagu) || 0;
         g.realisasi += parseFloat(item.realisasi) || 0;
         g.count++;
+        // Simpan updated_at terbaru dari semua record dalam grup
+        if (item.updated_at && (!g.updated_at || item.updated_at > g.updated_at)) {
+          g.updated_at = item.updated_at;
+        }
       } else {
         map.set(key, {
           id: item.id,
@@ -165,7 +169,8 @@ export default function PaguContainer({ session, status }) {
           formattedMak: key,
           pagu: parseFloat(item.pagu) || 0,
           realisasi: parseFloat(item.realisasi) || 0,
-          count: 1
+          count: 1,
+          updated_at: item.updated_at || null
         });
       }
     });
@@ -183,6 +188,17 @@ export default function PaguContainer({ session, status }) {
     });
     return { totalPagu, totalRealisasi, totalSisa };
   }, [groupedData]);
+
+  // Cari updated_at paling baru dari seluruh data
+  const lastUpdateTime = useMemo(() => {
+    let latest = null;
+    filteredData.forEach(item => {
+      if (item.updated_at && (!latest || item.updated_at > latest)) {
+        latest = item.updated_at;
+      }
+    });
+    return latest;
+  }, [filteredData]);
 
   // Pagination
   const totalPages = Math.ceil(groupedData.length / itemsPerPage) || 1;
@@ -250,6 +266,11 @@ export default function PaguContainer({ session, status }) {
           <p className={`text-2xl font-bold mt-1 ${totals.totalSisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
             Rp {formatRupiah(totals.totalSisa)}
           </p>
+          {lastUpdateTime && (
+            <p className="text-xs text-gray-400 mt-2">
+              🕐 Terakhir diupdate: {lastUpdateTime}
+            </p>
+          )}
         </div>
       </div>
 
@@ -308,6 +329,22 @@ export default function PaguContainer({ session, status }) {
         </div>
       </div>
 
+      {/* Info update terakhir */}
+      {lastUpdateTime && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+            </span>
+            <p className="text-sm text-blue-700">
+              <span className="font-medium">Data terakhir diupdate:</span>{' '}
+              <span className="font-semibold">{lastUpdateTime}</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
@@ -318,8 +355,7 @@ export default function PaguContainer({ session, status }) {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">MAK</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Pagu</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Realisasi</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Sisa</th>
-                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Aksi</th>}
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Sisa</th>                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Aksi</th>}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
