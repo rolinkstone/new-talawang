@@ -1,77 +1,74 @@
 // middleware.js
-import { withAuth } from "next-auth/middleware";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const path = req.nextUrl.pathname;
-    
-    console.log("🛡️ Middleware - Path:", path);
-    console.log("🛡️ Middleware - Hostname:", req.nextUrl.hostname);
-    console.log("🛡️ Middleware - Token present:", !!token);
-    
-    if (token) {
-      console.log("🛡️ Middleware - User:", token.name);
-      console.log("🛡️ Middleware - Role:", token.role);
-      
-      // You can add role-based access control here
-      if (path.startsWith('/admin') && token.role !== 'admin') {
-        const url = new URL('/unauthorized', req.url);
-        return NextResponse.redirect(url);
-      }
-    }
-    
+export async function middleware(req) {
+  const path = req.nextUrl.pathname;
+  
+  // Public paths - no auth required
+  const publicPaths = [
+    '/login',
+    '/api/auth',
+    '/_next',
+    '/favicon.ico',
+    '/images',
+    '/css',
+    '/js',
+    '/public'
+  ];
+  
+  // Check if it's a public path
+  const isPublicPath = publicPaths.some(publicPath => 
+    path.startsWith(publicPath) || path.includes('.')
+  );
+  
+  if (isPublicPath) {
+    console.log("🛡️ Middleware - Public path:", path);
     return NextResponse.next();
-  },
-  {
-    secret: process.env.NEXTAUTH_SECRET,
-    pages: {
-      signIn: '/login',
-    },
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const path = req.nextUrl.pathname;
-        
-        // Public paths - no auth required
-        const publicPaths = [
-          '/login',
-          '/api/auth',
-          '/_next',
-          '/favicon.ico',
-          '/images',
-          '/css',
-          '/js',
-          '/public'
-        ];
-        
-        const isPublicPath = publicPaths.some(publicPath => 
-          path.startsWith(publicPath) || path.includes('.')
-        );
-        
-        if (isPublicPath) {
-          console.log("🛡️ Middleware - Public path:", path);
-          return true;
-        }
-        
-        // Home page - allow both authenticated and unauthenticated
-        if (path === '/') {
-          console.log("🛡️ Middleware - Home page, allowing access");
-          return true;
-        }
-        
-        // Protected paths require authentication - return boolean, redirect handled by withAuth
-        if (!token) {
-          console.log("🛡️ Middleware - No token, access denied");
-          return false;
-        }
-        
-        console.log(`✅ Access granted for ${path} - User: ${token.name}, Role: ${token.role}`);
-        return true;
-      },
-    },
   }
-);
+  
+  // Home page - allow both authenticated and unauthenticated
+  if (path === '/') {
+    console.log("🛡️ Middleware - Home page, allowing access");
+    return NextResponse.next();
+  }
+  
+  // Decode token from cookie explicitly
+  console.log("🛡️ Middleware - Path:", path);
+  console.log("🛡️ Middleware - Hostname:", req.nextUrl.hostname);
+  
+  const secret = process.env.NEXTAUTH_SECRET;
+  const cookieName = "next-auth.session-token";
+  const rawCookie = req.cookies.get(cookieName)?.value;
+  
+  console.log("🛡️ Middleware - Cookie present:", !!rawCookie);
+  console.log("🛡️ Middleware - NEXTAUTH_SECRET defined:", !!secret);
+  
+  const token = await getToken({ 
+    req, 
+    secret,
+    raw: false
+  });
+  
+  console.log("🛡️ Middleware - Token decoded:", !!token);
+  
+  if (!token) {
+    console.log("🛡️ Middleware - No token, access denied for:", path);
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('callbackUrl', encodeURIComponent(path));
+    return NextResponse.redirect(loginUrl);
+  }
+  
+  console.log(`✅ Access granted for ${path} - User: ${token.name}, Role: ${token.role}`);
+  
+  // Role-based access control
+  if (path.startsWith('/admin') && token.role !== 'admin') {
+    const url = new URL('/unauthorized', req.url);
+    return NextResponse.redirect(url);
+  }
+  
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
