@@ -153,8 +153,14 @@ export default function DashboardLayout({ children }) {
       const keycloakIssuer = 'https://auth.bbpompky.id/realms/master';
       const clientId = session?.clientId || 'nextjs-local';
       const redirectUri = encodeURIComponent(window.location.origin + '/login');
+      const logoutUrl = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
       
-      window.location.href = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
+      console.log("🔍 Logout URL:", logoutUrl);
+      console.log("🔍 clientId:", clientId);
+      console.log("🔍 session.clientId:", session?.clientId);
+      alert(`Logout URL: ${logoutUrl}`);
+      
+      window.location.href = logoutUrl;
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";
