@@ -25,6 +25,10 @@ export default withAuth(
     return NextResponse.next();
   },
   {
+    secret: process.env.NEXTAUTH_SECRET,
+    pages: {
+      signIn: '/login',
+    },
     callbacks: {
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname;
@@ -76,8 +80,9 @@ export const config = {
      * - api/auth (auth API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
+     * - _next/data (Next.js internal data requests)
      * - favicon.ico (favicon file)
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/auth|_next/static|_next/image|_next/data|favicon.ico).*)',
   ],
 };
