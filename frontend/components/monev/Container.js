@@ -363,8 +363,8 @@ export default function MonevContainer({ session, status }) {
                 <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider w-10">No</th>
                 <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[200px] max-w-[240px]">MAK</th>
                 <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[160px] max-w-[200px]">PPK</th>
-                <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider w-28">No ST</th>
-                <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider w-28">No SPM</th>
+                <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[120px]">No ST</th>
+                <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[120px]">No SPM</th>
                 <th className="px-2 py-3.5 text-left text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[170px] max-w-[220px]">Nama Petugas</th>
                 <th className="px-2 py-3.5 text-right text-xs font-semibold text-indigo-100 uppercase tracking-wider min-w-[160px]">
                   <span className="flex items-center justify-end gap-1">
@@ -452,8 +452,8 @@ export default function MonevContainer({ session, status }) {
                       </span>
                     </td>
                     <td className="px-2 py-3 text-sm text-gray-700 font-medium truncate max-w-[190px]" title={item.ppk_nama}>{item.ppk_nama || '-'}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 truncate max-w-[100px]" title={item.no_st}>{item.no_st || '-'}</td>
-                    <td className="px-2 py-3 text-sm font-mono text-gray-700 truncate max-w-[100px]" title={item.catatan_status_2}>
+                    <td className="px-2 py-3 text-sm text-gray-600 truncate max-w-[140px]" title={item.no_st}>{item.no_st || '-'}</td>
+                    <td className="px-2 py-3 text-sm font-mono text-gray-700 truncate max-w-[140px]" title={item.catatan_status_2}>
                       {item.catatan_status_2 || '-'}
                     </td>
                     <td className="px-2 py-3">
@@ -462,7 +462,7 @@ export default function MonevContainer({ session, status }) {
                           {(item.pegawai_nama || '?').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate max-w-[170px]" title={item.pegawai_nama}>{item.pegawai_nama}</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]" title={item.pegawai_nama}>{item.pegawai_nama}</p>
                           <p className="text-[11px] text-gray-400 truncate">{item.pegawai_nip || ''}</p>
                         </div>
                       </div>
