@@ -41,6 +41,8 @@ services:
       - NODE_ENV=production
       # ⭐ Gunakan domain tunnel untuk NextAuth
       - NEXT_PUBLIC_API_URL=http://api-talawang.bbpompky.id/api
+      - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=talawang
+      - NEXT_PUBLIC_KEYCLOAK_ISSUER=https://auth.bbpompky.id/realms/master
       - KEYCLOAK_ISSUER=https://auth.bbpompky.id/realms/master
       - KEYCLOAK_CLIENT_ID=talawang
       - KEYCLOAK_CLIENT_SECRET=iPHkDbSBwaxo04kFro4GLHmFE6wLtjlj
