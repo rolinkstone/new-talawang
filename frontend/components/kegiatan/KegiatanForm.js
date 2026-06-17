@@ -434,7 +434,7 @@ const KegiatanForm = ({
     // Update info sisa saat MAK dipilih dari dropdown
     const handleSelectMak = useCallback((item) => {
         makSelectingRef.current = true;
-        setFormData(prev => ({ ...prev, mak: item.mak, realisasi_anggaran_sebelumnya: item.realisasi }));
+        setFormData(prev => ({ ...prev, mak: item.formattedMak, realisasi_anggaran_sebelumnya: item.realisasi }));
         setMakDisplay(item.formattedMak);
         setSelectedPaguInfo(item);
         setShowMakDropdown(false);
@@ -442,7 +442,7 @@ const KegiatanForm = ({
 
     // Reset selected info & display saat MAK diketik manual
     useEffect(() => {
-        if (formData.mak && selectedPaguInfo && formData.mak !== selectedPaguInfo.mak) {
+        if (formData.mak && selectedPaguInfo && formData.mak !== selectedPaguInfo.formattedMak) {
             setSelectedPaguInfo(null);
         }
     }, [formData.mak, selectedPaguInfo]);
