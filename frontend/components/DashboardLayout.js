@@ -146,24 +146,15 @@ export default function DashboardLayout({ children }) {
         if (window.clearUserCache) window.clearUserCache();
       } catch (_) {}
 
-      // 3. Ambil idToken dari session untuk Keycloak logout
-      const idToken = session?.idToken;
-
-      // 4. SignOut NextAuth (hapus cookie session)
+      // 3. SignOut NextAuth (hapus cookie session)
       await signOut({ redirect: false });
 
-      // 5. Redirect ke Keycloak logout
-      const keycloakIssuer = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER || 'https://auth.bbpompky.id/realms/master';
-      const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || 'nextjs-local';
+      // 4. Redirect ke Keycloak logout (tanpa id_token_hint -- lebih reliable)
+      const keycloakIssuer = 'https://auth.bbpompky.id/realms/master';
+      const clientId = session?.clientId || 'nextjs-local';
       const redirectUri = encodeURIComponent(window.location.origin + '/login');
       
-      if (idToken) {
-        // Full SSO logout with id_token_hint (URL-encoded untuk aman)
-        window.location.href = `${keycloakIssuer}/protocol/openid-connect/logout?id_token_hint=${encodeURIComponent(idToken)}&post_logout_redirect_uri=${redirectUri}&client_id=${clientId}`;
-      } else {
-        // Fallback: logout tanpa id_token_hint (Keycloak tetap logout berdasarkan client_id)
-        window.location.href = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
-      }
+      window.location.href = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";

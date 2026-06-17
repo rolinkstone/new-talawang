@@ -130,6 +130,7 @@ export const authOptions = {
         
         session.accessToken = token.accessToken;
         session.idToken = token.idToken;
+        session.clientId = process.env.KEYCLOAK_CLIENT_ID || 'nextjs-local';
         session.expires = token.expiresAt ? 
           new Date(token.expiresAt * 1000).toISOString() : null;
       }
