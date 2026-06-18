@@ -34,7 +34,6 @@
     "passport": "^0.7.0",
     "passport-keycloak": "^0.0.7",
     "qrcode": "^1.5.4",
-    "sharp": "^0.35.1",
     "speakeasy": "^2.0.0",
     "xlsx": "^0.18.5"
   }
