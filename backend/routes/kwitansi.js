@@ -499,6 +499,14 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
         const roleInfo = getUserRoleInfo(user);
         const normalizedUserNip = normalizeNip(userNip);
         
+        // === BACA CUTOFF DATE ===
+        let cutoffParam = '';
+        try {
+            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
+            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
+        } catch (e) {}
+        
         console.log('👤 User info for need-kwitansi-ppk-history:', {
             nip: normalizedUserNip,
             userId: userId,
