@@ -153,6 +153,7 @@ const laporanRoutes = require('./routes/laporan');  // TAMBAHKAN INI
 const notifikasiRoutes = require('./routes/notifikasi');  // TAMBAHKAN INI
 const paguRoutes = require('./routes/pagu');
 const monevRoutes = require('./routes/monev');
+const settingRoutes = require('./routes/setting');
 
 // ========== MOUNT ROUTES ==========
 app.use('/api/kegiatan', kegiatanRoutes);
@@ -166,6 +167,7 @@ app.use('/api/laporan', laporanRoutes);  // TAMBAHKAN INI
 app.use('/api/notifikasi', notifikasiRoutes);  // TAMBAHKAN INI
 app.use('/api/pagu', paguRoutes);
 app.use('/api/monev', monevRoutes);
+app.use('/api/settings', settingRoutes);
 
 // ========== LOGOUT ENDPOINT (Public - no auth required) ==========
 app.get('/api/auth/logout', (req, res) => {

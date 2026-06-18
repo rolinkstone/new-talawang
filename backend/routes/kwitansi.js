@@ -145,6 +145,15 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         const roleInfo = getUserRoleInfo(user);
         const normalizedUserNip = normalizeNip(userNip);
         
+        // === BACA CUTOFF DATE ===
+        let cutoffParam = '';
+        try {
+            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
+            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
+        } catch (e) {}
+
+        
         console.log('👤 User info for need-kwitansi:', {
             nip: normalizedUserNip,
             userId: userId,
@@ -173,6 +182,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
                 WHERE COALESCE(l.lpd_status, 'belum_ada') = 'selesai'
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
             queryParams = [];
@@ -218,6 +228,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                         n.bendahara_id = ? OR REPLACE(n.bendahara_nip, ' ', '') = ?
                     )
                 )
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
             queryParams = [userId, normalizedUserNip, userId, normalizedUserNip, userId, normalizedUserNip];
@@ -523,6 +534,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 WHERE n.status = 'selesai'
                 AND k.status_ppk = 'sudah'
                 AND UPPER(n.status_2) = 'SELESAI'
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
             queryParams = [];
@@ -545,6 +557,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
                 AND k.status_ppk = 'sudah'
                 AND UPPER(n.status_2) = 'SELESAI'
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
             queryParams = [user?.id || '', normalizedUserNip, getUsername(user)];
@@ -1139,7 +1152,10 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                           kwitansi.status_ppk === 'ditolak' || 
                           kwitansi.status_bendahara === 'ditolak';
         
-        if (!isRejected && !roleInfo.isAdmin) {
+        const isPegawaiBelumApprove = kwitansi.status_pegawai === 'belum';
+        
+        // Izinkan update jika: admin, atau pegawai sendiri dan (belum approve atau ditolak)
+        if (!roleInfo.isAdmin && !isPegawaiBelumApprove && !isRejected) {
             return res.status(400).json({ 
                 success: false, 
                 message: 'Kwitansi tidak dapat diubah karena sudah dalam proses approval' 
@@ -1957,6 +1973,81 @@ router.get('/sptjm-penginapan-file/:fileId/download', keycloakAuth, async (req, 
         
     } catch (error) {
         console.error('❌ Error downloading SPTJM penginapan file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==================== ENDPOINT KONVERSI PDF KE GAMBAR UNTUK PRINT ====================
+const sharp = require('sharp');
+
+/**
+ * GET /kwitansi/pdf-preview/:fileId
+ * Mengkonversi file PDF (atau gambar) menjadi PNG untuk ditampilkan di print preview.
+ * Untuk PDF multi-halaman, konversi setiap halaman dan return sebagai array base64.
+ */
+router.get('/pdf-preview/:fileId', keycloakAuth, async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        
+        // Cari file di tabel sptjm_transport_files atau sptjm_penginapan_files
+        let [fileData] = await db.query(
+            `SELECT id, file_path, file_name, file_type FROM sptjm_transport_files WHERE id = ?
+             UNION ALL
+             SELECT id, file_path, file_name, file_type FROM sptjm_penginapan_files WHERE id = ?`,
+            [fileId, fileId]
+        );
+        
+        if (!fileData || fileData.length === 0) {
+            return res.status(404).json({ success: false, message: 'File tidak ditemukan' });
+        }
+        
+        const file = fileData[0];
+        const filePath = path.join(__dirname, '../public', file.file_path.replace('/uploads', 'uploads'));
+        
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, message: 'File fisik tidak ditemukan' });
+        }
+        
+        const ext = (file.file_name || '').split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        
+        if (imageExts.includes(ext)) {
+            // File gambar — kirim langsung
+            const imageBuffer = fs.readFileSync(filePath);
+            const base64 = imageBuffer.toString('base64');
+            const mimeType = ext === 'jpg' ? 'jpeg' : ext;
+            return res.json({ success: true, pages: [`data:image/${mimeType};base64,${base64}`] });
+        }
+        
+        if (ext === 'pdf') {
+            // File PDF — konversi setiap halaman ke PNG
+            const pages = [];
+            let pageNum = 0;
+            
+            while (true) {
+                try {
+                    const pageBuffer = await sharp(filePath, { page: pageNum, density: 150 })
+                        .png()
+                        .toBuffer();
+                    const base64 = pageBuffer.toString('base64');
+                    pages.push(`data:image/png;base64,${base64}`);
+                    pageNum++;
+                } catch (pageErr) {
+                    // Jika error berarti tidak ada halaman lagi
+                    break;
+                }
+            }
+            
+            if (pages.length === 0) {
+                return res.status(500).json({ success: false, message: 'Gagal mengkonversi PDF' });
+            }
+            
+            return res.json({ success: true, pages });
+        }
+        
+        return res.status(400).json({ success: false, message: 'Format file tidak didukung' });
+    } catch (error) {
+        console.error('❌ Error converting PDF to image:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

@@ -299,12 +299,12 @@ export default function DashboardLayout({ children }) {
 
   // Role badge untuk user info
   const getUserRoleBadgeClass = () => {
-    if (hasAdminRole()) return 'bg-red-600';
-    if (hasPPKRole()) return 'bg-yellow-600';
-    if (hasBendaharaRole()) return 'bg-green-600';
-    if (hasKabagTuRole()) return 'bg-blue-600';
-    if (hasKepalaBalaiRole()) return 'bg-purple-600';
-    return 'bg-gray-600';
+    if (hasAdminRole()) return 'bg-red-50 text-red-700 border border-red-200';
+    if (hasPPKRole()) return 'bg-amber-50 text-amber-700 border border-amber-200';
+    if (hasBendaharaRole()) return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    if (hasKabagTuRole()) return 'bg-blue-50 text-blue-700 border border-blue-200';
+    if (hasKepalaBalaiRole()) return 'bg-purple-50 text-purple-700 border border-purple-200';
+    return 'bg-gray-50 text-gray-600 border border-gray-200';
   };
 
   const getUserRoleBadgeText = () => {

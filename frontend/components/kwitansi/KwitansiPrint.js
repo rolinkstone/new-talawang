@@ -27,6 +27,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
 
   // State untuk LPD
   const [isPrintingLpd, setIsPrintingLpd] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Detail biaya dari nominatif
   const transportDetail = pegawai?.transportasi_detail || [];
@@ -369,9 +370,10 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     return rows;
   };
 
-const generateSptjmPenginapanRows = () => {
-    if (hasPenginapanSptjm) {
-        return penginapanSptjmList.map((penginapan, idx) => {
+const generateSptjmPenginapanRows = (dataSource = null) => {
+    const data = dataSource || penginapanSptjmList;
+    if (data && data.length > 0) {
+        return data.map((penginapan, idx) => {
             let namaDanAlamat = penginapan.nama_penginapan || '-';
             if (penginapan.alamat_penginapan) {
                 namaDanAlamat += `, ${penginapan.alamat_penginapan}`;
@@ -380,27 +382,18 @@ const generateSptjmPenginapanRows = () => {
             const tglMenginapFormatted = penginapan.tgl_menginap ? formatDateIndonesian(penginapan.tgl_menginap) : '-';
             
             return `
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; ${idx !== penginapanSptjmList.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; ${idx !== data.length - 1 ? 'border-bottom: 1px dashed #ccc;' : ''}">
                     <tbody>
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nama dan Alamat Penginapan</td>
                             <td style="width: 15px; padding: 4px 0; text-align: center;">&nbsp;:</td>
                             <td style="padding: 4px 0 4px 8px; vertical-align: top;"><strong>&nbsp;${namaDanAlamat}</strong></td>
                         </tr>
-                        <tr>
-                            <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
-                            <td style="padding: 4px 0; text-align: center;">&nbsp;</td>
-                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;</td>
-                        </tr>
+                      
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Nomor kamar</td>
                             <td style="width: 15px; padding: 4px 0; text-align: center;">&nbsp;:</td>
                             <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;${penginapan.nomor_kamar || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; vertical-align: top;">&nbsp;</td>
-                            <td style="padding: 4px 0; text-align: center;">&nbsp;</td>
-                            <td style="padding: 4px 0 4px 8px; vertical-align: top;">&nbsp;</td>
                         </tr>
                         <tr>
                             <td style="width: 180px; padding: 4px 0; vertical-align: top;">Tarif hotel</td>
@@ -441,10 +434,77 @@ const generateSptjmPenginapanRows = () => {
     return '<div style="color: #999; text-align: center; padding: 20px;">Tidak ada data penginapan</div>';
 };
 
-  // Fungsi untuk cetak Kwitansi (TIDAK DIUBAH)
-  const handlePrintKwitansi = () => {
-    const printWindow = window.open('', '_blank', 'width=900,height=800');
+  // Fungsi untuk cetak Kwitansi — render PDF ke canvas, lalu tampilkan sebagai gambar
+  const handlePrintKwitansi = async () => {
+    setLoading(true);
+    
+    // Ambil SPTJM data langsung dari API
+    const kwitansiId = item?.kwitansi_id || item?.id;
+    let sptjmData = [];
+    let penginapanData = [];
+    
+    if (kwitansiId && session?.accessToken) {
+      try {
+        const headers = { Authorization: `Bearer ${session.accessToken}` };
+        const [transportRes, penginapanRes] = await Promise.all([
+          axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport/${kwitansiId}`, { headers }),
+          axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan/${kwitansiId}`, { headers })
+        ]);
+        if (transportRes.data.success) sptjmData = transportRes.data.data || [];
+        if (penginapanRes.data.success) penginapanData = penginapanRes.data.data || [];
+      } catch (e) {
+        console.error('Error fetching SPTJM for print:', e);
+      }
+    }
+    
+    // Fallback ke state jika fetch gagal
+    if (sptjmData.length === 0) sptjmData = sptjmList;
+    if (penginapanData.length === 0) penginapanData = penginapanSptjmList;
 
+    // === RENDER SEMUA FILE PDF KE CANVAS ===
+    const allFileUrls = [];
+    sptjmData.forEach(s => { if (s.files) s.files.forEach(f => { if (f.file_path) allFileUrls.push({ id: f.id, url: BACKEND_URL + f.file_path, name: f.file_name, type: 'transport', parent: s }); }); });
+    penginapanData.forEach(p => { if (p.files) p.files.forEach(f => { if (f.file_path) allFileUrls.push({ id: f.id, url: BACKEND_URL + f.file_path, name: f.file_name, type: 'penginapan', parent: p }); }); });
+    
+    // Map untuk menyimpan hasil render: fileId -> [dataUrl, ...]
+    const renderedPages = {};
+    
+    if (allFileUrls.length > 0) {
+      // Load PDF.js dari CDN
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      document.head.appendChild(script);
+      await new Promise(resolve => { script.onload = resolve; });
+      
+      const pdfjsLib = window.pdfjsLib;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      
+      for (const file of allFileUrls) {
+        try {
+          const resp = await fetch(file.url);
+          const arrayBuffer = await resp.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const pages = [];
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext('2d');
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            pages.push(canvas.toDataURL('image/png'));
+          }
+          renderedPages[file.id] = pages;
+        } catch (e) {
+          console.error('Error rendering PDF:', file.name, e);
+        }
+      }
+    }
+    
+    // === GENERATE HTML ===
+    const printWindow = window.open('', '_blank', 'width=900,height=800');
+    
     const ttdPegawaiHtml = ttdPegawaiUrl
       ? `<img src="${ttdPegawaiUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" />`
       : '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
@@ -460,7 +520,7 @@ const generateSptjmPenginapanRows = () => {
     const kegiatanText = kegiatan?.kegiatan || '-';
     const makText = kegiatan?.mak || '-';
 
-    const hasSptjm = sptjmList && sptjmList.length > 0;
+    const hasSptjm = sptjmData && sptjmData.length > 0;
     
     let sptjmTableRows = '';
     
@@ -476,8 +536,8 @@ const generateSptjmPenginapanRows = () => {
           </tr>
         `;
       });
-    } else if (hasSptjm && sptjmList.length > 0) {
-      sptjmList.forEach((sptjm, idx) => {
+    } else if (hasSptjm && sptjmData.length > 0) {
+      sptjmData.forEach((sptjm, idx) => {
         let uraian = sptjm.jenis_transport || '-';
         if (sptjm.nama_maskapai) {
           uraian += ` ${sptjm.nama_maskapai}`;
@@ -521,8 +581,38 @@ const generateSptjmPenginapanRows = () => {
       `;
     }
 
-    const sptjmPenginapanRows = generateSptjmPenginapanRows();
+    const sptjmPenginapanRows = generateSptjmPenginapanRows(penginapanData);
     const kwitansiRows = generateKwitansiRows();
+
+    // Build HTML untuk lampiran file transport
+    let sptjmFilesHtml = '';
+    sptjmData.forEach((sptjm, idx) => {
+      if (sptjm.files && sptjm.files.length > 0) {
+        sptjmFilesHtml += '<div style="margin: 10px 0;"><strong>File Transport ' + (idx + 1) + (sptjm.jenis_transport ? ' - ' + sptjm.jenis_transport : '') + ':</strong></div>';
+        sptjm.files.forEach(file => {
+          if (file.id && renderedPages[file.id]) {
+            renderedPages[file.id].forEach(pageData => {
+              sptjmFilesHtml += '<div style="margin: 10px 0; text-align: center;"><img src="' + pageData + '" style="max-width: 100%; border: 1px solid #ccc;" /></div>';
+            });
+          }
+        });
+      }
+    });
+    
+    // Build HTML untuk lampiran file penginapan
+    let penginapanFilesHtml = '';
+    penginapanData.forEach((penginapan, idx) => {
+      if (penginapan.files && penginapan.files.length > 0) {
+        penginapanFilesHtml += '<div style="margin: 10px 0;"><strong>File Penginapan ' + (idx + 1) + (penginapan.nama_penginapan ? ' - ' + penginapan.nama_penginapan : '') + ':</strong></div>';
+        penginapan.files.forEach(file => {
+          if (file.id && renderedPages[file.id]) {
+            renderedPages[file.id].forEach(pageData => {
+              penginapanFilesHtml += '<div style="margin: 10px 0; text-align: center;"><img src="' + pageData + '" style="max-width: 100%; border: 1px solid #ccc;" /></div>';
+            });
+          }
+        });
+      }
+    });
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -703,14 +793,31 @@ const generateSptjmPenginapanRows = () => {
           </div>
         </div>
 
+        ${allFileUrls.filter(f => f.type === 'transport').length > 0 ? `
+        <div class="page-break"></div>
+        <div class="sptjm-container">
+          <div style="text-align: center; font-size: 13px; font-weight: bold; margin-bottom: 15px;">LAMPIRAN FILE TRANSPORT</div>
+          ${sptjmFilesHtml}
+        </div>
+        ` : ''}
+
+        ${allFileUrls.filter(f => f.type === 'penginapan').length > 0 ? `
+        <div class="page-break"></div>
+        <div class="sptjm-container">
+          <div style="text-align: center; font-size: 13px; font-weight: bold; margin-bottom: 15px;">LAMPIRAN FILE PENGINAPAN</div>
+          ${penginapanFilesHtml}
+        </div>
+        ` : ''}
+
         <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">🖨️ Cetak</button>
+          <button onclick="window.print();setTimeout(function(){window.close();}, 500);" style="padding:10px 20px;margin-right:10px;cursor:pointer;">💾 Save to PDF</button>
           <button onclick="window.close();" style="padding:10px 20px;cursor:pointer;">Tutup</button>
         </div>
       </body>
       </html>
     `);
     printWindow.document.close();
+    setLoading(false);
   };
 
   // ==================== FUNGSI CETAK LPD ====================
@@ -996,10 +1103,10 @@ const generateSptjmPenginapanRows = () => {
           </div>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button onClick={handlePrintKwitansi} className="px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex flex-col items-center">
-              <span className="text-2xl mb-2">📄</span>
-              <span className="font-medium">Cetak Kwitansi & SPTJM</span>
-              <span className="text-xs mt-1">Kwitansi + SPTJM Transport + SPTJM Penginapan</span>
+            <button onClick={handlePrintKwitansi} disabled={loading} className="px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex flex-col items-center">
+              <span className="text-2xl mb-2">{loading ? '⏳' : '📄'}</span>
+              <span className="font-medium">{loading ? 'Memproses file...' : 'Save to PDF (Lengkap)'}</span>
+              <span className="text-xs mt-1">Kwitansi + SPTJM + File Pendukung</span>
             </button>
             <button onClick={handlePrintLPD} disabled={isPrintingLpd} className="px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 flex flex-col items-center">
               <span className="text-2xl mb-2">📋</span>

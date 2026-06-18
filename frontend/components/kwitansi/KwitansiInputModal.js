@@ -1,19 +1,27 @@
 // components/kwitansi/KwitansiInputModal.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
 
 export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSuccess }) {
     const { data: session } = useSession();
     const [loading, setLoading] = useState(false);
+    const [dataLoading, setDataLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('info');
     
-    // Form data
+    // Mode edit jika sudah ada kwitansi_id
+    const isEdit = !!pegawai?.kwitansi_id;
+    
+    // Form data — pre-fill jika edit
     const [formData, setFormData] = useState({
-        no_lpd: '',
-        tgl_kwitansi: new Date().toISOString().split('T')[0],
-        tgl_spd: new Date().toISOString().split('T')[0]
+        no_lpd: pegawai?.no_lpd || '',
+        tgl_kwitansi: pegawai?.tgl_kwitansi 
+            ? new Date(pegawai.tgl_kwitansi).toISOString().split('T')[0] 
+            : new Date().toISOString().split('T')[0],
+        tgl_spd: pegawai?.tgl_spd 
+            ? new Date(pegawai.tgl_spd).toISOString().split('T')[0] 
+            : new Date().toISOString().split('T')[0]
     });
     
     // SPTJM Transport data - bisa multiple entries dengan file
@@ -40,6 +48,83 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
             files: []
         }
     ]);
+    
+    // Load existing SPTJM data saat edit
+    useEffect(() => {
+        if (!isEdit || !pegawai?.kwitansi_id || !session?.accessToken) return;
+        
+        const loadExistingData = async () => {
+            setDataLoading(true);
+            try {
+                const headers = { Authorization: `Bearer ${session.accessToken}` };
+                const kwitansiId = pegawai.kwitansi_id;
+                
+                // Load SPTJM Transport
+                const [transportRes, penginapanRes] = await Promise.all([
+                    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport/${kwitansiId}`, { headers }),
+                    axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan/${kwitansiId}`, { headers })
+                ]);
+                
+                if (transportRes.data.success && transportRes.data.data.length > 0) {
+                    setSptjmList(transportRes.data.data.map(item => ({
+                        id: item.id || Date.now(),
+                        jenis_transport: item.jenis_transport || '',
+                        nama_maskapai: item.nama_maskapai || '',
+                        kode_penerbangan: item.kode_penerbangan || '',
+                        nomor_kursi: item.nomor_kursi || '',
+                        files: (item.files || []).map(f => ({
+                            // Normalisasi: bungkus dalam objek { file, preview, name } seperti upload baru
+                            file: {
+                                name: f.file_name || '',
+                                type: f.file_type || 'application/octet-stream',
+                                size: f.file_size || 0,
+                                lastModified: null
+                            },
+                            preview: f.file_path 
+                                ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${f.file_path}`
+                                : null,
+                            name: f.file_name || '',
+                            id: f.id,
+                            isExisting: true
+                        }))
+                    })));
+                }
+                
+                if (penginapanRes.data.success && penginapanRes.data.data.length > 0) {
+                    setPenginapanList(penginapanRes.data.data.map(item => ({
+                        id: item.id || Date.now(),
+                        nama_penginapan: item.nama_penginapan || '',
+                        alamat_penginapan: item.alamat_penginapan || '',
+                        nomor_kamar: item.nomor_kamar || '',
+                        tarif_hotel: item.tarif_hotel || '',
+                        tgl_menginap: item.tgl_menginap 
+                            ? new Date(item.tgl_menginap).toISOString().split('T')[0] 
+                            : '',
+                        files: (item.files || []).map(f => ({
+                            file: {
+                                name: f.file_name || '',
+                                type: f.file_type || 'application/octet-stream',
+                                size: f.file_size || 0,
+                                lastModified: null
+                            },
+                            preview: f.file_path 
+                                ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${f.file_path}`
+                                : null,
+                            name: f.file_name || '',
+                            id: f.id,
+                            isExisting: true
+                        }))
+                    })));
+                }
+            } catch (err) {
+                console.error('Error loading existing SPTJM data:', err);
+            } finally {
+                setDataLoading(false);
+            }
+        };
+        
+        loadExistingData();
+    }, [isEdit, pegawai?.kwitansi_id, session]);
     
     // Jenis transport options
     const jenisTransportOptions = [
@@ -269,23 +354,40 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         setMessage('');
         
         try {
-            // 1. Simpan kwitansi
-            const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi`,
-                {
-                    kegiatan_id: kegiatan.id,
-                    pegawai_id: pegawai.id,
-                    no_lpd: formData.no_lpd,
-                    tgl_kwitansi: formData.tgl_kwitansi,
-                    tgl_spd: formData.tgl_spd
-                },
-                {
-                    headers: {
-                        Authorization: `Bearer ${session.accessToken}`,
-                        'Content-Type': 'application/json'
+            // 1. Simpan kwitansi (POST = baru, PUT = update)
+            const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/kwitansi`;
+            const payload = {
+                kegiatan_id: kegiatan.id,
+                pegawai_id: pegawai.id,
+                no_lpd: formData.no_lpd,
+                tgl_kwitansi: formData.tgl_kwitansi,
+                tgl_spd: formData.tgl_spd
+            };
+            
+            let response;
+            if (isEdit && pegawai.kwitansi_id) {
+                response = await axios.put(
+                    `${apiUrl}/${pegawai.kwitansi_id}`,
+                    payload,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${session.accessToken}`,
+                            'Content-Type': 'application/json'
+                        }
                     }
-                }
-            );
+                );
+            } else {
+                response = await axios.post(
+                    apiUrl,
+                    payload,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${session.accessToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+            }
             
             if (response.data.success) {
                 const kwitansiId = response.data.data.id;
@@ -310,7 +412,10 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     
                     for (const item of validSptjm) {
                         for (const fileObj of item.files) {
-                            formDataToSend.append('files', fileObj.file);
+                            // Hanya kirim file baru (bukan existing dari database)
+                            if (!fileObj.isExisting && fileObj.file instanceof File) {
+                                formDataToSend.append('files', fileObj.file);
+                            }
                         }
                     }
                     
@@ -354,7 +459,9 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     
                     for (const item of validPenginapan) {
                         for (const fileObj of item.files) {
-                            formDataPenginapan.append('files', fileObj.file);
+                            if (!fileObj.isExisting && fileObj.file instanceof File) {
+                                formDataPenginapan.append('files', fileObj.file);
+                            }
                         }
                     }
                     
@@ -396,7 +503,8 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 <div className="relative bg-white rounded-lg max-w-5xl w-full p-6 max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white">
                         <h3 className="text-lg font-medium">
-                            Input Kwitansi - {pegawai.nama}
+                            {isEdit ? '✏️ Edit Kwitansi' : 'Input Kwitansi'} - {pegawai.nama}
+                            {dataLoading && <span className="ml-2 text-sm text-gray-400">Memuat data...</span>}
                         </h3>
                         <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -850,7 +958,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 disabled={loading}
                                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
                             >
-                                {loading ? 'Menyimpan...' : '💾 Simpan Kwitansi'}
+                                {loading ? 'Menyimpan...' : isEdit ? '💾 Update Kwitansi' : '💾 Simpan Kwitansi'}
                             </button>
                             <button
                                 type="button"

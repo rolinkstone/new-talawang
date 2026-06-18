@@ -691,9 +691,13 @@ export default function KwitansiContainer() {
     
     // ============ FUNGSI UNTUK MENENTUKAN APAKAH TOMBOL INPUT DITAMPILKAN ============
     const shouldShowInputButton = (kegiatan, pegawai) => {
+        // Admin & creator selalu bisa
         if (userType.isAdmin) return true;
         if (kegiatan.isCreator === true) return true;
-        if (pegawai.isCurrentUser === true) return true;
+        
+        // Pegawai: hanya bisa input/edit jika BELUM approve (status_pegawai masih 'belum')
+        if (pegawai.isCurrentUser === true && pegawai.status_pegawai !== 'sudah') return true;
+        
         if (kegiatan.can_input_kwitansi === true) return true;
         return false;
     };
@@ -1099,10 +1103,17 @@ export default function KwitansiContainer() {
                                                         </td>
                                                         <td className="px-4 py-3 text-center font-medium text-blue-600">{pegawai.no_lpd || '-'}</td>
                                                         <td className="px-4 py-3 text-center">
-                                                            {pegawai.upload_kwitansi ? 
-                                                                <span className="text-green-600">✓ Ada</span> : 
+                                                            {sudahInput ? (
+                                                                <button
+                                                                    onClick={() => handleViewDetail(pegawai, kegiatan)}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 border border-blue-200"
+                                                                    title="Lihat file upload"
+                                                                >
+                                                                    📎 File
+                                                                </button>
+                                                            ) : (
                                                                 <span className="text-gray-400">-</span>
-                                                            }
+                                                            )}
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             <div className="flex justify-center gap-2 flex-wrap">
@@ -1117,6 +1128,15 @@ export default function KwitansiContainer() {
                                                                     )
                                                                 ) : (
                                                                     <>
+                                                                        {/* Tombol Edit — tampil jika pegawai sendiri dan (belum approve atau ada yang ditolak) */}
+                                                                        {pegawai.isCurrentUser && (pegawai.status_pegawai !== 'sudah' || pegawai.status_ppk === 'ditolak' || pegawai.status_bendahara === 'ditolak') && (
+                                                                            <button 
+                                                                                onClick={() => handleInputKwitansi(kegiatan, pegawai)} 
+                                                                                className="px-3 py-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm"
+                                                                            >
+                                                                                ✏️ Edit
+                                                                            </button>
+                                                                        )}
                                                                         {showApproveBtn && (
                                                                             <button 
                                                                                 onClick={() => handleViewDetail(pegawai, kegiatan)} 

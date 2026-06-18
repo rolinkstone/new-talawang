@@ -48,13 +48,23 @@ router.get('/count', keycloakAuth, async (req, res) => {
         let notifikasiLpd = 0;
         let notifikasiKwitansi = 0;
         
+        // === BACA CUTOFF DATE ===
+        let cutoffParam = '';
+        try {
+            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
+            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
+        } catch (e) {}
+        const cutoffClause = cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : '';
+        
         // ============ 1. NOTIFIKASI LPD UNTUK KATIM/KABAG TU ============
         if (roleInfo.isKatim || roleInfo.isKabagTu) {
-            // Hitung LPD yang menunggu persetujuan Katim/Kabag TU
             const [lpdMenunggu] = await db.query(`
                 SELECT COUNT(*) as count 
-                FROM lpd_status 
-                WHERE lpd_status = 'menunggu_katim'
+                FROM lpd_status l
+                JOIN nominatif_kegiatan n ON l.kegiatan_id = n.id
+                WHERE l.lpd_status = 'menunggu_katim'
+                ${cutoffClause}
             `);
             notifikasiLpd += lpdMenunggu[0]?.count || 0;
             console.log(`📋 LPD menunggu Katim/Kabag TU: ${notifikasiLpd}`);
@@ -64,8 +74,10 @@ router.get('/count', keycloakAuth, async (req, res) => {
         if (roleInfo.isKabalai) {
             const [lpdMenungguKabalai] = await db.query(`
                 SELECT COUNT(*) as count 
-                FROM lpd_status 
-                WHERE lpd_status = 'menunggu_kabalai'
+                FROM lpd_status l
+                JOIN nominatif_kegiatan n ON l.kegiatan_id = n.id
+                WHERE l.lpd_status = 'menunggu_kabalai'
+                ${cutoffClause}
             `);
             notifikasiLpd += lpdMenungguKabalai[0]?.count || 0;
             console.log(`👔 LPD menunggu Kabalai: ${notifikasiLpd}`);
@@ -81,6 +93,7 @@ router.get('/count', keycloakAuth, async (req, res) => {
                 WHERE k.status_pegawai = 'sudah' 
                 AND k.status_ppk = 'belum'
                 AND (n.ppk_id = ? OR REPLACE(n.ppk_nip, ' ', '') = ?)
+                ${cutoffClause}
             `, [userId, normalizedUserNip]);
             notifikasiKwitansi += kwitansiMenungguPPK[0]?.count || 0;
             console.log(`📋 Kwitansi menunggu PPK: ${notifikasiKwitansi}`);
@@ -97,13 +110,13 @@ router.get('/count', keycloakAuth, async (req, res) => {
                 AND k.status_ppk = 'sudah'
                 AND k.status_bendahara = 'belum'
                 AND (n.bendahara_id = ? OR REPLACE(n.bendahara_nip, ' ', '') = ?)
+                ${cutoffClause}
             `, [userId, normalizedUserNip]);
             notifikasiKwitansi += kwitansiMenungguBendahara[0]?.count || 0;
             console.log(`💰 Kwitansi menunggu Bendahara: ${notifikasiKwitansi}`);
         }
         
         // ============ 5. NOTIFIKASI KUITANSI UNTUK PEGAWAI ============
-        // Hitung kwitansi yang belum diinput oleh pegawai yang bersangkutan
         const [pegawaiBelumInput] = await db.query(`
             SELECT COUNT(*) as count 
             FROM nominatif_pegawai p
@@ -118,6 +131,7 @@ router.get('/count', keycloakAuth, async (req, res) => {
             )
             AND k.id IS NULL
             AND REPLACE(p.nip, ' ', '') = ?
+            ${cutoffClause}
         `, [normalizedUserNip]);
         notifikasiKwitansi += pegawaiBelumInput[0]?.count || 0;
         console.log(`👤 Kwitansi belum input oleh pegawai: ${notifikasiKwitansi}`);

@@ -222,6 +222,21 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
         
         const params = [];
         
+        // === FILTER: hanya nominatif sejak tanggal cutoff yang muncul di LPD ===
+        try {
+            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+            await db.query(`INSERT IGNORE INTO app_settings (setting_key, setting_value) VALUES ('lpd_cutoff_date', '2026-07-01')`);
+            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
+            if (cutoffRow.length > 0) {
+                const cutoffDate = cutoffRow[0].setting_value;
+                console.log(`📅 LPD cutoff date: ${cutoffDate}`);
+                query += ` AND n.created_at >= ?`;
+                params.push(cutoffDate + ' 00:00:00');
+            }
+        } catch (e) {
+            console.error('Error reading lpd_cutoff_date setting:', e.message);
+        }
+        
         // ============ PERBAIKAN: Filter berdasarkan role ============
         if (roleInfo.isAdmin) {
             // Admin melihat semua kegiatan
