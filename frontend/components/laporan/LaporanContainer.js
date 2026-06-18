@@ -66,35 +66,32 @@ export default function LaporanContainer({ session: propSession, status: propSta
     const hasKabagTuRole = () => {
         if (!session?.user) return false;
         
-        if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
         if (session.user.roles) {
             const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-            return roles.some(r => r.toLowerCase().includes('kabag_tu'));
+            if (roles.some(r => r.toLowerCase().includes('kabag_tu'))) return true;
         }
+        if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
         return false;
     };
     
     const hasKepalaBalaiRole = () => {
         if (!session?.user) return false;
-        const roleLower = session.user.role?.toLowerCase() || '';
-        if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
         if (session.user.roles) {
             const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-            return roles.some(r => {
-                const rLower = r.toLowerCase();
-                return rLower.includes('kabalai') || rLower.includes('kepala balai');
-            });
+            if (roles.some(r => r.toLowerCase().includes('kabalai') || r.toLowerCase().includes('kepala balai'))) return true;
         }
+        const roleLower = session.user.role?.toLowerCase() || '';
+        if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
         return false;
     };
     
     const hasAdminRole = () => {
         if (!session?.user) return false;
-        if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
         if (session.user.roles) {
             const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-            return roles.some(r => r.toLowerCase().includes('admin'));
+            if (roles.some(r => r.toLowerCase().includes('admin'))) return true;
         }
+        if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
         return false;
     };
     
@@ -108,10 +105,10 @@ export default function LaporanContainer({ session: propSession, status: propSta
         if (session) {
             const userData = session.user || {};
             let roles = [];
-            if (userData.role) {
-                roles = Array.isArray(userData.role) ? userData.role : [userData.role];
-            } else if (userData.roles && Array.isArray(userData.roles)) {
+            if (userData.roles && Array.isArray(userData.roles) && userData.roles.length > 0) {
                 roles = userData.roles;
+            } else if (userData.role) {
+                roles = Array.isArray(userData.role) ? userData.role : [userData.role];
             }
             if (roles.length > 0) {
                 setUserRole(roles[0]);

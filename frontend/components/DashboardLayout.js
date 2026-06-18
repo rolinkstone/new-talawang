@@ -62,56 +62,52 @@ export default function DashboardLayout({ children }) {
   // ============ FUNGSI CEK ROLE USER ============
   const hasPPKRole = () => {
     if (!session?.user) return false;
-    
-    if (session.user.role && session.user.role.toLowerCase().includes('ppk')) return true;
     if (session.user.roles) {
       const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-      return roles.some(r => r.toLowerCase().includes('ppk'));
+      if (roles.some(r => r.toLowerCase().includes('ppk'))) return true;
     }
+    if (session.user.role && session.user.role.toLowerCase().includes('ppk')) return true;
     return false;
   };
 
   const hasBendaharaRole = () => {
     if (!session?.user) return false;
-    if (session.user.role && session.user.role.toLowerCase().includes('bendahara')) return true;
     if (session.user.roles) {
       const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-      return roles.some(r => r.toLowerCase().includes('bendahara'));
+      if (roles.some(r => r.toLowerCase().includes('bendahara'))) return true;
     }
+    if (session.user.role && session.user.role.toLowerCase().includes('bendahara')) return true;
     return false;
   };
 
   const hasAdminRole = () => {
     if (!session?.user) return false;
-    if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
     if (session.user.roles) {
       const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-      return roles.some(r => r.toLowerCase().includes('admin'));
+      if (roles.some(r => r.toLowerCase().includes('admin'))) return true;
     }
+    if (session.user.role && session.user.role.toLowerCase().includes('admin')) return true;
     return false;
   };
 
   const hasKabagTuRole = () => {
     if (!session?.user) return false;
-    if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
     if (session.user.roles) {
       const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-      return roles.some(r => r.toLowerCase().includes('kabag_tu'));
+      if (roles.some(r => r.toLowerCase().includes('kabag_tu'))) return true;
     }
+    if (session.user.role && session.user.role.toLowerCase().includes('kabag_tu')) return true;
     return false;
   };
 
   const hasKepalaBalaiRole = () => {
     if (!session?.user) return false;
-    const roleLower = session.user.role?.toLowerCase() || '';
-    if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
     if (session.user.roles) {
       const roles = Array.isArray(session.user.roles) ? session.user.roles : [session.user.roles];
-      return roles.some(r => {
-        const rLower = r.toLowerCase();
-        return rLower.includes('kabalai') || rLower.includes('kepala balai');
-      });
+      if (roles.some(r => r.toLowerCase().includes('kabalai') || r.toLowerCase().includes('kepala balai'))) return true;
     }
+    const roleLower = session.user.role?.toLowerCase() || '';
+    if (roleLower.includes('kabalai') || roleLower.includes('kepala balai')) return true;
     return false;
   };
 
@@ -194,11 +190,10 @@ export default function DashboardLayout({ children }) {
   };
 
   const getUserRoleDisplay = () => {
-    if (session?.user?.role) return session.user.role;
-    if (session?.user?.roles) {
-      return Array.isArray(session.user.roles) ? session.user.roles.join(', ') : session.user.roles;
-    }
-    return 'User';
+        if (session?.user?.roles && Array.isArray(session.user.roles) && session.user.roles.length > 0) {
+            return session.user.roles.join(', ');
+        }
+        if (session?.user?.role) return session.user.role;
   };
 
   // ============ MENU DENGAN NOTIFIKASI ============
@@ -244,7 +239,7 @@ export default function DashboardLayout({ children }) {
         ] : [])
       ]
     },
-    // MENU LAPORAN - untuk Admin, Kabag TU, dan Kepala Balai
+    // MENU LAPORAN - untuk Admin, Kabag TU, dan Kepala Balai (Rekap Perjadin)
     ...(canAccessLaporan ? [{
       title: 'Laporan',
       items: [
@@ -259,7 +254,13 @@ export default function DashboardLayout({ children }) {
           badgeColor: hasAdminRole() ? 'bg-red-500' : 
                       hasKabagTuRole() ? 'bg-blue-500' : 
                       'bg-purple-500'
-        },
+        }
+      ]
+    }] : []),
+    // MENU MONEW - untuk Admin, Kabag TU, Kabalai, dan PPK
+    ...(hasAdminRole() || hasKabagTuRole() || hasKepalaBalaiRole() || hasPPKRole() ? [{
+      title: 'Monev',
+      items: [
         { 
           href: '/monev', 
           label: 'Monev Perjadin', 
@@ -267,9 +268,11 @@ export default function DashboardLayout({ children }) {
           description: 'Monitoring & Evaluasi perjalanan dinas per pegawai',
           badge: hasAdminRole() ? 'Admin' : 
                  hasKabagTuRole() ? 'Kabag TU' : 
+                 hasPPKRole() ? 'PPK' :
                  hasKepalaBalaiRole() ? 'Ka. Balai' : null,
           badgeColor: hasAdminRole() ? 'bg-red-500' : 
                       hasKabagTuRole() ? 'bg-blue-500' : 
+                      hasPPKRole() ? 'bg-yellow-500' :
                       'bg-purple-500'
         }
       ]
@@ -506,12 +509,7 @@ export default function DashboardLayout({ children }) {
                   <p className="text-sm font-semibold text-gray-800">{getUserName()}</p>
                   <p className="text-xs text-gray-500">
                     <span className={`px-2 py-1 rounded ${
-                      session.user.role?.toLowerCase().includes('admin') ? 'bg-red-100 text-red-800' :
-                      session.user.role?.toLowerCase().includes('ppk') ? 'bg-yellow-100 text-yellow-800' :
-                      session.user.role?.toLowerCase().includes('bendahara') ? 'bg-green-100 text-green-800' :
-                      session.user.role?.toLowerCase().includes('kabag_tu') ? 'bg-blue-100 text-blue-800' :
-                      session.user.role?.toLowerCase().includes('kabalai') || session.user.role?.toLowerCase().includes('kepala balai') ? 'bg-purple-100 text-purple-800' :
-                      'bg-gray-100 text-gray-800'
+                      getUserRoleBadgeClass()
                     }`}>
                       {getUserRoleDisplay()}
                     </span>

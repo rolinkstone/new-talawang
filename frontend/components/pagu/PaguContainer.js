@@ -25,9 +25,9 @@ export default function PaguContainer({ session, status }) {
   // Cek role admin
   const isAdmin = useMemo(() => {
     if (!session) return false;
+    const roles = session.user?.roles || session.user?.extractedRoles || [];
+    if (Array.isArray(roles) && roles.some(r => r.toLowerCase().includes('admin'))) return true;
     if (session.user?.role && session.user.role.toLowerCase().includes('admin')) return true;
-    const roles = session.user?.extractedRoles || session.user?.roles || [];
-    if (Array.isArray(roles)) return roles.some(r => r.toLowerCase().includes('admin'));
     return false;
   }, [session]);
 

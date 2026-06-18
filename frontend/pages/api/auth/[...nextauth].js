@@ -38,23 +38,11 @@ export const authOptions = {
       profile(profile) {
         console.log("🔐 Profile for:", profile.preferred_username);
         
-        // Determine role
-        let role = 'user';
-        if (profile.realm_access?.roles) {
-          if (profile.realm_access.roles.includes('admin')) {
-            role = 'admin';
-          } else if (profile.realm_access.roles.includes('kabalai')) {
-            role = 'kabalai';
-          } else if (profile.realm_access.roles.includes('kabag_tu')) {
-            role = 'kabag_tu';
-          } else if (profile.realm_access.roles.includes('katim')) {
-            role = 'katim';
-          } else if (profile.realm_access.roles.includes('ppk')) {
-            role = 'ppk';
-          } else if (profile.realm_access.roles.includes('bendahara')) {
-            role = 'bendahara';
-          }
-        }
+        // Determine ALL roles — user bisa punya multiple roles (ppk + katim, dll)
+        const realmRoles = profile.realm_access?.roles || [];
+        const recognizedRoles = ['admin', 'ppk', 'kabalai', 'kabag_tu', 'katim', 'bendahara'];
+        const roles = realmRoles.filter(r => recognizedRoles.includes(r));
+        const primaryRole = roles.length > 0 ? roles[0] : 'user';
         
         // Ambil NIP dari berbagai sumber
         let nipRaw = '';
@@ -78,14 +66,16 @@ export const authOptions = {
           name: profile.name,
           nip_raw: nipRaw,
           nip_clean: nipClean,
-          role: role
+          roles: roles,
+          primaryRole: primaryRole
         });
         
         return {
           id: profile.sub,
           name: profile.name || profile.preferred_username,
           email: profile.email,
-          role: role,
+          role: primaryRole,       // Role utama (untuk backward compatibility)
+          roles: roles,            // SEMUA roles (array) — untuk multi-role
           nip: nipClean,           // NIP tanpa spasi (untuk filter)
           nip_raw: nipRaw,         // NIP dengan spasi (untuk display & database)
           username: profile.preferred_username,
@@ -102,6 +92,7 @@ export const authOptions = {
         token.name = user.name;
         token.email = user.email;
         token.role = user.role;
+        token.roles = user.roles;     // SEMUA roles (array)
         token.nip = user.nip;         // NIP tanpa spasi
         token.nip_raw = user.nip_raw; // NIP dengan spasi
         token.username = user.username;
@@ -123,6 +114,7 @@ export const authOptions = {
           name: token.name,
           email: token.email,
           role: token.role,
+          roles: token.roles,       // SEMUA roles (array)
           nip: token.nip,           // NIP tanpa spasi
           nip_raw: token.nip_raw,   // NIP dengan spasi
           username: token.username,

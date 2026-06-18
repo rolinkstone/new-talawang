@@ -79,10 +79,10 @@ export default function KwitansiContainer() {
         if (session) {
             const userData = session.user || {};
             let roles = [];
-            if (userData.role) {
-                roles = Array.isArray(userData.role) ? userData.role : [userData.role];
-            } else if (userData.roles && Array.isArray(userData.roles)) {
+            if (userData.roles && Array.isArray(userData.roles) && userData.roles.length > 0) {
                 roles = userData.roles;
+            } else if (userData.role) {
+                roles = Array.isArray(userData.role) ? userData.role : [userData.role];
             }
             if (roles.length > 0) {
                 setUserRole(roles[0]);
