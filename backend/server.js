@@ -28,6 +28,8 @@ app.use('/uploads/kwitansi', express.static(path.join(__dirname, 'public/uploads
 app.use('/uploads/lpd-dokumentasi', express.static(path.join(__dirname, 'public/uploads/lpd-dokumentasi')));
 // General uploads folder
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// Serve juga di /api/uploads untuk localhost (frontend pake NEXT_PUBLIC_API_URL)
+app.use('/api/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // ========== KEYCLOAK CONFIG ==========
 const KEYCLOAK_CONFIG = {

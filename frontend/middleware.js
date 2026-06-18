@@ -9,6 +9,7 @@ export async function middleware(req) {
   const publicPaths = [
     '/login',
     '/api/auth',
+    '/api/uploads',
     '/_next',
     '/favicon.ico',
     '/images',
