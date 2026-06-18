@@ -201,7 +201,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   };
 
   const loadTtdImages = () => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     const getImageUrl = (path) => {
       if (!path) return null;
       if (path.startsWith('http')) return path;
@@ -211,7 +211,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
         if (!cleanPath.includes('/')) cleanPath = `/uploads/ttd/${cleanPath}`;
         else cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
       }
-      return `${baseUrl}${cleanPath}`;
+      return `${apiUrl}${cleanPath}`;
     };
     
     const ttdPegawai = item?.ttd_pegawai_path || pegawai?.ttd_pegawai_path;

@@ -128,7 +128,23 @@ export default function SettingsPage() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="text-lg font-semibold text-gray-800">Tanggal Cutoff LPD & Kwitansi</h3>
-                                    <p className="text-sm text-gray-600 mt-1">
+                                    
+                                    {/* Info tanggal tersimpan */}
+                                    {settings.lpd_cutoff_date && (
+                                        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                                            <span className="text-blue-600">📅</span>
+                                            <span className="text-blue-800">
+                                                <strong>Tanggal cutoff tersimpan:</strong> {settings.lpd_cutoff_date.value.substring(0, 10)}
+                                            </span>
+                                            {settings.lpd_cutoff_date.updated_at && (
+                                                <span className="text-blue-400 text-xs ml-2">
+                                                    (diperbarui: {new Date(settings.lpd_cutoff_date.updated_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })})
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    <p className="text-sm text-gray-600 mt-3">
                 Atur tanggal minimal <strong>nominatif dibuat</strong> agar muncul di halaman LPD dan Kwitansi.
                 Nominatif yang dibuat sebelum tanggal ini tidak akan muncul.
             </p>

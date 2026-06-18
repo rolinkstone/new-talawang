@@ -188,12 +188,14 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
     
     const getTtdImageUrl = (ttdPath) => {
         if (!ttdPath) return null;
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        // Untuk path yang dimulai dengan /uploads, gunakan API URL langsung (dengan /api prefix)
+        // Contoh: /uploads/ttd/xxx.png → https://talawang.bbpompky.id/api/uploads/ttd/xxx.png
         let cleanPath = ttdPath.replace(/^\/api/, '');
         if (!cleanPath.startsWith('/uploads')) {
             cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
         }
-        return `${baseUrl}${cleanPath}`;
+        return `${apiUrl}${cleanPath}`;
     };
     
     // Load TTD images
@@ -206,12 +208,12 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
     // Setup file URL
     useEffect(() => {
         if (item.upload_kwitansi) {
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
             let cleanPath = item.upload_kwitansi.replace(/^\/api/, '');
             if (!cleanPath.startsWith('/uploads')) {
                 cleanPath = `/uploads/kwitansi/${cleanPath.split('/').pop()}`;
             }
-            setFileUrl(`${baseUrl}${cleanPath}`);
+            setFileUrl(`${apiUrl}${cleanPath}`);
         }
         
         // Initialize edit data
@@ -296,8 +298,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                 setIsEditing(false);
                 
                 if (response.data.data.upload_kwitansi) {
-                    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
-                    setFileUrl(`${baseUrl}${response.data.data.upload_kwitansi}`);
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                    setFileUrl(`${apiUrl}${response.data.data.upload_kwitansi}`);
                 }
                 
                 setTimeout(() => {
