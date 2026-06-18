@@ -14,10 +14,10 @@ useEffect(() => {
             // URL sudah lengkap dari parent, gunakan langsung
             setFullImageUrl(ttdUrl);
         } else {
-            // URL relatif, tambahkan base URL dari environment
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+            // URL relatif, tambahkan base URL dari API (dengan /api prefix)
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
             const cleanPath = ttdUrl.startsWith('/') ? ttdUrl : `/uploads/ttd/${ttdUrl}`;
-            setFullImageUrl(`${baseUrl}${cleanPath}`);
+            setFullImageUrl(`${apiUrl}${cleanPath}`);
         }
     }
 }, [ttdUrl]);

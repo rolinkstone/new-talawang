@@ -48,7 +48,7 @@ const fetchProfile = async () => {
             
             // Proses TTD URL seperti pola kwitansi
             if (profileData?.ttd_path) {
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
                 let cleanPath = profileData.ttd_path;
                 
                 // Hapus /api jika ada
@@ -60,7 +60,7 @@ const fetchProfile = async () => {
                     cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;
                 }
                 
-                const ttdFullUrl = `${baseUrl}${cleanPath}`;
+                const ttdFullUrl = `${apiUrl}${cleanPath}`;
                 setTtdUrl(ttdFullUrl);
                 console.log('TTD URL:', ttdFullUrl);
             } else {

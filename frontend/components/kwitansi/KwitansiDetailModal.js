@@ -188,9 +188,9 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
     
     const getTtdImageUrl = (ttdPath) => {
         if (!ttdPath) return null;
+        // Jika sudah URL lengkap, gunakan langsung
+        if (ttdPath.startsWith('http')) return ttdPath;
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-        // Untuk path yang dimulai dengan /uploads, gunakan API URL langsung (dengan /api prefix)
-        // Contoh: /uploads/ttd/xxx.png → https://talawang.bbpompky.id/api/uploads/ttd/xxx.png
         let cleanPath = ttdPath.replace(/^\/api/, '');
         if (!cleanPath.startsWith('/uploads')) {
             cleanPath = `/uploads/ttd/${cleanPath.split('/').pop()}`;

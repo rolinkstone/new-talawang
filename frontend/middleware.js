@@ -25,6 +25,13 @@ export async function middleware(req) {
   
   if (isPublicPath) {
     console.log("🛡️ Middleware - Public path:", path);
+    
+    // Rewrite /api/uploads ke backend
+    if (path.startsWith('/api/uploads')) {
+      const targetUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace('/api', '') + path.replace('/api/uploads', '/uploads');
+      return NextResponse.rewrite(targetUrl);
+    }
+    
     return NextResponse.next();
   }
   
