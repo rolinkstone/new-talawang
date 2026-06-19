@@ -99,10 +99,15 @@ export default function SettingsPage() {
                 
                 {!isAdmin ? (
                     <div className="p-8 text-center">
-                        <div className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-6">
-                            <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-7.364A9 9 0 1112 3a9 9 0 017.364 4.636z" />
-                            </svg>
+                        <div className="mb-6">
+                            <a href="https://www.pom.go.id" target="_blank" rel="noopener noreferrer">
+                                <img 
+                                    src="/images/badan_pom.png" 
+                                    alt="Logo BBPOM" 
+                                    className="mx-auto"
+                                    style={{ width: 120, height: 120, objectFit: 'contain' }} 
+                                />
+                            </a>
                         </div>
                         <h2 className="text-xl font-semibold text-gray-800 mb-3">Akses Terbatas</h2>
                         <p className="text-gray-600 mb-6">Halaman ini hanya untuk admin.</p>
