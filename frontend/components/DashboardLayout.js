@@ -142,16 +142,21 @@ export default function DashboardLayout({ children }) {
         if (window.clearUserCache) window.clearUserCache();
       } catch (_) {}
 
-      // 3. SignOut NextAuth (hapus cookie session)
-      await signOut({ redirect: false });
-
-      // 4. Redirect ke Keycloak logout (tanpa id_token_hint -- lebih reliable)
+      // 3. SignOut NextAuth — ini trigger events.signOut di server untuk hancurkan SSO
+      await signOut({ callbackUrl: '/login', redirect: false });
+      
+      // 4. Redirect manual ke Keycloak logout untuk hancurkan SSO session
+      const idToken = session?.idToken;
+      const origin = window.location.origin;
       const keycloakIssuer = 'https://auth.bbpompky.id/realms/master';
       const clientId = session?.clientId || 'nextjs-local';
-      const redirectUri = encodeURIComponent(window.location.origin + '/login');
-      const logoutUrl = `${keycloakIssuer}/protocol/openid-connect/logout?client_id=${clientId}&post_logout_redirect_uri=${redirectUri}`;
       
-      window.location.href = logoutUrl;
+      if (idToken) {
+        const keycloakLogoutUrl = `${keycloakIssuer}/protocol/openid-connect/logout?id_token_hint=${idToken}&post_logout_redirect_uri=${origin}/login&client_id=${clientId}`;
+        window.location.href = keycloakLogoutUrl;
+      } else {
+        window.location.href = '/login';
+      }
     } catch (err) {
       console.error("Logout error:", err);
       window.location.href = "/login";

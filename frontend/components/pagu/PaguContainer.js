@@ -260,14 +260,32 @@ export default function PaguContainer({ session, status }) {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm font-medium text-gray-500">Total Realisasi</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">Rp {formatRupiah(totals.totalRealisasi)}</p>
+          {totals.totalPagu > 0 && (
+            <div className="mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min((totals.totalRealisasi / totals.totalPagu) * 100, 100)}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-blue-500 mt-1 font-medium">
+                {(totals.totalRealisasi / totals.totalPagu * 100).toFixed(1)}%
+              </p>
+            </div>
+          )}
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm font-medium text-gray-500">Total Sisa</p>
           <p className={`text-2xl font-bold mt-1 ${totals.totalSisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
             Rp {formatRupiah(totals.totalSisa)}
           </p>
+          {totals.totalPagu > 0 && (
+            <p className="text-xs text-blue-500 mt-1 font-medium">
+              {(totals.totalRealisasi / totals.totalPagu * 100).toFixed(1)}% terealisasi
+            </p>
+          )}
           {lastUpdateTime && (
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-gray-400 mt-1">
               🕐 Terakhir diupdate: {lastUpdateTime}
             </p>
           )}
@@ -355,6 +373,7 @@ export default function PaguContainer({ session, status }) {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">MAK</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Pagu</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Realisasi</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">%</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Sisa</th>                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Aksi</th>}
               </tr>
             </thead>
@@ -376,6 +395,19 @@ export default function PaguContainer({ session, status }) {
                       </td>
                       <td className="px-4 py-3 text-sm text-right">Rp {formatRupiah(item.pagu)}</td>
                       <td className="px-4 py-3 text-sm text-right">Rp {formatRupiah(item.realisasi)}</td>
+                      <td className="px-4 py-3 text-sm text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-blue-600 font-medium">
+                            {item.pagu > 0 ? (item.realisasi / item.pagu * 100).toFixed(1) + '%' : '0%'}
+                          </span>
+                          <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div
+                              className="bg-blue-500 h-1.5 rounded-full"
+                              style={{ width: `${Math.min((item.pagu > 0 ? item.realisasi / item.pagu : 0) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
                       <td className={`px-4 py-3 text-sm text-right font-medium ${sisaColor}`}>
                         Rp {formatRupiah(sisa)}
                       </td>

@@ -28,6 +28,7 @@ export const authOptions = {
       clientId: process.env.KEYCLOAK_CLIENT_ID,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
       issuer: process.env.KEYCLOAK_ISSUER,
+      idToken: true,
       
       authorization: {
         params: {
@@ -101,7 +102,7 @@ export const authOptions = {
         token.expiresAt = account.expires_at;
       }
       
-      console.log("🔄 JWT - Token has nip_raw:", !!token.nip_raw);
+      console.log("🔄 JWT - Token has nip_raw:", !!token.nip_raw, "| has idToken:", !!token.idToken);
       return token;
     },
 
@@ -131,6 +132,23 @@ export const authOptions = {
       console.log("💼 SESSION - Role:", session.user?.role);
       
       return session;
+    },
+  },
+
+  events: {
+    async signOut({ token }) {
+      // Hancurkan Keycloak SSO session saat NextAuth logout
+      if (token?.idToken) {
+        const issuer = process.env.KEYCLOAK_ISSUER;
+        const clientId = process.env.KEYCLOAK_CLIENT_ID || 'nextjs-local';
+        const logoutUrl = `${issuer}/protocol/openid-connect/logout?id_token_hint=${token.idToken}&post_logout_redirect_uri=${process.env.NEXTAUTH_URL}/login&client_id=${clientId}`;
+        try {
+          await fetch(logoutUrl);
+          console.log("🚪 LOGOUT - Keycloak SSO session destroyed via events.signOut");
+        } catch (error) {
+          console.error('❌ LOGOUT - Keycloak SSO logout error:', error);
+        }
+      }
     },
   },
 
