@@ -35,24 +35,24 @@ export default function KegiatanTable({
     <>
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300">
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('id')}>ID</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('status')}>Status</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('jenis_spm')}>Jenis SPM</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('mak')}>Kegiatan & MAK</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('realisasi_anggaran_sebelumnya')}>Realisasi Dan Target</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('lokasi_tanggal')}>Lokasi & Tanggal</th>
-              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => onSort('total_nominatif')}>Nominatif</th>
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600">
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('id')}>ID</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('status')}>Status</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('jenis_spm')}>Jenis SPM</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('mak')}>Kegiatan & MAK</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('realisasi_anggaran_sebelumnya')}>Realisasi Dan Target</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('lokasi_tanggal')}>Lokasi & Tanggal</th>
+              <th className="px-2 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => onSort('total_nominatif')}>Nominatif</th>
               <th className="px-2 py-2 text-center text-[11px] font-bold text-white uppercase tracking-tight bg-gradient-to-r from-blue-600 to-blue-700">Aksi</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {paginatedItems.length > 0 ? (
               paginatedItems.map(item => (
                 <React.Fragment key={item.id}>
-                  <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}>
+                  <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}>
                     <td className="px-6 py-4">{item.id}</td>
                     
                     <td className="px-6 py-4">
@@ -123,9 +123,9 @@ export default function KegiatanTable({
 
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <div className="font-medium text-gray-900">{item.kegiatan || '-'}</div>
-                        <div className="font-medium text-gray-900">{item.mak || '-'}</div>
-                        <div className="font-medium text-gray-900">{item.no_st || '-'}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{item.kegiatan || '-'}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{item.mak || '-'}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{item.no_st || '-'}</div>
                       </div>
                     </td>
 
@@ -140,8 +140,8 @@ export default function KegiatanTable({
 
                     <td className="px-6 py-4">
                       <div className="flex flex-col space-y-1">
-                        <div className="font-medium text-gray-900 text-sm">{item.kota_kab_kecamatan || '-'}</div>
-                        <div className="text-xs text-gray-600">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">{item.kota_kab_kecamatan || '-'}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
                           {item.rencana_tanggal_pelaksanaan 
                             ? (item.rencana_tanggal_pelaksanaan_akhir 
                               ? `${formatDateForDisplay(item.rencana_tanggal_pelaksanaan)} - ${formatDateForDisplay(item.rencana_tanggal_pelaksanaan_akhir)}`
@@ -222,29 +222,29 @@ export default function KegiatanTable({
                   </tr>
 
                   {detailShown[item.id] && detailData[item.id]?.pegawai?.length > 0 && (
-                    <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-100'}>
+                    <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'}>
                       <td colSpan={12} className="px-6 py-4">
-                        <table className="min-w-full divide-y divide-gray-300 border border-gray-300">
+                        <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600 border border-gray-300 dark:border-gray-600">
                           <thead>
-                            <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-200' : 'bg-gray-200'}>
-                              <th className="px-4 py-2 text-left">ID</th>
-                              <th className="px-4 py-2 text-left">Nama</th>
-                              <th className="px-4 py-2 text-left">NIP</th>
-                              <th className="px-4 py-2 text-left">Pangkat</th>
-                              <th className="px-4 py-2 text-left">Jabatan</th>
-                              <th className="px-4 py-2 text-left">Total Biaya</th>
-                              <th className="px-4 py-2 text-left">Rincian Biaya</th>
+                            <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-200 dark:bg-blue-900/50' : 'bg-gray-200 dark:bg-gray-600'}>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">ID</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">Nama</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">NIP</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">Pangkat</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">Jabatan</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">Total Biaya</th>
+                              <th className="px-4 py-2 text-left dark:text-gray-200">Rincian Biaya</th>
                             </tr>
                           </thead>
                           <tbody>
                             {detailData[item.id].pegawai.map(p => (
                               <React.Fragment key={p.id}>
-                                <tr className={item.jenis_spm === 'KKP' ? 'hover:bg-blue-100' : 'hover:bg-gray-50'}>
+                                <tr className={item.jenis_spm === 'KKP' ? 'hover:bg-blue-100 dark:hover:bg-blue-900/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}>
                                   <td className="px-4 py-2">{p.id}</td>
                                   <td className="px-4 py-2">{p.nama}</td>
-                                  <td className="px-4 py-2">{p.nip}</td>
-                                  <td className="px-4 py-2">{p.pangkat || '-'}</td>
-                                  <td className="px-4 py-2">{p.jabatan}</td>
+                                  <td className="px-4 py-2 dark:text-gray-200">{p.nip}</td>
+                                  <td className="px-4 py-2 dark:text-gray-200">{p.pangkat || '-'}</td>
+                                  <td className="px-4 py-2 dark:text-gray-200">{p.jabatan}</td>
                                   <td className="px-4 py-2 font-semibold text-green-700">Rp {formatRupiah(p.total_biaya)}</td>
                                   <td className="px-4 py-2">
                                     <button onClick={() => onTogglePegawaiDetail(p.id)} className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
@@ -254,7 +254,7 @@ export default function KegiatanTable({
                                 </tr>
 
                                 {pegawaiDetailShown[p.id] && p.biaya_list && p.biaya_list.length > 0 && (
-                                  <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50' : 'bg-gray-50'}>
+                                  <tr className={item.jenis_spm === 'KKP' ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-800'}>
                                     <td colSpan={7} className="px-4 py-2">
                                       {p.biaya_list.map((b, idx) => {
                                         const totalTransport = (b.transportasi || []).reduce((sum, t) => sum + Number(t.total || 0), 0);
@@ -264,61 +264,61 @@ export default function KegiatanTable({
                                         const maxRows = Math.max((b.transportasi || []).length, (b.uang_harian || []).length, (b.penginapan || []).length);
 
                                         return (
-                                          <div key={idx} className="mb-4 p-4 border border-gray-400 rounded-md">
-                                            <h6 className="font-medium text-gray-800 mb-3">Rincian</h6>
+                                          <div key={idx} className="mb-4 p-4 border border-gray-400 dark:border-gray-600 rounded-md">
+                                            <h6 className="font-medium text-gray-800 dark:text-gray-200 mb-3">Rincian</h6>
                                             <div className="overflow-x-auto">
-                                              <table className="min-w-full border border-gray-400 text-sm mb-3">
-                                                <thead className="bg-gray-200">
+                                              <table className="min-w-full border border-gray-400 dark:border-gray-600 text-sm mb-3">
+                                                <thead className="bg-gray-200 dark:bg-gray-600">
                                                   <tr>
-                                                    <th colSpan="3" className="border border-gray-700 px-2 py-1 text-center">Transportasi</th>
-                                                    <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center">Uang Harian</th>
-                                                    <th colSpan="4" className="border border-gray-700 px-2 py-1 text-center">Penginapan</th>
+                                                    <th colSpan="3" className="border border-gray-700 dark:border-gray-500 px-2 py-1 text-center dark:text-gray-200">Transportasi</th>
+                                                    <th colSpan="4" className="border border-gray-700 dark:border-gray-500 px-2 py-1 text-center dark:text-gray-200">Uang Harian</th>
+                                                    <th colSpan="4" className="border border-gray-700 dark:border-gray-500 px-2 py-1 text-center dark:text-gray-200">Penginapan</th>
                                                   </tr>
                                                   <tr>
-                                                    <th className="border border-gray-700 px-2 py-1">Jenis</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Harga</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Total</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Jenis</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Qty</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Harga</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Total</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Jenis</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Qty</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Harga</th>
-                                                    <th className="border border-gray-700 px-2 py-1">Total</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Jenis</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Harga</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Total</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Jenis</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Qty</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Harga</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Total</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Jenis</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Qty</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Harga</th>
+                                                    <th className="border border-gray-700 dark:border-gray-500 px-2 py-1 dark:text-gray-200">Total</th>
                                                   </tr>
                                                 </thead>
                                                 <tbody>
                                                   {Array.from({ length: maxRows }).map((_, i) => (
-                                                    <tr key={i} className="hover:bg-gray-50">
-                                                      <td className="border px-2 py-1">{(b.transportasi || [])[i]?.trans || ""}</td>
-                                                      <td className="border px-2 py-1 text-right">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].harga) : ""}</td>
-                                                      <td className="border px-2 py-1 text-right font-medium">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].total) : ""}</td>
-                                                      <td className="border px-2 py-1">{(b.uang_harian || [])[i]?.jenis || ""}</td>
-                                                      <td className="border px-2 py-1 text-center">{(b.uang_harian || [])[i]?.qty || ""}</td>
-                                                      <td className="border px-2 py-1 text-right">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].harga) : ""}</td>
-                                                      <td className="border px-2 py-1 text-right font-medium">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].total) : ""}</td>
-                                                      <td className="border px-2 py-1">{(b.penginapan || [])[i]?.jenis || ""}</td>
-                                                      <td className="border px-2 py-1 text-center">{(b.penginapan || [])[i]?.qty || ""}</td>
-                                                      <td className="border px-2 py-1 text-right">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].harga) : ""}</td>
-                                                      <td className="border px-2 py-1 text-right font-medium">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].total) : ""}</td>
+                                                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                      <td className="border px-2 py-1 dark:text-gray-300">{(b.transportasi || [])[i]?.trans || ""}</td>
+                                                      <td className="border px-2 py-1 text-right dark:text-gray-300">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].harga) : ""}</td>
+                                                      <td className="border px-2 py-1 text-right font-medium dark:text-gray-200">{(b.transportasi || [])[i] ? formatRupiah((b.transportasi || [])[i].total) : ""}</td>
+                                                      <td className="border px-2 py-1 dark:text-gray-300">{(b.uang_harian || [])[i]?.jenis || ""}</td>
+                                                      <td className="border px-2 py-1 text-center dark:text-gray-300">{(b.uang_harian || [])[i]?.qty || ""}</td>
+                                                      <td className="border px-2 py-1 text-right dark:text-gray-300">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].harga) : ""}</td>
+                                                      <td className="border px-2 py-1 text-right font-medium dark:text-gray-200">{(b.uang_harian || [])[i] ? formatRupiah((b.uang_harian || [])[i].total) : ""}</td>
+                                                      <td className="border px-2 py-1 dark:text-gray-300">{(b.penginapan || [])[i]?.jenis || ""}</td>
+                                                      <td className="border px-2 py-1 text-center dark:text-gray-300">{(b.penginapan || [])[i]?.qty || ""}</td>
+                                                      <td className="border px-2 py-1 text-right dark:text-gray-300">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].harga) : ""}</td>
+                                                      <td className="border px-2 py-1 text-right font-medium dark:text-gray-200">{(b.penginapan || [])[i] ? formatRupiah((b.penginapan || [])[i].total) : ""}</td>
                                                     </tr>
                                                   ))}
-                                                  <tr className="bg-gray-100 font-medium">
-                                                    <td colSpan="2" className="border px-2 py-1 text-right">Total Transportasi:</td>
-                                                    <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalTransport)}</td>
-                                                    <td colSpan="3" className="border px-2 py-1 text-right">Total Uang Harian:</td>
-                                                    <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalUH)}</td>
-                                                    <td colSpan="3" className="border px-2 py-1 text-right">Total Penginapan:</td>
-                                                    <td className="border px-2 py-1 text-right text-green-700">Rp {formatRupiah(totalPenginapan)}</td>
+                                                  <tr className="bg-gray-100 dark:bg-gray-700 font-medium">
+                                                    <td colSpan="2" className="border px-2 py-1 text-right dark:text-gray-200">Total Transportasi:</td>
+                                                    <td className="border px-2 py-1 text-right text-green-700 dark:text-green-400">Rp {formatRupiah(totalTransport)}</td>
+                                                    <td colSpan="3" className="border px-2 py-1 text-right dark:text-gray-200">Total Uang Harian:</td>
+                                                    <td className="border px-2 py-1 text-right text-green-700 dark:text-green-400">Rp {formatRupiah(totalUH)}</td>
+                                                    <td colSpan="3" className="border px-2 py-1 text-right dark:text-gray-200">Total Penginapan:</td>
+                                                    <td className="border px-2 py-1 text-right text-green-700 dark:text-green-400">Rp {formatRupiah(totalPenginapan)}</td>
                                                   </tr>
                                                 </tbody>
                                               </table>
                                             </div>
-                                            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg">
                                               <div className="flex justify-between items-center">
-                                                <span className="font-medium text-gray-700">Total Rincian Ini:</span>
-                                                <span className="text-xl font-bold text-green-800">Rp {formatRupiah(grandTotal)}</span>
+                                                <span className="font-medium text-gray-700 dark:text-gray-200">Total Rincian Ini:</span>
+                                                <span className="text-xl font-bold text-green-800 dark:text-green-400">Rp {formatRupiah(grandTotal)}</span>
                                               </div>
                                             </div>
                                           </div>
@@ -338,7 +338,7 @@ export default function KegiatanTable({
               ))
             ) : (
               <tr>
-                <td colSpan={12} className="px-6 py-4 text-center text-gray-500">Tidak ada data kegiatan</td>
+                <td colSpan={12} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">Tidak ada data kegiatan</td>
               </tr>
             )}
           </tbody>
@@ -348,15 +348,15 @@ export default function KegiatanTable({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-gray-700 dark:text-gray-300">
             Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} dari {totalItems} kegiatan
           </div>
           <div className="space-x-2">
             <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}
-              className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
-            <span className="px-3 py-2">Halaman {currentPage} dari {totalPages}</span>
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed dark:text-gray-200">Previous</button>
+            <span className="px-3 py-2 dark:text-gray-300">Halaman {currentPage} dari {totalPages}</span>
             <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage * ITEMS_PER_PAGE >= totalItems}
-              className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed dark:text-gray-200">Next</button>
           </div>
         </div>
       )}

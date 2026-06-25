@@ -212,8 +212,8 @@ export default function MonevContainer({ session, status }) {
             </svg>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Monev Perjadin</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Monev Perjadin</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
               Monitoring &amp; Evaluasi Perjalanan Dinas
             </p>
           </div>
@@ -221,7 +221,7 @@ export default function MonevContainer({ session, status }) {
         {dataList.length > 0 && (
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 active:bg-gray-100 transition-all text-sm font-medium shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 active:bg-gray-100 dark:active:bg-gray-700 transition-all text-sm font-medium shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -233,8 +233,8 @@ export default function MonevContainer({ session, status }) {
 
       {/* Error message */}
       {error && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-5 py-3.5 rounded-xl mb-6">
-          <svg className="w-5 h-5 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-5 py-3.5 rounded-xl mb-6">
+          <svg className="w-5 h-5 shrink-0 text-red-400 dark:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm font-medium">{error}</span>
@@ -242,14 +242,14 @@ export default function MonevContainer({ session, status }) {
       )}
 
       {/* Filter section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Tahun</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Tahun</label>
             <select
               value={filterTahun}
               onChange={(e) => setFilterTahun(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="border border-gray-200 dark:border-gray-600 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
             >
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(thn => (
                 <option key={thn} value={thn}>{thn}</option>
@@ -258,11 +258,11 @@ export default function MonevContainer({ session, status }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Bulan</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Bulan</label>
             <select
               value={filterBulan}
               onChange={(e) => setFilterBulan(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="border border-gray-200 dark:border-gray-600 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
             >
               <option value="all">Semua Bulan</option>
               {[
@@ -285,11 +285,11 @@ export default function MonevContainer({ session, status }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">PPK</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">PPK</label>
             <select
               value={filterPpk}
               onChange={(e) => setFilterPpk(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all min-w-[180px]"
+              className="border border-gray-200 dark:border-gray-600 rounded-lg px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all min-w-[180px]"
             >
               <option value="all">Semua PPK</option>
               {ppkList.map((ppk, idx) => (
@@ -299,9 +299,9 @@ export default function MonevContainer({ session, status }) {
           </div>
 
           <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Cari</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Cari</label>
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -309,7 +309,7 @@ export default function MonevContainer({ session, status }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Cari MAK, No ST, Nama Petugas..."
-                className="w-full border border-gray-200 rounded-lg pl-10 pr-3.5 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg pl-10 pr-3.5 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-700 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
               />
             </div>
           </div>
@@ -334,25 +334,25 @@ export default function MonevContainer({ session, status }) {
       {dataList.length > 0 && (
         <div className="flex items-center justify-between mb-4 px-1">
           <div className="flex items-center gap-3 text-sm">
-            <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium text-xs">
+            <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 px-3 py-1 rounded-full font-medium text-xs">
               {dataList.length} Data
             </span>
-            <span className="text-gray-400">|</span>
-            <span className="text-gray-500">
-              Total: <span className="font-semibold text-gray-800">{formatRupiah(dataList.reduce((s, d) => s + d.pegawai_total_biaya, 0))}</span>
+            <span className="text-gray-400 dark:text-gray-600">|</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              Total: <span className="font-semibold text-gray-800 dark:text-gray-200">{formatRupiah(dataList.reduce((s, d) => s + d.pegawai_total_biaya, 0))}</span>
             </span>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden relative">
         {/* Loading overlay — hanya di area tabel, input tidak kena */}
         {loading && (
-          <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center">
-            <div className="flex items-center gap-2 bg-white px-5 py-3 rounded-lg shadow-lg">
+          <div className="absolute inset-0 bg-white/70 dark:bg-gray-900/70 z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-5 py-3 rounded-lg shadow-lg dark:shadow-gray-900/50">
               <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-600"></div>
-              <span className="text-sm text-gray-600 font-medium">Memuat data...</span>
+              <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">Memuat data...</span>
             </div>
           </div>
         )}
@@ -401,17 +401,17 @@ export default function MonevContainer({ session, status }) {
                 <th className="px-2 py-3.5 text-center text-xs font-semibold text-indigo-100 uppercase tracking-wider w-20">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan="11" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      <p className="text-gray-500 font-medium">Belum ada data monev</p>
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">Belum ada data monev</p>
                       <p className="text-gray-400 text-sm">
                         {filterTahun ? `Tidak ada data untuk tahun ${filterTahun}` : 'Belum ada data perjalanan dinas yang selesai'}
                       </p>
@@ -426,34 +426,34 @@ export default function MonevContainer({ session, status }) {
                   // Warna badge berdasarkan jenis
                   const getTransportBadgeColor = (jenis) => {
                     const j = jenis.toLowerCase();
-                    if (j.includes('pribadi') || j.includes('dinas')) return 'bg-blue-50 text-blue-700 border-blue-200';
-                    if (j.includes('lokal')) return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-                    if (j.includes('umum')) return 'bg-teal-50 text-teal-700 border-teal-200';
-                    return 'bg-slate-50 text-slate-700 border-slate-200';
+                    if (j.includes('pribadi') || j.includes('dinas')) return 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 border-blue-200 dark:border-blue-800';
+                    if (j.includes('lokal')) return 'bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-200 border-cyan-200 dark:border-cyan-800';
+                    if (j.includes('umum')) return 'bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-200 border-teal-200 dark:border-teal-800';
+                    return 'bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800';
                   };
                   const getUhBadgeColor = (jenis) => {
                     const j = jenis.toLowerCase();
-                    if (j.includes('60') || j.includes('60%')) return 'bg-amber-50 text-amber-700 border-amber-200';
-                    if (j.includes('biasa') || j.includes('100')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                    if (j.includes('50') || j.includes('50%')) return 'bg-orange-50 text-orange-700 border-orange-200';
-                    return 'bg-green-50 text-green-700 border-green-200';
+                    if (j.includes('60') || j.includes('60%')) return 'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200 border-amber-200 dark:border-amber-800';
+                    if (j.includes('biasa') || j.includes('100')) return 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800';
+                    if (j.includes('50') || j.includes('50%')) return 'bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200 border-orange-200 dark:border-orange-800';
+                    return 'bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-200 border-green-200 dark:border-green-800';
                   };
 
                   return (
-                  <tr key={`${item.pegawai_id}-${item.kegiatan_id}`} className={`transition-all hover:shadow-inner ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                    <td className="px-2 py-3 text-sm">
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 font-semibold text-xs">
+                  <tr key={`${item.pegawai_id}-${item.kegiatan_id}`} className={`transition-all hover:shadow-inner ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-700/50'}`}>
+                    <td className="px-2 py-3 text-sm dark:text-gray-200">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 font-semibold text-xs">
                         {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
                       </span>
                     </td>
                     <td className="px-2 py-3">
-                      <span className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded max-w-[220px] inline-block truncate" title={item.mak}>
+                        <span className="text-xs font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded max-w-[220px] inline-block truncate" title={item.mak}>
                         {item.mak}
                       </span>
                     </td>
-                    <td className="px-2 py-3 text-sm text-gray-700 font-medium truncate max-w-[190px]" title={item.ppk_nama}>{item.ppk_nama || '-'}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 truncate max-w-[140px]" title={item.no_st}>{item.no_st || '-'}</td>
-                    <td className="px-2 py-3 text-sm font-mono text-gray-700 truncate max-w-[140px]" title={item.catatan_status_2}>
+                    <td className="px-2 py-3 text-sm text-gray-700 dark:text-gray-300 font-medium truncate max-w-[190px]" title={item.ppk_nama}>{item.ppk_nama || '-'}</td>
+                    <td className="px-2 py-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[140px]" title={item.no_st}>{item.no_st || '-'}</td>
+                    <td className="px-2 py-3 text-sm font-mono text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title={item.catatan_status_2}>
                       {item.catatan_status_2 || '-'}
                     </td>
                     <td className="px-2 py-3">
@@ -462,8 +462,8 @@ export default function MonevContainer({ session, status }) {
                           {(item.pegawai_nama || '?').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]" title={item.pegawai_nama}>{item.pegawai_nama}</p>
-                          <p className="text-[11px] text-gray-400 truncate">{item.pegawai_nip || ''}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate max-w-[200px]" title={item.pegawai_nama}>{item.pegawai_nama}</p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{item.pegawai_nip || ''}</p>
                         </div>
                       </div>
                     </td>
@@ -475,16 +475,16 @@ export default function MonevContainer({ session, status }) {
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border leading-tight ${getTransportBadgeColor(jenis)}`}>
                                 {jenis}
                               </span>
-                              <span className="font-semibold text-xs text-gray-700 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(total)}</span>
+                              <span className="font-semibold text-xs text-gray-700 dark:text-gray-200 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(total)}</span>
                             </div>
                           ))
                         ) : (
-                          <span className="text-gray-300 text-xs">—</span>
+                          <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                         )}
                         {item.total_transport > 0 && transportEntries.length > 1 && (
-                          <div className="flex items-center justify-end gap-1.5 pt-1 mt-1 border-t border-dashed border-gray-200">
-                            <span className="text-[10px] font-semibold text-gray-400 uppercase">Total</span>
-                            <span className="font-bold text-xs text-gray-800 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(item.total_transport)}</span>
+                          <div className="flex items-center justify-end gap-1.5 pt-1 mt-1 border-t border-dashed border-gray-200 dark:border-gray-600">
+                            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">Total</span>
+                            <span className="font-bold text-xs text-gray-800 dark:text-gray-200 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(item.total_transport)}</span>
                           </div>
                         )}
                       </div>
@@ -497,36 +497,36 @@ export default function MonevContainer({ session, status }) {
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border leading-tight ${getUhBadgeColor(jenis)}`}>
                                 {jenis}
                               </span>
-                              <span className="font-semibold text-xs text-gray-700 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(total)}</span>
+                              <span className="font-semibold text-xs text-gray-700 dark:text-gray-200 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(total)}</span>
                             </div>
                           ))
                         ) : (
-                          <span className="text-gray-300 text-xs">—</span>
+                            <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                         )}
                         {item.total_uang_harian > 0 && uhEntries.length > 1 && (
-                          <div className="flex items-center justify-end gap-1.5 pt-1 mt-1 border-t border-dashed border-gray-200">
-                            <span className="text-[10px] font-semibold text-gray-400 uppercase">Total</span>
-                            <span className="font-bold text-xs text-gray-800 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(item.total_uang_harian)}</span>
+                          <div className="flex items-center justify-end gap-1.5 pt-1 mt-1 border-t border-dashed border-gray-200 dark:border-gray-600">
+                            <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase">Total</span>
+                            <span className="font-bold text-xs text-gray-800 dark:text-gray-200 min-w-[65px] text-right whitespace-nowrap">{formatRupiah(item.total_uang_harian)}</span>
                           </div>
                         )}
                       </div>
                     </td>
                     <td className="px-2 py-3 text-right align-top">
                       {item.total_penginapan > 0 ? (
-                        <span className="font-semibold text-sm text-purple-700 whitespace-nowrap">{formatRupiah(item.total_penginapan)}</span>
+                        <span className="font-semibold text-sm text-purple-700 dark:text-purple-400 whitespace-nowrap">{formatRupiah(item.total_penginapan)}</span>
                       ) : (
-                        <span className="text-gray-300 text-xs">—</span>
+                        <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                       )}
                     </td>
                     <td className="px-2 py-3 text-right align-top">
-                      <span className="font-bold text-sm text-gray-900 bg-gray-50 px-2.5 py-1.5 rounded-lg inline-block whitespace-nowrap">
+                          <span className="font-bold text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 px-2.5 py-1.5 rounded-lg inline-block whitespace-nowrap">
                         {formatRupiah(item.pegawai_total_biaya)}
                       </span>
                     </td>
                     <td className="px-2 py-3 text-center align-top">
                       <button
                         onClick={() => handleViewDetail(item)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 rounded-lg transition-all"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-800/50 active:bg-indigo-200 rounded-lg transition-all"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -545,15 +545,15 @@ export default function MonevContainer({ session, status }) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-5 py-4 flex items-center justify-between border-t border-gray-100 bg-gray-50/80">
-            <div className="text-sm text-gray-500">
-              Menampilkan <span className="font-semibold text-gray-700">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-semibold text-gray-700">{Math.min(currentPage * ITEMS_PER_PAGE, dataList.length)}</span> dari <span className="font-semibold text-gray-700">{dataList.length}</span> data
+          <div className="px-5 py-4 flex items-center justify-between border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Menampilkan <span className="font-semibold text-gray-700 dark:text-gray-200">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-semibold text-gray-700 dark:text-gray-200">{Math.min(currentPage * ITEMS_PER_PAGE, dataList.length)}</span> dari <span className="font-semibold text-gray-700 dark:text-gray-200">{dataList.length}</span> data
             </div>
             <div className="flex gap-1.5">
               <button
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="px-3.5 py-2 text-sm font-medium border border-gray-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 active:bg-gray-50 transition-all"
+                className="px-3.5 py-2 text-sm font-medium border border-gray-200 dark:border-gray-600 dark:text-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 active:bg-gray-50 dark:active:bg-gray-700 transition-all"
               >
                 <span className="flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -570,7 +570,7 @@ export default function MonevContainer({ session, status }) {
                     className={`min-w-[36px] h-9 text-sm font-medium rounded-lg transition-all ${
                       currentPage === page
                         ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'border border-gray-200 text-gray-600 hover:bg-white hover:border-gray-300'
+                        : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500'
                     }`}
                   >
                     {page}
@@ -580,7 +580,7 @@ export default function MonevContainer({ session, status }) {
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3.5 py-2 text-sm font-medium border border-gray-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white hover:border-gray-300 active:bg-gray-50 transition-all"
+                className="px-3.5 py-2 text-sm font-medium border border-gray-200 dark:border-gray-600 dark:text-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 active:bg-gray-50 dark:active:bg-gray-700 transition-all"
               >
                 <span className="flex items-center gap-1">
                   Selanjutnya

@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fa';
 import { useSession, signOut } from 'next-auth/react';
 import { useNotifications } from '../hooks/useNotifications';
+import ThemeToggle from './ThemeToggle';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -167,10 +168,10 @@ export default function DashboardLayout({ children }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
+      <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
         </div>
       </div>
     );
@@ -322,15 +323,15 @@ export default function DashboardLayout({ children }) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* Sidebar */}
       <aside className={`
         flex flex-col transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'w-64' : 'w-16'}
-        bg-gray-800 text-white
+        bg-gray-800 dark:bg-gray-950 text-white
       `}>
         {/* Sidebar Header */}
-        <div className="p-4 flex items-center justify-between border-b border-gray-700">
+        <div className="p-4 flex items-center justify-between border-b border-gray-700 dark:border-gray-800">
           {isSidebarOpen ? (
             <h1 className="text-xl font-bold">
               <Link href="/" className="hover:text-gray-300 transition-colors">
@@ -369,7 +370,7 @@ export default function DashboardLayout({ children }) {
                       transition-all duration-200
                       ${router.pathname === item.href || router.pathname.startsWith(item.href + '/')
                         ? 'bg-blue-600 text-white' 
-                        : 'hover:bg-gray-700'
+                        : 'hover:bg-gray-700 dark:hover:bg-gray-800'
                       }
                     `}
                     title={item.description || item.label}
@@ -420,7 +421,7 @@ export default function DashboardLayout({ children }) {
         {/* User Info & Logout */}
         <div className="p-4 border-t border-gray-700">
           {isSidebarOpen && (
-            <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+            <div className="mb-4 p-3 bg-gray-700 dark:bg-gray-900 rounded-lg">
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
               <p className="text-xs text-gray-400 mt-1">
@@ -455,10 +456,10 @@ export default function DashboardLayout({ children }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-gray-200">
+        <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700">
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
                 {router.pathname === '/' ? 'Dashboard' : 
                  router.pathname === '/kwitansi' ? 'Kwitansi Perjalanan Dinas' :
                  router.pathname === '/kegiatan' ? 'Nominatif Kegiatan' :
@@ -472,6 +473,9 @@ export default function DashboardLayout({ children }) {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Toggle Dark/Light Mode */}
+              <ThemeToggle />
+
               {notifications.total > 0 && (
                 <button 
                   className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -481,7 +485,7 @@ export default function DashboardLayout({ children }) {
                     else if (notifications.kwitansi > 0) router.push('/kwitansi');
                   }}
                 >
-                  <FaBell className="text-gray-600" />
+                  <FaBell className="text-gray-600 dark:text-gray-300" />
                   <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold bg-red-500 text-white rounded-full px-1">
                     {notifications.total > 9 ? '9+' : notifications.total}
                   </span>
@@ -503,7 +507,7 @@ export default function DashboardLayout({ children }) {
                     refreshNotif();
                     alert(`Notifikasi:\nLPD: ${notifications.lpd}\nKwitansi: ${notifications.kwitansi}\nTotal: ${notifications.total}\n\nLoading: ${notifLoading}\nError: ${notifError || 'Tidak ada'}`);
                   }}
-                  className="px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200"
+                  className="px-3 py-1 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-800"
                 >
                   Debug Notif
                 </button>
@@ -511,8 +515,8 @@ export default function DashboardLayout({ children }) {
 
               <div className="flex items-center space-x-3">
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-800">{getUserName()}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{getUserName()}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     <span className={`px-2 py-1 rounded ${
                       getUserRoleBadgeClass()
                     }`}>
@@ -531,7 +535,7 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800">
           <div className="p-6">
             {children}
           </div>

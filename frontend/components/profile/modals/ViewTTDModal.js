@@ -45,14 +45,14 @@ useEffect(() => {
             <div className="flex items-center justify-center min-h-screen px-4">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
                 
-                <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                             Tanda Tangan Digital
                         </h3>
                         <button
                             onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500"
+                            className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -63,19 +63,19 @@ useEffect(() => {
                     <div className="space-y-4">
                         {/* User Info */}
                         <div className="text-center">
-                            <p className="text-sm text-gray-600">Tanda Tangan Digital</p>
-                            <p className="font-medium text-gray-900">{userName || '-'}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Tanda Tangan Digital</p>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{userName || '-'}</p>
                         </div>
 
                         {/* TTD Image */}
-                        <div className="border rounded-lg p-4 bg-gray-50 flex justify-center min-h-[200px] items-center">
+                        <div className="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-700 flex justify-center min-h-[200px] items-center">
                             {loading && !imageError && (
                                 <div className="text-center">
                                     <svg className="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    <p className="mt-2 text-sm text-gray-500">Memuat gambar...</p>
+                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Memuat gambar...</p>
                                 </div>
                             )}
                             
@@ -95,7 +95,7 @@ useEffect(() => {
                                     <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
-                                    <p className="mt-2 text-sm text-gray-500">Gambar tidak dapat dimuat</p>
+                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Gambar tidak dapat dimuat</p>
                                     <p className="text-xs text-gray-400 mt-1 break-all">Path: {ttdUrl}</p>
                                     <button
                                         onClick={handleRetry}
@@ -108,7 +108,7 @@ useEffect(() => {
                         </div>
 
                         {/* Info */}
-                        <div className="text-xs text-gray-500 text-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
                             <p>Format: JPG, JPEG, PNG (maks 2MB)</p>
                             <p className="mt-1">Gunakan untuk verifikasi dokumen</p>
                         </div>

@@ -178,11 +178,11 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
     const getStatusBadge = (status, label) => {
         switch (status) {
             case 'sudah': 
-                return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">✓ {label} Disetujui</span>;
+                return <span className="px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200">✓ {label} Disetujui</span>;
             case 'ditolak': 
-                return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">✗ {label} Ditolak</span>;
+                return <span className="px-2 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200">✗ {label} Ditolak</span>;
             default: 
-                return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">⏳ {label} Menunggu</span>;
+                return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200">⏳ {label} Menunggu</span>;
         }
     };
     
@@ -464,12 +464,12 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4">
                 <div className="fixed inset-0 bg-gray-500 opacity-75" onClick={onClose}></div>
-                <div className="relative bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                    <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white">
-                        <h3 className="text-lg font-medium">
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3 mb-4 sticky top-0 bg-white dark:bg-gray-800">
+                        <h3 className="text-lg font-medium dark:text-gray-100">
                             {isEditing ? 'Edit Kwitansi Perjalanan Dinas' : 'Detail Kwitansi Perjalanan Dinas'}
                         </h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+                        <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -477,21 +477,21 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                     </div>
                     
                     {message && (
-                        <div className={`mb-4 p-3 rounded-lg ${message.includes('berhasil') || message.includes('disetujui') ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <div className={`mb-4 p-3 rounded-lg ${message.includes('berhasil') || message.includes('disetujui') ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200'}`}>
                             {message}
                         </div>
                     )}
                     
                     {/* Info Rejection - Tampilkan jika ditolak */}
                     {isRejected && !isEditing && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
                             <div className="flex items-center gap-2">
-                                <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="h-5 w-5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span className="font-medium text-red-700">Kwitansi Ditolak!</span>
+                                <span className="font-medium text-red-700 dark:text-red-300">Kwitansi Ditolak!</span>
                             </div>
-                            <div className="mt-2 text-sm text-red-600">
+                            <div className="mt-2 text-sm text-red-600 dark:text-red-400">
                                 {statusPegawai === 'ditolak' && <p>Catatan Pegawai: {item.catatan_pegawai}</p>}
                                 {statusPpk === 'ditolak' && <p>Catatan PPK: {item.catatan_ppk}</p>}
                                 {statusBendahara === 'ditolak' && <p>Catatan Bendahara: {item.catatan_bendahara}</p>}
@@ -511,45 +511,45 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                         // FORM EDIT
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No LPD *</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">No LPD *</label>
                                 <input
                                     type="text"
                                     value={editData.no_lpd}
                                     onChange={(e) => setEditData({ ...editData, no_lpd: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     placeholder="Masukkan No LPD"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal SPD</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tanggal SPD</label>
                                 <input
                                     type="date"
                                     value={editData.tgl_spd}
                                     onChange={(e) => setEditData({ ...editData, tgl_spd: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kwitansi</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tanggal Kwitansi</label>
                                 <input
                                     type="date"
                                     value={editData.tgl_kwitansi}
                                     onChange={(e) => setEditData({ ...editData, tgl_kwitansi: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">File Kwitansi (PDF/Gambar)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">File Kwitansi (PDF/Gambar)</label>
                                 <input
                                     type="file"
                                     onChange={handleFileChange}
                                     accept=".jpg,.jpeg,.png,.pdf"
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-                                {editFileName && <p className="text-sm text-green-600 mt-1">File baru: {editFileName}</p>}
-                                {fileUrl && !editFile && <p className="text-sm text-gray-500 mt-1">File saat ini: {fileUrl.split('/').pop()}</p>}
+                                {editFileName && <p className="text-sm text-green-600 dark:text-green-400 mt-1">File baru: {editFileName}</p>}
+                                {fileUrl && !editFile && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">File saat ini: {fileUrl.split('/').pop()}</p>}
                             </div>
                             
                             {editFile && getFilePreview()}
@@ -576,34 +576,34 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                         <>
                             {/* Info Kegiatan */}
                             <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">No ST</p>
-                                    <p>{item.no_st || '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">No ST</p>
+                                    <p className="dark:text-gray-300">{item.no_st || '-'}</p>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">No LPD</p>
-                                    <p className="font-bold text-blue-600">{item.no_lpd || '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">No LPD</p>
+                                    <p className="font-bold text-blue-600 dark:text-blue-400">{item.no_lpd || '-'}</p>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">Tanggal SPD</p>
-                                    <p>{item.tgl_spd ? formatDateForDisplay(item.tgl_spd) : '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">Tanggal SPD</p>
+                                    <p className="dark:text-gray-300">{item.tgl_spd ? formatDateForDisplay(item.tgl_spd) : '-'}</p>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">Kegiatan</p>
-                                    <p>{item.nama_kegiatan || '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">Kegiatan</p>
+                                    <p className="dark:text-gray-300">{item.nama_kegiatan || '-'}</p>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">MAK</p>
-                                    <p>{item.mak || '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">MAK</p>
+                                    <p className="dark:text-gray-300">{item.mak || '-'}</p>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">Pegawai</p>
-                                    <p>{item.nama_pegawai || item.nama || '-'}<br/><span className="text-xs">{item.pegawai_nip || item.nip || '-'}</span></p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">Pegawai</p>
+                                    <p className="dark:text-gray-300">{item.nama_pegawai || item.nama || '-'}<br/><span className="text-xs dark:text-gray-400">{item.pegawai_nip || item.nip || '-'}</span></p>
                                 </div>
                                  
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <p className="font-medium">Tanggal Kwitansi</p>
-                                    <p>{item.tgl_kwitansi ? formatDateForDisplay(item.tgl_kwitansi) : '-'}</p>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                    <p className="font-medium dark:text-gray-200">Tanggal Kwitansi</p>
+                                    <p className="dark:text-gray-300">{item.tgl_kwitansi ? formatDateForDisplay(item.tgl_kwitansi) : '-'}</p>
                                 </div>
                                
                             </div>
@@ -613,13 +613,13 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 const totalFiles = [...sptjmList, ...penginapanList].reduce((sum, item) => sum + (item.files?.length || 0), 0);
                                 if (totalFiles === 0) return null;
                                 return (
-                                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
-                                        <svg className="w-6 h-6 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-3">
+                                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                         </svg>
                                         <div>
-                                            <p className="text-sm font-semibold text-blue-800">{totalFiles} File Pendukung</p>
-                                            <p className="text-xs text-blue-600">
+                                            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">{totalFiles} File Pendukung</p>
+                                            <p className="text-xs text-blue-600 dark:text-blue-400">
                                                 {sptjmList.reduce((s, i) => s + (i.files?.length || 0), 0)} file transport,{' '}
                                                 {penginapanList.reduce((s, i) => s + (i.files?.length || 0), 0)} file penginapan
                                             </p>
@@ -629,9 +629,9 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                             })()}
                             
                             {/* SPTJM Transport Section */}
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                     </svg>
                                     SPTJM Transport
@@ -647,47 +647,47 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 ) : sptjmList.length > 0 ? (
                                     <div className="space-y-3">
                                         {sptjmList.map((sptjm, idx) => (
-                                            <div key={sptjm.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
-                                                    <span className="font-medium text-gray-700">Transport {idx + 1}</span>
-                                                    <span className="text-xs text-gray-500">
+                                            <div key={sptjm.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+                                                    <span className="font-medium text-gray-700 dark:text-gray-200">Transport {idx + 1}</span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
                                                         {formatDateForDisplay(sptjm.created_at)}
                                                     </span>
                                                 </div>
                                                 <div className="p-3">
                                                     <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                                                         <div>
-                                                            <span className="text-gray-500">Jenis Transport:</span>
-                                                            <p className="font-medium text-gray-800">
+                                                            <span className="text-gray-500 dark:text-gray-400">Jenis Transport:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">
                                                                 {getJenisTransportLabel(sptjm.jenis_transport) || '-'}
                                                             </p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Nama Maskapai/Perusahaan:</span>
-                                                            <p className="font-medium text-gray-800">{sptjm.nama_maskapai || '-'}</p>
+                                                            <span className="text-gray-500 dark:text-gray-400">Nama Maskapai/Perusahaan:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">{sptjm.nama_maskapai || '-'}</p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Kode Penerbangan/No. Polisi:</span>
-                                                            <p className="font-medium text-gray-800">{sptjm.kode_penerbangan || '-'}</p>
+                                                            <span className="text-gray-500 dark:text-gray-400">Kode Penerbangan/No. Polisi:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">{sptjm.kode_penerbangan || '-'}</p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Nomor Kursi/Kabin:</span>
-                                                            <p className="font-medium text-gray-800">{sptjm.nomor_kursi || '-'}</p>
+                                                            <span className="text-gray-500 dark:text-gray-400">Nomor Kursi/Kabin:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">{sptjm.nomor_kursi || '-'}</p>
                                                         </div>
                                                     </div>
                                                     
                                                     {/* File Attachments */}
                                                     {sptjm.files && sptjm.files.length > 0 && (
-                                                        <div className="mt-3 pt-3 border-t border-gray-200">
-                                                            <span className="text-xs font-medium text-gray-500 mb-2 block">File Pendukung:</span>
+                                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">File Pendukung:</span>
                                                             <div className="space-y-2">
                                                                 {sptjm.files.map((file, fileIdx) => (
-                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                                                                         <div className="flex items-center gap-2 flex-1">
                                                                             {getFileIcon(file.file_name)}
-                                                                            <span className="text-sm text-gray-700 truncate max-w-xs">{file.file_name}</span>
+                                                                            <span className="text-sm text-gray-700 dark:text-gray-200 truncate max-w-xs">{file.file_name}</span>
                                                                             {file.file_size && (
-                                                                                <span className="text-xs text-gray-400">
+                                                                                <span className="text-xs text-gray-400 dark:text-gray-500">
                                                                                     ({(file.file_size / 1024).toFixed(1)} KB)
                                                                                 </span>
                                                                             )}
@@ -721,9 +721,9 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                             </div>
                             
                             {/* SPTJM Penginapan Section - PERBAIKAN */}
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                     </svg>
                                     SPTJM Penginapan
@@ -731,7 +731,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 
                                 {loadingPenginapan ? (
                                     <div className="flex justify-center py-4">
-                                        <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24">
+                                        <svg className="animate-spin h-6 w-6 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
@@ -739,63 +739,63 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 ) : penginapanList.length > 0 ? (
                                     <div className="space-y-3">
                                         {penginapanList.map((penginapan, idx) => (
-                                            <div key={penginapan.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
-                                                    <span className="font-medium text-gray-700">Penginapan {idx + 1}</span>
-                                                    <span className="text-xs text-gray-500">
+                                            <div key={penginapan.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                                <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+                                                    <span className="font-medium text-gray-700 dark:text-gray-200">Penginapan {idx + 1}</span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
                                                         {penginapan.created_at ? formatDateForDisplay(penginapan.created_at) : '-'}
                                                     </span>
                                                 </div>
                                                 <div className="p-3">
                                                     <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                                                         <div className="col-span-2">
-                                                            <span className="text-gray-500">Nama Hotel/Penginapan:</span>
-                                                            <p className="font-medium text-gray-800">
+                                                            <span className="text-gray-500 dark:text-gray-400">Nama Hotel/Penginapan:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">
                                                                 {penginapan.nama_penginapan || penginapan.nama_hotel || '-'}
                                                             </p>
                                                         </div>
                                                         <div className="col-span-2">
-                                                            <span className="text-gray-500">Alamat:</span>
-                                                            <p className="font-medium text-gray-800">
+                                                            <span className="text-gray-500 dark:text-gray-400">Alamat:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">
                                                                 {penginapan.alamat_penginapan || penginapan.alamat || '-'}
                                                             </p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Nomor Kamar:</span>
-                                                            <p className="font-medium text-gray-800">{penginapan.nomor_kamar || '-'}</p>
+                                                            <span className="text-gray-500 dark:text-gray-400">Nomor Kamar:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">{penginapan.nomor_kamar || '-'}</p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Tarif Hotel:</span>
-                                                            <p className="font-medium text-gray-800">
+                                                            <span className="text-gray-500 dark:text-gray-400">Tarif Hotel:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">
                                                                 {penginapan.tarif_hotel ? formatRupiah(penginapan.tarif_hotel) : '-'}
                                                             </p>
                                                         </div>
                                                         <div>
-                                                            <span className="text-gray-500">Tanggal Menginap:</span>
-                                                            <p className="font-medium text-gray-800">
+                                                            <span className="text-gray-500 dark:text-gray-400">Tanggal Menginap:</span>
+                                                            <p className="font-medium text-gray-800 dark:text-gray-100">
                                                                 {penginapan.tgl_menginap ? formatDateForDisplay(penginapan.tgl_menginap) : '-'}
                                                             </p>
                                                         </div>
                                                         {penginapan.kode_booking && (
                                                             <div>
-                                                                <span className="text-gray-500">Kode Booking:</span>
-                                                                <p className="font-medium text-gray-800">{penginapan.kode_booking}</p>
+                                                                <span className="text-gray-500 dark:text-gray-400">Kode Booking:</span>
+                                                                <p className="font-medium text-gray-800 dark:text-gray-100">{penginapan.kode_booking}</p>
                                                             </div>
                                                         )}
                                                     </div>
                                                     
                                                     {/* File Attachments */}
                                                     {penginapan.files && penginapan.files.length > 0 && (
-                                                        <div className="mt-3 pt-3 border-t border-gray-200">
-                                                            <span className="text-xs font-medium text-gray-500 mb-2 block">File Pendukung:</span>
+                                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">File Pendukung:</span>
                                                             <div className="space-y-2">
                                                                 {penginapan.files.map((file, fileIdx) => (
-                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                                    <div key={file.id || fileIdx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                                                                         <div className="flex items-center gap-2 flex-1">
                                                                             {getFileIcon(file.file_name)}
-                                                                            <span className="text-sm text-gray-700 truncate max-w-xs">{file.file_name}</span>
+                                                                            <span className="text-sm text-gray-700 dark:text-gray-200 truncate max-w-xs">{file.file_name}</span>
                                                                             {file.file_size && (
-                                                                                <span className="text-xs text-gray-400">
+                                                                                <span className="text-xs text-gray-400 dark:text-gray-500">
                                                                                     ({(file.file_size / 1024).toFixed(1)} KB)
                                                                                 </span>
                                                                             )}
@@ -819,8 +819,8 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-4 text-gray-500 text-sm">
-                                        <svg className="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                                        <svg className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                                         </svg>
                                         Belum ada data SPTJM Penginapan
@@ -829,71 +829,71 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                             </div>
                             
                             {/* Status Approval Berjenjang */}
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                <h4 className="font-semibold text-gray-700 mb-3">Status Persetujuan Berjenjang (Pegawai → PPK → Bendahara)</h4>
+                            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-3">Status Persetujuan Berjenjang (Pegawai → PPK → Bendahara)</h4>
                                 
                                 <div className="space-y-3">
-                                    <div className="flex items-center justify-between p-2 bg-white rounded">
+                                    <div className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded">
                                         <div>
-                                            <span className="font-medium">1. Persetujuan Pegawai</span>
-                                            <p className="text-xs text-gray-500">{item.nama_pegawai || item.nama || '-'}</p>
+                                            <span className="font-medium dark:text-gray-200">1. Persetujuan Pegawai</span>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.nama_pegawai || item.nama || '-'}</p>
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusPegawai, 'Pegawai')}
-                                            {item.tgl_ttd_pegawai && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_pegawai)}</p>}
+                                            {item.tgl_ttd_pegawai && <p className="text-xs text-gray-400 dark:text-gray-500">{formatDateForDisplay(item.tgl_ttd_pegawai)}</p>}
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center justify-between p-2 bg-white rounded">
+                                    <div className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded">
                                         <div>
-                                            <span className="font-medium">2. Persetujuan PPK</span>
-                                            <p className="text-xs text-gray-500">{item.ppk_nama || '-'} ({item.ppk_nip || '-'})</p>
+                                            <span className="font-medium dark:text-gray-200">2. Persetujuan PPK</span>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.ppk_nama || '-'} ({item.ppk_nip || '-'})</p>
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusPpk, 'PPK')}
-                                            {item.tgl_ttd_ppk && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_ppk)}</p>}
+                                            {item.tgl_ttd_ppk && <p className="text-xs text-gray-400 dark:text-gray-500">{formatDateForDisplay(item.tgl_ttd_ppk)}</p>}
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center justify-between p-2 bg-white rounded">
+                                    <div className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded">
                                         <div>
-                                            <span className="font-medium">3. Persetujuan Bendahara</span>
-                                            <p className="text-xs text-gray-500">{item.bendahara_nama || '-'} ({item.bendahara_nip || '-'})</p>
+                                            <span className="font-medium dark:text-gray-200">3. Persetujuan Bendahara</span>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.bendahara_nama || '-'} ({item.bendahara_nip || '-'})</p>
                                         </div>
                                         <div className="text-right">
                                             {getStatusBadge(statusBendahara, 'Bendahara')}
-                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400">{formatDateForDisplay(item.tgl_ttd_bendahara)}</p>}
+                                            {item.tgl_ttd_bendahara && <p className="text-xs text-gray-400 dark:text-gray-500">{formatDateForDisplay(item.tgl_ttd_bendahara)}</p>}
                                         </div>
                                     </div>
                                 </div>
                                 
                                 {/* Tanda Tangan Digital */}
                                 {(statusPegawai === 'sudah' || statusPpk === 'sudah' || statusBendahara === 'sudah') && (
-                                    <div className="mt-4 pt-4 border-t">
-                                        <h5 className="font-semibold text-gray-700 mb-3">Tanda Tangan Digital</h5>
+                                    <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                                        <h5 className="font-semibold text-gray-700 dark:text-gray-200 mb-3">Tanda Tangan Digital</h5>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             {statusPegawai === 'sudah' && (
-                                                <div className="text-center p-3 bg-white rounded-lg shadow">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">Pegawai</p>
+                                                <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+                                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Pegawai</p>
                                                     {ttdPegawaiUrl ? (
                                                         <img src={ttdPegawaiUrl} alt="TTD Pegawai" className="max-h-20 mx-auto object-contain" />
-                                                    ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
+                                                    ) : <p className="text-xs text-gray-400 dark:text-gray-500">Tanda tangan digital</p>}
                                                 </div>
                                             )}
                                             {statusPpk === 'sudah' && (
-                                                <div className="text-center p-3 bg-white rounded-lg shadow">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">PPK</p>
+                                                <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+                                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">PPK</p>
                                                     {ttdPpkUrl ? (
                                                         <img src={ttdPpkUrl} alt="TTD PPK" className="max-h-20 mx-auto object-contain" />
-                                                    ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
+                                                    ) : <p className="text-xs text-gray-400 dark:text-gray-500">Tanda tangan digital</p>}
                                                 </div>
                                             )}
                                             {statusBendahara === 'sudah' && (
-                                                <div className="text-center p-3 bg-white rounded-lg shadow">
-                                                    <p className="text-sm font-medium text-gray-600 mb-2">Bendahara</p>
+                                                <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/50">
+                                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Bendahara</p>
                                                     {ttdBendaharaUrl ? (
                                                         <img src={ttdBendaharaUrl} alt="TTD Bendahara" className="max-h-20 mx-auto object-contain" />
-                                                    ) : <p className="text-xs text-gray-400">Tanda tangan digital</p>}
+                                                    ) : <p className="text-xs text-gray-400 dark:text-gray-500">Tanda tangan digital</p>}
                                                 </div>
                                             )}
                                         </div>
@@ -902,19 +902,19 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 
                                 {/* Tombol Persetujuan */}
                                 {showApproveButtons && (
-                                    <div className="mt-4 pt-4 border-t">
-                                        <p className="text-sm text-gray-600 mb-3">
+                                    <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                                             {isPegawai && 'Sebagai Pegawai, silakan periksa kwitansi dan berikan persetujuan.'}
                                             {isPpk && 'Sebagai PPK, silakan periksa kwitansi dan berikan persetujuan.'}
                                             {isBendahara && 'Sebagai Bendahara, silakan periksa kwitansi dan berikan persetujuan akhir.'}
                                         </p>
                                         <div className="mb-3">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (jika ditolak)</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Catatan (jika ditolak)</label>
                                             <textarea
                                                 value={catatan}
                                                 onChange={(e) => setCatatan(e.target.value)}
                                                 rows={2}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                 placeholder="Isi alasan penolakan jika diperlukan..."
                                             />
                                         </div>
@@ -939,7 +939,7 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                 
                                 {/* Pesan jika tidak bisa approve */}
                                 {!showApproveButtons && (
-                                    <div className="mt-4 pt-4 border-t text-center text-gray-500 text-sm">
+                                    <div className="mt-4 pt-4 border-t dark:border-gray-700 text-center text-gray-500 dark:text-gray-400 text-sm">
                                         {isPegawai && statusPegawai !== 'belum' && '✓ Anda sudah memberikan persetujuan.'}
                                         {isPpk && statusPegawai !== 'sudah' && '⏳ Menunggu persetujuan dari Pegawai terlebih dahulu.'}
                                         {isPpk && statusPegawai === 'sudah' && statusPpk !== 'belum' && '✓ Anda sudah memberikan persetujuan.'}
@@ -952,22 +952,22 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                             </div>
                             
                             {/* Total Biaya */}
-                            <div className="mt-4 bg-red-50 p-3 rounded text-center">
-                                <p className="font-medium">Jumlah Total</p>
-                                <p className="text-2xl font-bold text-red-600">Rp {formatRupiah(totalBiaya)}</p>
+                            <div className="mt-4 bg-red-50 dark:bg-red-900/30 p-3 rounded text-center">
+                                <p className="font-medium dark:text-gray-200">Jumlah Total</p>
+                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">Rp {formatRupiah(totalBiaya)}</p>
                             </div>
                             
                             {/* File Preview */}
                             {fileUrl && !fileError && (
                                 <div className="mt-4">
-                                    <p className="font-medium mb-2">File Kwitansi:</p>
+                                    <p className="font-medium dark:text-gray-200 mb-2">File Kwitansi:</p>
                                     {getFilePreview()}
                                 </div>
                             )}
                         </>
                     )}
                     
-                    <div className="mt-6 flex justify-end sticky bottom-0 bg-white pt-3 border-t">
+                    <div className="mt-6 flex justify-end sticky bottom-0 bg-white dark:bg-gray-800 pt-3 border-t dark:border-gray-700">
                         <button onClick={onClose} className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">
                             Tutup
                         </button>

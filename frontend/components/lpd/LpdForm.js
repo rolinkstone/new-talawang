@@ -25,19 +25,19 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
     const getStatusBadge = () => {
         const status = lpdData?.lpd_status;
         if (status === 'ditolak_katim') {
-            return { text: 'Ditolak Katim/Kabag TU', color: 'bg-red-100 text-red-800 border-red-200' };
+            return { text: 'Ditolak Katim/Kabag TU', color: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800' };
         }
         if (status === 'ditolak_kabalai') {
-            return { text: 'Ditolak Kabalai', color: 'bg-red-100 text-red-800 border-red-200' };
+            return { text: 'Ditolak Kabalai', color: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800' };
         }
         if (status === 'menunggu_katim') {
-            return { text: 'Menunggu Persetujuan Katim/Kabag TU', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+            return { text: 'Menunggu Persetujuan Katim/Kabag TU', color: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800' };
         }
         if (status === 'menunggu_kabalai') {
-            return { text: 'Menunggu Persetujuan Kabalai', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+            return { text: 'Menunggu Persetujuan Kabalai', color: 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800' };
         }
         if (status === 'selesai') {
-            return { text: 'Selesai', color: 'bg-green-100 text-green-800 border-green-200' };
+            return { text: 'Selesai', color: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800' };
         }
         return null;
     };
@@ -55,8 +55,8 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
     const renderDokumentasiPreview = (dokumentasi) => {
         if (!dokumentasi || !dokumentasi.file_path) {
             return (
-                <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                    <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                 </div>
@@ -85,36 +85,36 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
             const fileExtension = dokumentasi.file_name?.split('.').pop()?.toUpperCase() || 'FILE';
             return (
                 <div 
-                    className="w-20 h-20 bg-blue-50 rounded-lg flex flex-col items-center justify-center border border-blue-200 cursor-pointer hover:bg-blue-100 transition"
+                    className="w-20 h-20 bg-blue-50 dark:bg-blue-900/40 rounded-lg flex flex-col items-center justify-center border border-blue-200 dark:border-blue-700 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/60 transition"
                     onClick={() => window.open(imageUrl, '_blank')}
                 >
-                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-8 h-8 text-blue-500 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span className="text-xs text-blue-600 font-medium mt-1">{fileExtension}</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-1">{fileExtension}</span>
                 </div>
             );
         }
     };
 
     return (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
             {/* Status Banner jika ditolak */}
             {isRejected && (
-                <div className="p-4 bg-red-50 border-b border-red-200">
+                <div className="p-4 bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800">
                     <div className="flex items-start gap-3">
                         <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div>
-                            <h4 className="font-medium text-red-800">LPD Ditolak</h4>
-                            <p className="text-sm text-red-700 mt-1">
+                            <h4 className="font-medium text-red-800 dark:text-red-300">LPD Ditolak</h4>
+                            <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                                 {lpdData?.lpd_status === 'ditolak_katim' 
                                     ? `Ditolak oleh Katim/Kabag TU: ${lpdData?.katim?.catatan || 'Tidak ada catatan'}`
                                     : `Ditolak oleh Kabalai: ${lpdData?.kabalai?.catatan || 'Tidak ada catatan'}`
                                 }
                             </p>
-                            <p className="text-sm text-red-600 mt-2">
+                            <p className="text-sm text-red-600 dark:text-red-400 mt-2">
                                 Silakan perbaiki rincian kegiatan dan/atau upload ulang dokumentasi, lalu kirim ulang ke Katim/Kabag TU.
                             </p>
                         </div>
@@ -124,7 +124,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
 
             {/* Status Banner jika menunggu */}
             {statusBadge && !isRejected && (
-                <div className={`p-3 border-b ${statusBadge.color.replace('text', 'bg').replace('800', '50')}`}>
+                <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                     <div className="flex items-center gap-2">
                         <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge.color}`}>
                             {statusBadge.text}
@@ -134,51 +134,51 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
             )}
 
             {/* Informasi Kegiatan */}
-            <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Informasi Kegiatan</h3>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Informasi Kegiatan</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Nama Kegiatan</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.nama_kegiatan || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Kegiatan</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.nama_kegiatan || '-'}</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Nomor ST</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.dasar_pelaksanaan?.nomor_st || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nomor ST</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.dasar_pelaksanaan?.nomor_st || '-'}</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Tanggal ST</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.dasar_pelaksanaan?.tanggal_st || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal ST</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.dasar_pelaksanaan?.tanggal_st || '-'}</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">MAK</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.pembiayaan?.mak || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">MAK</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.pembiayaan?.mak || '-'}</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Tempat Pelaksanaan</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.waktu_tempat?.tempat_pelaksanaan || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tempat Pelaksanaan</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.waktu_tempat?.tempat_pelaksanaan || '-'}</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Tanggal Pelaksanaan</label>
-                        <p className="mt-1 text-sm text-gray-900">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Pelaksanaan</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                             {lpdData?.waktu_tempat?.tanggal_mulai || '-'} s/d {lpdData?.waktu_tempat?.tanggal_selesai || '-'}
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Lama Perjalanan</label>
-                        <p className="mt-1 text-sm text-gray-900">{lpdData?.waktu_tempat?.lama_perjalanan || '-'}</p>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Lama Perjalanan</label>
+                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.waktu_tempat?.lama_perjalanan || '-'}</p>
                     </div>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-gray-200">
+            <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-8 px-6">
                     <button
                         onClick={() => setActiveTab('pegawai')}
                         className={`py-4 px-1 border-b-2 font-medium text-sm ${
                             activeTab === 'pegawai' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                     >
                         Petugas Pelaksana
@@ -188,7 +188,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         className={`py-4 px-1 border-b-2 font-medium text-sm ${
                             activeTab === 'rincian' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                     >
                         Rincian Kegiatan
@@ -198,7 +198,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         className={`py-4 px-1 border-b-2 font-medium text-sm ${
                             activeTab === 'dokumentasi' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                     >
                         Dokumentasi
@@ -207,38 +207,38 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
             </div>
 
             {/* Tab Content */}
-            <div className="p-6">
+            <div className="p-6 dark:bg-gray-800">
                 {/* Tab Petugas Pelaksana */}
                 {activeTab === 'pegawai' && (
                     <div>
-                        <h4 className="text-md font-medium text-gray-900 mb-4">Petugas Pelaksana</h4>
+                        <h4 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Petugas Pelaksana</h4>
                         {lpdData?.petugas_pelaksana && lpdData.petugas_pelaksana.length > 0 ? (
                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-700">
                                         <tr>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">No</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Nama</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">NIP</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Pangkat/Golongan</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Jabatan</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">No</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Nama</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">NIP</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Pangkat/Golongan</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Jabatan</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                         {lpdData.petugas_pelaksana.map((pegawai, idx) => (
                                             <tr key={idx}>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{idx + 1}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{pegawai.nama || '-'}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{pegawai.nip || '-'}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{pegawai.pangkat_golongan || '-'}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{pegawai.jabatan || '-'}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{idx + 1}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{pegawai.nama || '-'}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{pegawai.nip || '-'}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{pegawai.pangkat_golongan || '-'}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{pegawai.jabatan || '-'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
                         ) : (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                 <p>Belum ada data petugas pelaksana</p>
                             </div>
                         )}
@@ -249,7 +249,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                 {activeTab === 'rincian' && (
                     <div>
                         <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-md font-medium text-gray-900">Rincian Hasil Kegiatan</h4>
+                            <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">Rincian Hasil Kegiatan</h4>
                             {canEdit && (
                                 <button
                                     onClick={() => onOpenModal('rincian')}
@@ -265,32 +265,32 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         
                         {rincianList.length > 0 ? (
                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-700">
                                         <tr>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">No</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tanggal</th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Kegiatan</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">No</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Tanggal</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Kegiatan</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                         {rincianList.map((item, idx) => (
                                             <tr key={item.id || idx}>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{item.no || idx + 1}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{item.tanggal}</td>
-                                                <td className="px-4 py-2 text-sm text-gray-900">{item.kegiatan}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{item.no || idx + 1}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{item.tanggal}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{item.kegiatan}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
                         ) : (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                 <p>Belum ada rincian kegiatan</p>
                                 {canEdit && (
                                     <button
                                         onClick={() => onOpenModal('rincian')}
-                                        className="mt-2 text-indigo-600 hover:text-indigo-800"
+                                        className="mt-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
                                     >
                                         + Tambah Rincian
                                     </button>
@@ -304,7 +304,7 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                 {activeTab === 'dokumentasi' && (
                     <div>
                         <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-md font-medium text-gray-900">Dokumentasi Kegiatan</h4>
+                            <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">Dokumentasi Kegiatan</h4>
                             {canEdit && (
                                 <button
                                     onClick={() => onOpenModal('dokumentasi')}
@@ -321,18 +321,18 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                         {dokumentasiList.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {dokumentasiList.map((doc, idx) => (
-                                    <div key={doc.id || idx} className="border border-gray-200 rounded-lg p-3">
+                                    <div key={doc.id || idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                         <div className="flex justify-center mb-2">
                                             {renderDokumentasiPreview(doc)}
                                         </div>
-                                        <p className="text-xs text-gray-600 truncate text-center">{doc.file_name}</p>
+                                        <p className="text-xs text-gray-600 dark:text-gray-300 truncate text-center">{doc.file_name}</p>
                                         {doc.keterangan && (
-                                            <p className="text-xs text-gray-500 text-center mt-1">{doc.keterangan}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">{doc.keterangan}</p>
                                         )}
                                         {canEdit && (
                                             <button
                                                 onClick={() => onOpenModal('delete', doc)}
-                                                className="mt-2 w-full text-xs text-red-600 hover:text-red-800"
+                                                className="mt-2 w-full text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                                             >
                                                 Hapus
                                             </button>
@@ -341,12 +341,12 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-center py-8 text-gray-500">
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                 <p>Belum ada dokumentasi</p>
                                 {canEdit && (
                                     <button
                                         onClick={() => onOpenModal('dokumentasi')}
-                                        className="mt-2 text-indigo-600 hover:text-indigo-800"
+                                        className="mt-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
                                     >
                                         + Upload Dokumentasi
                                     </button>

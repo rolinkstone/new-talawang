@@ -540,14 +540,14 @@ const KegiatanForm = ({
     const grandTotal = pegawaiList.reduce((sum, pegawai) => sum + (pegawai.total_biaya || 0), 0);
 
     return (
-        <div className="mb-8 bg-white p-6 rounded-lg shadow border border-gray-200">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">
+        <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">
                 {isEditMode ? `Edit Kegiatan (ID: ${editId})` : 'Form Tambah Kegiatan + Pegawai'}
             </h3>
             
             {/* Error Messages */}
             {formError && (
-                <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md border border-red-200">
+                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md border border-red-200 dark:border-red-800">
                     <div className="flex items-center">
                         <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -558,7 +558,7 @@ const KegiatanForm = ({
             )}
             
             {fetchError && (
-                <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md border border-yellow-200">
+                <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-md border border-yellow-200 dark:border-yellow-800">
                     <div className="flex items-center">
                         <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -575,56 +575,56 @@ const KegiatanForm = ({
             )}
 
             {/* Jenis SPM Section */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div className="mb-2">
-                    <h4 className="text-lg font-semibold text-gray-800 flex items-center">
+                    <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                         <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 7a1 1 0 100-2 1 1 0 000 2zm3 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                         </svg>
                         Jenis SPM *
                     </h4>
-                    <p className="text-sm text-gray-600">Pilih jenis Surat Permintaan Pembayaran untuk kegiatan ini</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Pilih jenis Surat Permintaan Pembayaran untuk kegiatan ini</p>
                 </div>
                 
                 <div className="flex flex-wrap gap-4">
                     <div 
-                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'LS' ? 'bg-white border-2 border-blue-500 shadow-md' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
+                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'LS' ? 'bg-white dark:bg-gray-800 border-2 border-blue-500 shadow-md' : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
                         onClick={() => handleJenisSPMChange('LS')}
                     >
                         <div className="flex items-center justify-center w-6 h-6 mr-3">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'LS' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'LS' ? 'border-blue-500 bg-blue-500' : 'border-gray-400 dark:border-gray-500'}`}>
                                 {jenisSPM === 'LS' && <div className="w-2 h-2 rounded-full bg-white"></div>}
                             </div>
                         </div>
                         <div>
-                            <div className="font-medium text-gray-800">LS (Langsung)</div>
-                            <div className="text-sm text-gray-600 mt-1">Digunakan untuk pembayaran Transport, Uang Harian dan Penginapan</div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">LS (Langsung)</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Digunakan untuk pembayaran Transport, Uang Harian dan Penginapan</div>
                         </div>
                     </div>
                     
                     <div 
-                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'KKP' ? 'bg-white border-2 border-blue-500 shadow-md' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
+                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'KKP' ? 'bg-white dark:bg-gray-800 border-2 border-blue-500 shadow-md' : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
                         onClick={() => handleJenisSPMChange('KKP')}
                     >
                         <div className="flex items-center justify-center w-6 h-6 mr-3">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'KKP' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'KKP' ? 'border-blue-500 bg-blue-500' : 'border-gray-400 dark:border-gray-500'}`}>
                                 {jenisSPM === 'KKP' && <div className="w-2 h-2 rounded-full bg-white"></div>}
                             </div>
                         </div>
                         <div>
-                            <div className="font-medium text-gray-800">KKP (Kartu Kredit Pemerintah)</div>
-                            <div className="text-sm text-gray-600 mt-1">Digunakan untuk pembayaran Transport saja</div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">KKP (Kartu Kredit Pemerintah)</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Digunakan untuk pembayaran Transport saja</div>
                         </div>
                     </div>
                 </div>
                 
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-md">
                     <div className="flex items-center">
                         <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                         <span className="font-medium text-blue-800">Jenis SPM yang dipilih:</span>
-                        <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${jenisSPM === 'LS' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
+                        <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${jenisSPM === 'LS' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'}`}>
                             {jenisSPM === 'LS' ? 'LS (Langsung)' : 'KKP (Kartu Kredit Pemerintah)'}
                         </span>
                     </div>
@@ -632,13 +632,13 @@ const KegiatanForm = ({
             </div>
 
             {/* Total Biaya Keseluruhan */}
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg">
                 <div className="flex justify-between items-center">
                     <div>
-                        <div className="text-sm text-green-700">Total Biaya Keseluruhan</div>
-                        <div className="text-2xl font-bold text-green-800">Rp {formatRupiah(grandTotal)}</div>
+                        <div className="text-sm text-green-700 dark:text-green-300">Total Biaya Keseluruhan</div>
+                        <div className="text-2xl font-bold text-green-800 dark:text-green-400">Rp {formatRupiah(grandTotal)}</div>
                     </div>
-                    <div className="text-sm text-green-700">
+                    <div className="text-sm text-green-700 dark:text-green-300">
                         {pegawaiList.length} Pegawai
                     </div>
                 </div>
@@ -655,11 +655,11 @@ const KegiatanForm = ({
             <form onSubmit={handleSubmitForm} className="space-y-6">
                 {/* Data Kegiatan */}
                 <div className="space-y-4">
-                    <h4 className="text-lg font-medium text-gray-800 border-b pb-2">Data Kegiatan</h4>
+                    <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2">Data Kegiatan</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Nama Kegiatan *
                             </label>
                             <input
@@ -668,15 +668,15 @@ const KegiatanForm = ({
                                 value={formData.kegiatan}
                                 onChange={handleFormChange}
                                 required
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="Contoh: Pengambilan sampling pangan segar"
                             />
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 MAK *
-                                <span className="text-xs text-gray-500 ml-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                                     Format: XXXX.XXX.XXX.XXX.XXXXXX.X
                                 </span>
                             </label>
@@ -690,7 +690,7 @@ const KegiatanForm = ({
                                     onFocus={() => setShowMakDropdown(true)}
                                     onBlur={() => setTimeout(() => setShowMakDropdown(false), 200)}
                                     placeholder={getMakPlaceholder()}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
                                     required
                                     maxLength={29}
                                     autoComplete="off"
@@ -699,7 +699,7 @@ const KegiatanForm = ({
                                     <button
                                         type="button"
                                         onClick={() => { setFormData(prev => ({ ...prev, mak: '' })); setMakDisplay(''); }}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -709,7 +709,7 @@ const KegiatanForm = ({
                                 {/* Dropdown pencarian MAK dari Pagu */}
                                 {makDisplay && showMakDropdown && filteredPagu.length > 0 && (
                                     <div
-                                        className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                        className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
                                         style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
                                     >
                                     {filteredPagu.map((item, i) => {
@@ -719,15 +719,15 @@ const KegiatanForm = ({
                                                 key={i}
                                                 type="button"
                                                 onClick={() => handleSelectMak(item)}
-                                                className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b border-gray-100 last:border-0 transition"
+                                                className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 border-b border-gray-100 dark:border-gray-700 last:border-0 transition"
                                             >
                                                 <div className="flex justify-between items-center">
-                                                    <span className="font-mono text-sm font-medium text-gray-900">{item.formattedMak}</span>
+                                                    <span className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">{item.formattedMak}</span>
                                                     <span className={`text-xs font-medium ${sisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
                                                         Sisa: Rp {formatRupiah(sisa)}
                                                     </span>
                                                 </div>
-                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                                                     Pagu: Rp {formatRupiah(item.pagu)} | Realisasi: Rp {formatRupiah(item.realisasi)}
                                                 </div>
                                             </button>
@@ -751,7 +751,7 @@ const KegiatanForm = ({
                                 )}
                                 {/* Info sisa pagu jika MAK cocok dengan data pagu */}
                                 {selectedPaguInfo && (
-                                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-md">
                                         <div className="flex justify-between items-center">
                                             <span className="text-xs font-medium text-blue-700">
                                                 {selectedPaguInfo.formattedMak}
@@ -770,7 +770,7 @@ const KegiatanForm = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Realisasi Anggaran Sebelumnya
                             </label>
                             <input
@@ -778,7 +778,7 @@ const KegiatanForm = ({
                                 name="realisasi_anggaran_sebelumnya"
                                 value={formData.realisasi_anggaran_sebelumnya}
                                 onChange={handleFormChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="0"
                             />
                         </div>
@@ -792,13 +792,13 @@ const KegiatanForm = ({
                                 name="target_output_tahun"
                                 value={formData.target_output_tahun}
                                 onChange={handleFormChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="0"
                             />
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Realisasi Output Sebelumnya
                             </label>
                             <input
@@ -806,13 +806,13 @@ const KegiatanForm = ({
                                 name="realisasi_output_sebelumnya"
                                 value={formData.realisasi_output_sebelumnya}
                                 onChange={handleFormChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="0"
                             />
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Target Output Dicapai
                             </label>
                             
@@ -850,7 +850,7 @@ const KegiatanForm = ({
                                         }));
                                     }
                                 }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
                             >
                                 <option value="">Pilih target output</option>
                                 <option value="sampling">Sampling</option>
@@ -874,7 +874,7 @@ const KegiatanForm = ({
                                             target_output_yg_akan_dicapai: e.target.value
                                         }));
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-2"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-2"
                                     placeholder="Ketik kegiatan lainnya..."
                                     autoFocus
                                 />
@@ -903,30 +903,30 @@ const KegiatanForm = ({
                                                 target_output_yg_akan_dicapai: newValue
                                             }));
                                         }}
-                                        className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         placeholder="Jumlah"
                                     />
-                                    <span className="text-gray-600">sampel</span>
+                                    <span className="text-gray-600 dark:text-gray-400">sampel</span>
                                 </div>
                             )}
                         </div>
 
                         {/* Form Lokasi Bertingkat */}
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Lokasi Kegiatan
                             </label>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Provinsi
                                         </label>
                                         <select
                                             value={selectedProvinsi}
                                             onChange={handleProvinsiChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             disabled={loadingDaerah}
                                         >
                                             <option value="">Pilih Provinsi</option>
@@ -939,13 +939,13 @@ const KegiatanForm = ({
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Kabupaten/Kota *
                                         </label>
                                         <select
                                             value={selectedKabupaten}
                                             onChange={handleKabupatenChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             disabled={!selectedProvinsi || loadingDaerah}
                                             required
                                         >
@@ -959,13 +959,13 @@ const KegiatanForm = ({
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Kecamatan (Opsional)
                                         </label>
                                         <select
                                             value={selectedKecamatan}
                                             onChange={handleKecamatanChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             disabled={!selectedKabupaten || loadingDaerah}
                                         >
                                             <option value="">Pilih Kecamatan</option>
@@ -980,20 +980,20 @@ const KegiatanForm = ({
 
                                 <div>
                                     <div className="h-full flex flex-col">
-                                        <div className="flex-1 p-4 bg-gray-50 border border-gray-200 rounded-md">
-                                            <div className="text-sm font-medium text-gray-700 mb-2">Preview Lokasi:</div>
-                                            <div className="text-gray-900 mb-3 min-h-[60px] flex items-center">
+                                        <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+                                            <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Preview Lokasi:</div>
+                                            <div className="text-gray-900 dark:text-gray-100 mb-3 min-h-[60px] flex items-center">
                                                 {formData.kota_kab_kecamatan ? (
-                                                    <div className="font-medium text-gray-800">
+                                                    <div className="font-medium text-gray-800 dark:text-gray-200">
                                                         {formData.kota_kab_kecamatan}
                                                     </div>
                                                 ) : (
-                                                    <div className="text-gray-500 italic">Belum memilih lokasi</div>
+                                                    <div className="text-gray-500 dark:text-gray-400 italic">Belum memilih lokasi</div>
                                                 )}
                                             </div>
                                             
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     Custom Lokasi / Lokasi yang disimpan ke database: <span className="font-medium">{formData.kota_kab_kecamatan || '-'}</span>
                                                 </label>
                                                 <input
@@ -1001,7 +1001,7 @@ const KegiatanForm = ({
                                                     name="kota_kab_kecamatan"
                                                     value={formData.kota_kab_kecamatan}
                                                     onChange={handleFormChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                                     placeholder="Ketik manual jika perlu"
                                                 />
                                             </div>
@@ -1012,7 +1012,7 @@ const KegiatanForm = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Rencana Tanggal Pelaksanaan
                             </label>
                             <div className="relative flex items-center">
@@ -1021,17 +1021,17 @@ const KegiatanForm = ({
                                     name="rencana_tanggal_pelaksanaan"
                                     value={formData.rencana_tanggal_pelaksanaan}
                                     onChange={handleFormChange}
-                                    className="w-5/12 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-5/12 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     title="Tanggal Awal"
                                 />
-                                <div className="mx-2 text-gray-500 font-medium text-sm">s/d</div>
+                                <div className="mx-2 text-gray-500 dark:text-gray-400 font-medium text-sm">s/d</div>
                                 <input
                                     type="date"
                                     name="rencana_tanggal_pelaksanaan_akhir"
                                     value={formData.rencana_tanggal_pelaksanaan_akhir}
                                     onChange={handleFormChange}
                                     min={formData.rencana_tanggal_pelaksanaan}
-                                    className="w-5/12 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-5/12 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     title="Tanggal Akhir"
                                 />
                             </div>
@@ -1039,16 +1039,16 @@ const KegiatanForm = ({
                         
                         {/* User ID Field */}
                         <div className="md:col-span-2">
-                            <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-medium text-gray-700 mb-1">User ID (Pembuat Data)</div>
+                                        <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">User ID (Pembuat Data)</div>
                                         <div className="flex items-center space-x-2">
-                                            <div className="px-3 py-2 bg-white border border-gray-300 rounded-md font-mono text-sm">
+                                            <div className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm dark:text-gray-200">
                                                 {formData.user_id || 'Belum ditetapkan'}
                                             </div>
                                             {session?.user?.id && (
-                                                <div className="text-sm text-green-600 flex items-center">
+                                                <div className="text-sm text-green-600 dark:text-green-400 flex items-center">
                                                     <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                     </svg>
@@ -1058,7 +1058,7 @@ const KegiatanForm = ({
                                         </div>
                                     </div>
                                     {!isEditMode && (
-                                        <div className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                                        <div className="text-xs text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
                                             <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                             </svg>
@@ -1067,7 +1067,7 @@ const KegiatanForm = ({
                                     )}
                                 </div>
                                 {isEditMode && (
-                                    <div className="mt-2 text-xs text-yellow-600">
+                                    <div className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
                                         <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                         </svg>
@@ -1083,17 +1083,17 @@ const KegiatanForm = ({
                 {/* Data Pegawai */}
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                             {loadingPegawai ? (
-                                <span className="flex items-center">
+                                <span className="flex items-center dark:text-gray-300">
                                     <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.235 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     Memuat data pegawai...
                                 </span>
                             ) : (
-                                <span className="text-green-600">
+                                <span className="text-green-600 dark:text-green-400">
                                     ✓ {pegawaiSuggestions.length} pegawai tersedia
                                 </span>
                             )}
@@ -1113,8 +1113,8 @@ const KegiatanForm = ({
                 {/* SECTION: DATA BENDAHARA - DARI KEYCLOAK */}
                 <div className="space-y-4">
                     <div className="border-t pt-4">
-                        <h4 className="text-lg font-medium text-gray-800 border-b pb-2 mb-4 flex items-center">
-                            <svg className="w-5 h-5 mr-2 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                        <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2 mb-4 flex items-center">
+                            <svg className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 7a1 1 0 100-2 1 1 0 000 2zm3 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                             </svg>
                             Data Bendahara
@@ -1142,7 +1142,7 @@ const KegiatanForm = ({
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Pilih Bendahara *
                                 </label>
                                 {loadingBendahara ? (
@@ -1151,17 +1151,17 @@ const KegiatanForm = ({
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
-                                        <span className="text-gray-600">Memuat daftar bendahara...</span>
+                                        <span className="text-gray-600 dark:text-gray-300">Memuat daftar bendahara...</span>
                                     </div>
                                 ) : bendaharaList.length === 0 ? (
-                                    <div className="p-3 bg-gray-100 border border-gray-300 rounded-md text-center text-gray-500">
+                                    <div className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-center text-gray-500 dark:text-gray-400">
                                         Tidak ada data bendahara. Pastikan ada user dengan role "bendahara" di Keycloak.
                                     </div>
                                 ) : (
                                     <select
                                         value={selectedBendaharaId}
                                         onChange={handleBendaharaChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         required
                                     >
                                         <option value="">-- Pilih Bendahara --</option>
@@ -1176,25 +1176,25 @@ const KegiatanForm = ({
                                         })}
                                     </select>
                                 )}
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     Data bendahara diambil dari Keycloak dengan role "bendahara"
                                 </p>
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Bendahara yang Dipilih
                                 </label>
-                                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md min-h-[80px]">
+                                <div className="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md min-h-[80px]">
                                     {selectedBendaharaNama ? (
                                         <div>
-                                            <div className="font-medium text-gray-900">{selectedBendaharaNama}</div>
+                                            <div className="font-medium text-gray-900 dark:text-gray-100">{selectedBendaharaNama}</div>
                                             {selectedBendaharaNip && (
-                                                <div className="text-sm text-gray-600 mt-1">
+                                                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                                                     <span className="font-medium">NIP:</span> {selectedBendaharaNip}
                                                 </div>
                                             )}
-                                            <div className="text-xs text-green-600 mt-2 flex items-center">
+                                            <div className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center">
                                                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                 </svg>
@@ -1202,7 +1202,7 @@ const KegiatanForm = ({
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-gray-500 italic">Belum memilih bendahara</div>
+                                        <div className="text-gray-500 dark:text-gray-400 italic">Belum memilih bendahara</div>
                                     )}
                                 </div>
                             </div>

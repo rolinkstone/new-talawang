@@ -58,15 +58,15 @@ const Status2Modal = ({ show, onClose, item, onSave, isLoading }) => {
 
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div className="mt-3">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-medium text-gray-900">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
                             Ubah Status 2
                         </h3>
                         <button
                             onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500"
+                            className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300"
                         >
                             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -74,43 +74,43 @@ const Status2Modal = ({ show, onClose, item, onSave, isLoading }) => {
                         </button>
                     </div>
                     
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        <div className="text-sm text-blue-700">
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-md">
+                        <div className="text-sm text-blue-700 dark:text-blue-200">
                             <span className="font-medium">Kegiatan:</span> {item.kegiatan}
                         </div>
-                        <div className="text-sm text-blue-700">
+                        <div className="text-sm text-blue-700 dark:text-blue-200">
                             <span className="font-medium">MAK:</span> {item.mak}
                         </div>
-                        <div className="text-sm text-blue-700">
+                        <div className="text-sm text-blue-700 dark:text-blue-200">
                             <span className="font-medium">Status Saat Ini:</span> {item.status}
                         </div>
                     </div>
                     
                     <form onSubmit={handleSubmit}>
                         <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Status 2 *
                             </label>
                             <select
                                 name="status_2"
                                 value={formData.status_2}
                                 onChange={handleSelectChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 required
-                            >
+>
                                 {status2Options.map((option) => (
                                     <option key={option.value} value={option.value}>
                                         {option.label}
                                     </option>
                                 ))}
                             </select>
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Pilih status tambahan untuk kegiatan yang sudah selesai
                             </p>
                         </div>
                         
                         <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Catatan Status 2 (Opsional)
                             </label>
                             <textarea
@@ -118,19 +118,19 @@ const Status2Modal = ({ show, onClose, item, onSave, isLoading }) => {
                                 value={formData.catatan_status_2}
                                 onChange={handleChange}
                                 rows="3"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 placeholder="Tambahkan catatan atau penjelasan untuk status 2 ini..."
                             />
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Catatan akan disimpan di riwayat perubahan
                             </p>
                         </div>
                         
-                        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition duration-150 ease-in-out"
+                                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition duration-150 ease-in-out"
                                 disabled={isLoading}
                             >
                                 Batal

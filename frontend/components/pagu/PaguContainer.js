@@ -252,40 +252,40 @@ export default function PaguContainer({ session, status }) {
 
       {/* Summary Cards */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm font-medium text-gray-500">Total Pagu</p>
-          <p className="text-2xl font-bold text-indigo-600 mt-1">Rp {formatRupiah(totals.totalPagu)}</p>
-          <p className="text-xs text-gray-400 mt-1">{groupedData.length} MAK unik</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Pagu</p>
+          <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">Rp {formatRupiah(totals.totalPagu)}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{groupedData.length} MAK unik</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm font-medium text-gray-500">Total Realisasi</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">Rp {formatRupiah(totals.totalRealisasi)}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Realisasi</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">Rp {formatRupiah(totals.totalRealisasi)}</p>
           {totals.totalPagu > 0 && (
             <div className="mt-2">
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
                 <div
                   className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${Math.min((totals.totalRealisasi / totals.totalPagu) * 100, 100)}%` }}
                 ></div>
               </div>
-              <p className="text-xs text-blue-500 mt-1 font-medium">
+              <p className="text-xs text-blue-500 dark:text-blue-400 mt-1 font-medium">
                 {(totals.totalRealisasi / totals.totalPagu * 100).toFixed(1)}%
               </p>
             </div>
           )}
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm font-medium text-gray-500">Total Sisa</p>
-          <p className={`text-2xl font-bold mt-1 ${totals.totalSisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Sisa</p>
+          <p className={`text-2xl font-bold mt-1 ${totals.totalSisa < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
             Rp {formatRupiah(totals.totalSisa)}
           </p>
           {totals.totalPagu > 0 && (
-            <p className="text-xs text-blue-500 mt-1 font-medium">
+            <p className="text-xs text-blue-500 dark:text-blue-400 mt-1 font-medium">
               {(totals.totalRealisasi / totals.totalPagu * 100).toFixed(1)}% terealisasi
             </p>
           )}
           {lastUpdateTime && (
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               🕐 Terakhir diupdate: {lastUpdateTime}
             </p>
           )}
@@ -293,14 +293,14 @@ export default function PaguContainer({ session, status }) {
       </div>
 
       {/* Filter */}
-      <div className="mb-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tahun</label>
             <select
               value={filterTahun}
               onChange={(e) => setFilterTahun(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Semua Tahun</option>
               {tahunList.map(tahun => (
@@ -309,11 +309,11 @@ export default function PaguContainer({ session, status }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Kode</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Kode</label>
             <select
               value={filterKode}
               onChange={(e) => setFilterKode(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Semua Kode</option>
               {kodeList.map(k => (
@@ -322,11 +322,11 @@ export default function PaguContainer({ session, status }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jenis MAK</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Jenis MAK</label>
             <select
               value={filterJenis}
               onChange={(e) => setFilterJenis(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Semua Jenis</option>
               {jenisList.map(j => (
@@ -335,13 +335,13 @@ export default function PaguContainer({ session, status }) {
             </select>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cari MAK</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Cari MAK</label>
             <input
               type="text"
               value={searchMak}
               onChange={(e) => setSearchMak(e.target.value)}
               placeholder="Cari MAK asli atau singkatan..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         </div>
@@ -349,13 +349,13 @@ export default function PaguContainer({ session, status }) {
 
       {/* Info update terakhir */}
       {lastUpdateTime && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="flex items-center space-x-2">
             <span className="flex h-2.5 w-2.5 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
             </span>
-            <p className="text-sm text-blue-700">
+            <p className="text-sm text-blue-700 dark:text-blue-200">
               <span className="font-medium">Data terakhir diupdate:</span>{' '}
               <span className="font-semibold">{lastUpdateTime}</span>
             </p>
@@ -364,20 +364,20 @@ export default function PaguContainer({ session, status }) {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">No</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">MAK</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Pagu</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Realisasi</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">%</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Sisa</th>                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase">Aksi</th>}
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">No</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">MAK</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Pagu</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Realisasi</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">%</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Sisa</th>                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Aksi</th>}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedData.length > 0 ? (
                 paginatedData.map((item, index) => {
                   const rowNumber = (currentPage - 1) * itemsPerPage + index + 1;
@@ -385,22 +385,22 @@ export default function PaguContainer({ session, status }) {
                   const sisaColor = sisa < 0 ? 'text-red-600' : sisa < item.pagu * 0.1 ? 'text-yellow-600' : 'text-green-600';
 
                   return (
-                    <tr key={item.formattedMak} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{rowNumber}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <tr key={item.formattedMak} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{rowNumber}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                         <span title={item.mak}>{item.formattedMak}</span>
                         {item.count > 1 && (
-                          <span className="ml-2 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 rounded-full">{item.count}x</span>
+                          <span className="ml-2 px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-full">{item.count}x</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right">Rp {formatRupiah(item.pagu)}</td>
-                      <td className="px-4 py-3 text-sm text-right">Rp {formatRupiah(item.realisasi)}</td>
+                      <td className="px-4 py-3 text-sm text-right dark:text-gray-200">Rp {formatRupiah(item.pagu)}</td>
+                      <td className="px-4 py-3 text-sm text-right dark:text-gray-200">Rp {formatRupiah(item.realisasi)}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         <div className="flex flex-col items-end">
-                          <span className="text-blue-600 font-medium">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">
                             {item.pagu > 0 ? (item.realisasi / item.pagu * 100).toFixed(1) + '%' : '0%'}
                           </span>
-                          <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div className="w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 mt-1">
                             <div
                               className="bg-blue-500 h-1.5 rounded-full"
                               style={{ width: `${Math.min((item.pagu > 0 ? item.realisasi / item.pagu : 0) * 100, 100)}%` }}
@@ -436,7 +436,7 @@ export default function PaguContainer({ session, status }) {
                 })
               ) : (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     {searchMak || filterTahun ? 'Tidak ada data sesuai filter' : 'Belum ada data pagu'}
                   </td>
                 </tr>
@@ -447,15 +447,15 @@ export default function PaguContainer({ session, status }) {
 
         {/* Pagination */}
         {groupedData.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200">
-            <div className="text-sm text-gray-600">
+          <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               Menampilkan {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, groupedData.length)} dari {groupedData.length} MAK
             </div>
             <div className="flex items-center space-x-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition dark:text-gray-200"
               >
                 Prev
               </button>
@@ -466,7 +466,7 @@ export default function PaguContainer({ session, status }) {
                   className={`px-3 py-1 text-sm border rounded-md transition ${
                     currentPage === page
                       ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'border-gray-300 hover:bg-gray-50'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200'
                   }`}
                 >
                   {page}
@@ -475,7 +475,7 @@ export default function PaguContainer({ session, status }) {
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition dark:text-gray-200"
               >
                 Next
               </button>

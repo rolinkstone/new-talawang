@@ -106,14 +106,14 @@ export default function SuratTugasModal({ show, kegiatan, onClose, onSuccess }) 
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-                <div className="flex justify-between items-center p-6 border-b">
-                    <h2 className="text-xl font-semibold text-gray-800">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+                <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
+                    <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
                         Input Surat Tugas
                     </h2>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                         disabled={loading}
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,19 +123,19 @@ export default function SuratTugasModal({ show, kegiatan, onClose, onSuccess }) 
                 </div>
 
                 {kegiatan && (
-                    <div className="p-6 border-b bg-gray-50">
+                    <div className="p-6 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                         <div className="space-y-2">
                             <div className="flex items-start">
-                                <span className="text-sm font-medium text-gray-600 w-24">Kegiatan:</span>
-                                <span className="text-sm text-gray-800 flex-1">{kegiatan.kegiatan}</span>
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-24">Kegiatan:</span>
+                                <span className="text-sm text-gray-800 dark:text-gray-100 flex-1">{kegiatan.kegiatan}</span>
                             </div>
                             <div className="flex items-start">
-                                <span className="text-sm font-medium text-gray-600 w-24">MAK:</span>
-                                <span className="text-sm text-gray-800 flex-1">{kegiatan.mak || '-'}</span>
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-24">MAK:</span>
+                                <span className="text-sm text-gray-800 dark:text-gray-100 flex-1">{kegiatan.mak || '-'}</span>
                             </div>
                             <div className="flex items-start">
-                                <span className="text-sm font-medium text-gray-600 w-24">Status:</span>
-                                <span className="text-sm text-gray-800 flex-1">{kegiatan.status}</span>
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-24">Status:</span>
+                                <span className="text-sm text-gray-800 dark:text-gray-100 flex-1">{kegiatan.status}</span>
                             </div>
                         </div>
                     </div>
@@ -144,56 +144,56 @@ export default function SuratTugasModal({ show, kegiatan, onClose, onSuccess }) 
                 <form onSubmit={handleSubmit} className="p-6">
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Nomor Surat Tugas <span className="text-red-500">*</span>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Nomor Surat Tugas <span className="text-red-500 dark:text-red-400">*</span>
                             </label>
                             <input
                                 type="text"
                                 name="no_st"
                                 value={formData.no_st}
                                 onChange={handleInputChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 placeholder="Contoh: ST/BPPK/2024/001"
                                 required
                                 disabled={loading}
                             />
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Format: ST/[Unit Kerja]/[Tahun]/[Nomor Urut]
                             </p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Tanggal Surat Tugas <span className="text-red-500">*</span>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Tanggal Surat Tugas <span className="text-red-500 dark:text-red-400">*</span>
                             </label>
                             <input
                                 type="date"
                                 name="tgl_st"
                                 value={formData.tgl_st}
                                 onChange={handleInputChange}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 required
                                 disabled={loading}
                             />
                         </div>
 
                         {error && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md">
                                 <div className="flex items-center">
-                                    <svg className="h-5 w-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="h-5 w-5 text-red-400 dark:text-red-300 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                     </svg>
-                                    <span className="text-sm text-red-700">{error}</span>
+                                    <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <div className="flex justify-end space-x-3 pt-6 mt-6 border-t">
+                    <div className="flex justify-end space-x-3 pt-6 mt-6 border-t dark:border-gray-700">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                             disabled={loading}
                         >
                             Batal

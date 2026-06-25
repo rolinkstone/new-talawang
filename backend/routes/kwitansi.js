@@ -700,6 +700,165 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
     }
 });
 
+// ============ GET need-kwitansi-bendahara-history ============
+router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const userNip = user?.nip || '';
+        const userId = getUserId(user);
+        const roleInfo = getUserRoleInfo(user);
+        const normalizedUserNip = normalizeNip(userNip);
+        
+        let cutoffParam = '';
+        try {
+            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
+            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
+        } catch (e) {}
+        
+        console.log('👤 User info for need-kwitansi-bendahara-history:', {
+            nip: normalizedUserNip,
+            userId: userId,
+            isAdmin: roleInfo.isAdmin,
+            isBendahara: roleInfo.isBendahara
+        });
+        
+        if (!roleInfo.isBendahara && !roleInfo.isAdmin) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Hanya Bendahara atau Admin yang dapat mengakses riwayat ini' 
+            });
+        }
+        
+        let kegiatanQuery = '';
+        let queryParams = [];
+        
+        if (roleInfo.isAdmin) {
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND k.status_bendahara = 'sudah'
+                AND UPPER(n.status_2) = 'SELESAI'
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [];
+            console.log('👑 Admin mode: melihat semua riwayat Bendahara');
+        } else {
+            // Bendahara bisa melihat semua data yang sudah disetujui bendahara
+            kegiatanQuery = `
+                SELECT DISTINCT 
+                    n.id, n.kegiatan, n.mak, n.kota_kab_kecamatan, n.no_st, n.tgl_st,
+                    n.status, 
+                    n.ppk_nama, n.ppk_id, n.ppk_nip,
+                    n.bendahara_nama, n.bendahara_nip, n.bendahara_id,
+                    n.diketahui_oleh, n.diketahui_oleh_id, n.created_at,
+                    n.status_2, n.catatan_status_2,
+                    n.rencana_tanggal_pelaksanaan,
+                    n.rencana_tanggal_pelaksanaan_akhir
+                FROM nominatif_kegiatan n
+                JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
+                JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
+                WHERE n.status = 'selesai'
+                AND k.status_bendahara = 'sudah'
+                AND UPPER(n.status_2) = 'SELESAI'
+                ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
+                ORDER BY n.created_at DESC
+            `;
+            queryParams = [];
+            console.log('💰 Bendahara mode: melihat semua riwayat Bendahara');
+        }
+        
+        console.log('📝 Query:', kegiatanQuery);
+        console.log('📝 Params:', queryParams);
+        
+        const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
+        
+        const result = [];
+        for (const kegiatan of kegiatanList) {
+            const pegawaiQuery = `
+                SELECT 
+                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
+                    k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
+                    COALESCE(k.status_pegawai, 'belum') as status_pegawai,
+                    COALESCE(k.status_ppk, 'belum') as status_ppk,
+                    COALESCE(k.status_bendahara, 'belum') as status_bendahara,
+                    k.tgl_ttd_pegawai, k.tgl_ttd_ppk, k.tgl_ttd_bendahara,
+                    k.catatan_pegawai, k.catatan_ppk, k.catatan_bendahara,
+                    CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
+                FROM nominatif_pegawai p
+                LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
+                WHERE p.kegiatan_id = ?
+                ORDER BY p.id ASC
+            `;
+            
+            const [pegawaiList] = await db.query(pegawaiQuery, [kegiatan.id]);
+            
+            if (pegawaiList.length === 0) continue;
+            
+            for (const pegawai of pegawaiList) {
+                const [biayaList] = await db.query(`
+                    SELECT id as biaya_id 
+                    FROM nominatif_biaya_kegiatan 
+                    WHERE pegawai_id = ?
+                `, [pegawai.id]);
+                
+                let transportasi = [], uangHarian = [], penginapan = [];
+                
+                if (biayaList.length > 0) {
+                    const biayaIds = biayaList.map(b => b.biaya_id);
+                    
+                    [transportasi] = await db.query(`
+                        SELECT id, trans as jenis, harga, total, biaya_id
+                        FROM nominatif_transportasi WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    [uangHarian] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_uang_harian_items WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                    
+                    for (const uh of uangHarian) {
+                        uh.rencana_tanggal_pelaksanaan = kegiatan.rencana_tanggal_pelaksanaan || null;
+                        uh.rencana_tanggal_pelaksanaan_akhir = kegiatan.rencana_tanggal_pelaksanaan_akhir || null;
+                    }
+                    
+                    [penginapan] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_penginapan_items WHERE biaya_id IN (?)
+                    `, [biayaIds]);
+                }
+                
+                pegawai.transport_detail = transportasi;
+                pegawai.uang_harian_detail = uangHarian;
+                pegawai.penginapan_detail = penginapan;
+            }
+            
+            result.push({
+                ...kegiatan,
+                pegawai: pegawaiList
+            });
+        }
+        
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('❌ Error in need-kwitansi-bendahara-history:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // ============ POST create new kwitansi ============
 router.post('/', keycloakAuth, async (req, res) => {
     try {

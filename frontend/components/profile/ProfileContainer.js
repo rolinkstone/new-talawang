@@ -192,11 +192,11 @@ const fetchProfile = async () => {
 
     const userRoles = profile?.roles || [];
     const roleBadge = () => {
-        if (userRoles.includes('admin')) return 'bg-red-100 text-red-800';
-        if (userRoles.includes('ppk')) return 'bg-blue-100 text-blue-800';
-        if (userRoles.includes('kabalai')) return 'bg-purple-100 text-purple-800';
-        if (userRoles.includes('bendahara')) return 'bg-green-100 text-green-800';
-        return 'bg-gray-100 text-gray-800';
+        if (userRoles.includes('admin')) return 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200';
+        if (userRoles.includes('ppk')) return 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200';
+        if (userRoles.includes('kabalai')) return 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200';
+        if (userRoles.includes('bendahara')) return 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
     };
 
     const roleName = () => {
@@ -211,28 +211,28 @@ const fetchProfile = async () => {
         <div className="max-w-4xl mx-auto p-6">
             {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Profil Saya</h1>
-                <p className="text-gray-600 mt-1">Kelola informasi profil dan tanda tangan digital Anda</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Profil Saya</h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">Kelola informasi profil dan tanda tangan digital Anda</p>
             </div>
 
             {/* Error Message */}
             {error && (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
                     <div className="flex items-center">
-                        <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-red-500 dark:text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-red-700">{error}</span>
+                        <span className="text-red-700 dark:text-red-300">{error}</span>
                     </div>
                 </div>
             )}
 
             {/* Profile Card */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
                 {/* Profile Header with Avatar */}
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-8">
                     <div className="flex items-center space-x-4">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center">
+                        <div className="w-20 h-20 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center">
                             <svg className="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                             </svg>
@@ -251,7 +251,7 @@ const fetchProfile = async () => {
                 <div className="p-6 space-y-6">
                     {/* Informasi Dasar */}
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Informasi Dasar</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 border-b dark:border-gray-700 pb-2">Informasi Dasar</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <InfoItem label="Username" value={profile?.username} />
                             <InfoItem label="Nama Lengkap" value={profile?.nama_lengkap} />
@@ -266,11 +266,11 @@ const fetchProfile = async () => {
 
                     {/* Tanda Tangan Digital */}
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Tanda Tangan Digital</h3>
-                        <div className="bg-gray-50 rounded-lg p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 border-b dark:border-gray-700 pb-2">Tanda Tangan Digital</h3>
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                             <div className="flex items-center justify-between flex-wrap gap-4">
                                 <div>
-                                    <p className="text-sm text-gray-600 mb-1">Status Tanda Tangan:</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">Status Tanda Tangan:</p>
                                     {hasTtd ? (
                                         <div className="flex items-center text-green-600">
                                             <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -278,7 +278,7 @@ const fetchProfile = async () => {
                                             </svg>
                                             <span className="font-medium">Sudah diupload</span>
                                             {profile?.ttd_uploaded_at && (
-                                                <span className="text-xs text-gray-500 ml-2">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                                                     (Upload: {new Date(profile.ttd_uploaded_at).toLocaleDateString('id-ID')})
                                                 </span>
                                             )}
@@ -346,7 +346,7 @@ const fetchProfile = async () => {
                                 </div>
                             </div>
                             {hasTtd && (
-                                <div className="mt-3 text-xs text-gray-500">
+                                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                                     Format yang didukung: JPG, JPEG, PNG (maks 2MB)
                                 </div>
                             )}
@@ -425,9 +425,9 @@ const fetchProfile = async () => {
 // Helper component untuk info item
 function InfoItem({ label, value }) {
     return (
-        <div className="border-b pb-2">
-            <p className="text-xs text-gray-500">{label}</p>
-            <p className="text-sm font-medium text-gray-900 mt-1">{value || '-'}</p>
+        <div className="border-b dark:border-gray-700 pb-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-1">{value || '-'}</p>
         </div>
     );
 }

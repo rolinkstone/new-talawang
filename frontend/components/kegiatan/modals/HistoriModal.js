@@ -315,27 +315,27 @@ const HistoriModal = ({
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div 
-          className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl"
+          className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-start justify-between p-6 border-b">
+          <div className="flex items-start justify-between p-6 border-b dark:border-gray-700">
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-900">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 {getModalTitle()}
               </h3>
               <div className="mt-2 flex items-center gap-4">
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 dark:text-gray-300">
                   ID Kegiatan: {item.id}
                 </span>
-                <span className="text-sm text-gray-500 truncate max-w-xs">
+                <span className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
                   {item.kegiatan}
                 </span>
               </div>
             </div>
             <button
               type="button"
-              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
               onClick={onClose}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -350,26 +350,26 @@ const HistoriModal = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  statusConfig[item.status]?.color || 'bg-gray-200 text-gray-800'
+                  statusConfig[item.status]?.color || 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}>
                   {statusConfig[item.status]?.label || item.status}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   Terakhir diperbarui: {formatDate(item.updated_at)}
                 </span>
               </div>
               {showSuratTugasInfo && (
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-gray-900">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {item.no_st || 'No. ST belum diisi'}
                   </div>
                   {validTglST ? (
-                    <div className="text-xs text-gray-500 flex items-center justify-end gap-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-end gap-1">
                       {icons.calendar}
                       <span>Tanggal: {formatDate(item.tgl_st)}</span>
                     </div>
                   ) : (
-                    <div className="text-xs text-yellow-600 flex items-center justify-end gap-1">
+                    <div className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center justify-end gap-1">
                       {icons.warning}
                       <span>Tanggal ST belum diisi</span>
                     </div>
@@ -380,7 +380,7 @@ const HistoriModal = ({
 
             {/* Timeline */}
             <div className="space-y-4">
-              <h4 className="font-semibold text-gray-900">Riwayat Status</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100">Riwayat Status</h4>
               <div className="space-y-6">
                 {timelineItems.map((timelineItem) => (
                   <div key={timelineItem.id} className="flex items-start">
@@ -391,31 +391,31 @@ const HistoriModal = ({
                     
                     {/* Content */}
                     <div className="ml-4 flex-1">
-                      <div className="font-medium text-gray-900">{timelineItem.title}</div>
-                      <div className="text-sm text-gray-500 mt-0.5">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{timelineItem.title}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                         {formatDate(timelineItem.date)}
                       </div>
-                      <div className="mt-1 text-sm text-gray-600">
+                      <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                         {timelineItem.description}
                       </div>
                       
                       {/* Catatan */}
                       {timelineItem.note && !timelineItem.hasValidTglST && (
-                        <div className="mt-2 text-sm text-gray-600 italic">
-                          <span className="font-medium">Catatan: </span>{timelineItem.note}
+                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-300 italic">
+                          <span className="font-medium dark:text-gray-200">Catatan: </span>{timelineItem.note}
                         </div>
                       )}
                       
                       {/* Warning untuk ST */}
                       {timelineItem.showWarning && !timelineItem.hasValidTglST && (
-                        <div className="mt-3 flex items-start p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <div className="mt-3 flex items-start p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-md">
                           {icons.warning}
                           <div className="ml-2">
-                            <span className="text-sm font-medium text-yellow-700">
+                            <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
                               {item.tgl_st ? 'Format tanggal ST tidak valid' : 'Tanggal ST belum diisi'}
                             </span>
                             {timelineItem.isSelesaiStatus && (
-                              <div className="text-xs text-yellow-600 mt-1">
+                              <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
                                 Untuk status "Selesai", mohon lengkapi tanggal ST
                               </div>
                             )}
@@ -438,8 +438,8 @@ const HistoriModal = ({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between p-6 border-t">
-            <div className="text-sm text-gray-600">
+          <div className="flex items-center justify-between p-6 border-t dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
                 {item.status === 'selesai' ? (
                     <div className="flex items-center">
                         <div className="w-4 h-4 mr-2 text-green-500">
@@ -468,7 +468,7 @@ const HistoriModal = ({
             </div>
             <button
                 type="button"
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                 onClick={onClose}
             >
                 Tutup

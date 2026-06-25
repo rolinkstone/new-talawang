@@ -9,7 +9,7 @@ const LoadingSpinner = () => (
     <div className="flex justify-center items-center min-h-screen">
         <div className="relative">
             <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-600"></div>
-            <div className="mt-3 text-gray-600 font-medium">Memuat...</div>
+            <div className="mt-3 text-gray-600 dark:text-gray-300 font-medium">Memuat...</div>
         </div>
     </div>
 );
@@ -91,7 +91,7 @@ export default function SettingsPage() {
     return (
         <DashboardLayout>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
                 <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4">
                     <h1 className="text-2xl font-bold text-white">Pengaturan Aplikasi</h1>
                     <p className="text-indigo-100 mt-1">Konfigurasi sistem Talawang Keuangan</p>
@@ -109,8 +109,8 @@ export default function SettingsPage() {
                                 />
                             </a>
                         </div>
-                        <h2 className="text-xl font-semibold text-gray-800 mb-3">Akses Terbatas</h2>
-                        <p className="text-gray-600 mb-6">Halaman ini hanya untuk admin.</p>
+                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-3">Akses Terbatas</h2>
+                        <p className="text-gray-600 dark:text-gray-400 mb-6">Halaman ini hanya untuk admin.</p>
                         <button onClick={() => router.push('/')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Kembali ke Dashboard</button>
                     </div>
                 ) : loading ? (
@@ -118,27 +118,27 @@ export default function SettingsPage() {
                 ) : (
                     <div className="p-6 space-y-6">
                         {message && (
-                            <div className={`p-4 rounded-lg ${messageType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                            <div className={`p-4 rounded-lg ${messageType === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
                                 {message}
                             </div>
                         )}
                         
                         {/* Card: Cutoff Date LPD */}
-                        <div className="border border-gray-200 rounded-lg p-5">
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5">
                             <div className="flex items-start gap-4">
-                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-gray-800">Tanggal Cutoff LPD & Kwitansi</h3>
+                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Tanggal Cutoff LPD & Kwitansi</h3>
                                     
                                     {/* Info tanggal tersimpan */}
                                     {settings.lpd_cutoff_date && (
-                                        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                                            <span className="text-blue-600">📅</span>
-                                            <span className="text-blue-800">
+                                        <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+                                            <span className="text-blue-600 dark:text-blue-300">📅</span>
+                                            <span className="text-blue-800 dark:text-blue-200">
                                                 <strong>Tanggal cutoff tersimpan:</strong> {settings.lpd_cutoff_date.value.substring(0, 10)}
                                             </span>
                                             {settings.lpd_cutoff_date.updated_at && (
@@ -149,17 +149,17 @@ export default function SettingsPage() {
                                         </div>
                                     )}
                                     
-                                    <p className="text-sm text-gray-600 mt-3">
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
                 Atur tanggal minimal <strong>nominatif dibuat</strong> agar muncul di halaman LPD dan Kwitansi.
                 Nominatif yang dibuat sebelum tanggal ini tidak akan muncul.
             </p>
                                     <div className="mt-4 flex items-center gap-3">
-                                        <label className="text-sm font-medium text-gray-700">Hanya nominatif sejak:</label>
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Hanya nominatif sejak:</label>
                                         <input
                                             type="date"
                                             value={cutoffDate}
                                             onChange={(e) => setCutoffDate(e.target.value)}
-                                            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            className="border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                         />
                                         <button
                                             onClick={handleSaveCutoff}
@@ -169,7 +169,7 @@ export default function SettingsPage() {
                                             {saving ? 'Menyimpan...' : 'Simpan'}
                                         </button>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-2">
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                                         Format: YYYY-MM-DD. Contoh: 2026-07-01 berarti hanya nominatif yang dibuat sejak 1 Juli 2026.
                                     </p>
                                 </div>
@@ -177,10 +177,10 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Informasi */}
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                             <div className="flex gap-3">
-                                <span className="text-yellow-600 text-lg">📌</span>
-                                <div className="text-sm text-yellow-800">
+                                <span className="text-yellow-600 dark:text-yellow-400 text-lg">📌</span>
+                                <div className="text-sm text-yellow-800 dark:text-yellow-200">
                                     <p className="font-medium">Yang perlu diketahui:</p>
                                     <ul className="list-disc list-inside mt-1 space-y-1">
                                         <li>Pengaturan ini hanya mempengaruhi halaman <strong>LPD</strong> dan <strong>Kwitansi</strong></li>

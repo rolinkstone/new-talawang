@@ -518,7 +518,7 @@ const PegawaiForm = ({
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <div>
-                    <h4 className="text-lg font-medium text-gray-800">Data Pegawai</h4>
+                    <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100">Data Pegawai</h4>
                     <div className={`text-sm px-3 py-1 rounded-full mt-1 inline-block ${
                         jenisSPM === 'LS' 
                             ? 'bg-blue-100 text-blue-800 border border-blue-200' 
@@ -531,8 +531,8 @@ const PegawaiForm = ({
                     </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                    <div className="text-sm text-gray-600">
-                        Total: <span className="font-bold text-green-700">Rp {formatRupiah(grandTotal)}</span>
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                        Total: <span className="font-bold text-green-700 dark:text-green-400">Rp {formatRupiah(grandTotal)}</span>
                     </div>
                     <button
                         type="button"
@@ -550,14 +550,14 @@ const PegawaiForm = ({
 
             {/* Info banner untuk KKP */}
             {jenisSPM === 'KKP' && (
-                <div className="p-3 bg-purple-50 border border-purple-200 rounded-md">
+                <div className="p-3 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-md">
                     <div className="flex items-start">
-                        <svg className="w-5 h-5 mr-2 text-purple-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                         <div>
-                            <div className="text-sm font-medium text-purple-800">Mode KKP (Kartu Kredit Pemerintah)</div>
-                            <div className="text-sm text-purple-700">
+                            <div className="text-sm font-medium text-purple-800 dark:text-purple-300">Mode KKP (Kartu Kredit Pemerintah)</div>
+                            <div className="text-sm text-purple-700 dark:text-purple-300">
                                 Hanya menghitung Transport. Inputan Uang Harian dan Penginapan akan diabaikan.
                             </div>
                         </div>
@@ -566,10 +566,10 @@ const PegawaiForm = ({
             )}
 
             {pegawaiList.map((pegawai, pIndex) => (
-                <div key={pIndex} className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                <div key={pIndex} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                         <div>
-                            <h5 className="font-medium text-gray-700">
+                            <h5 className="font-medium text-gray-700 dark:text-gray-200">
                                 Pegawai {pIndex + 1}
                                 {pegawai.pegawai_id && (
                                     <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
@@ -582,8 +582,8 @@ const PegawaiForm = ({
                                     </span>
                                 )}
                             </h5>
-                            <div className="text-sm text-gray-500">
-                                Total Biaya: <span className="font-bold text-green-700">Rp {formatRupiah(pegawai.total_biaya)}</span>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                Total Biaya: <span className="font-bold text-green-700 dark:text-green-400">Rp {formatRupiah(pegawai.total_biaya)}</span>
                                 {jenisSPM === 'KKP' && (
                                     <span className="ml-2 text-xs text-purple-600">
                                         (Hanya Transport)
@@ -609,9 +609,9 @@ const PegawaiForm = ({
                     {/* Data Diri Pegawai */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <div className="relative">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Nama *
-                                <span className="ml-2 text-xs text-gray-500">
+                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                                     (Ketik untuk mencari)
                                 </span>
                             </label>
@@ -625,8 +625,8 @@ const PegawaiForm = ({
                                     onKeyDown={(e) => handleKeyDown(e, pIndex)}
                                     className={`w-full px-3 py-2 border rounded-md pr-10 focus:outline-none focus:ring-2 ${
                                         pegawai.pegawai_id 
-                                            ? 'border-green-300 bg-green-50 focus:ring-green-500' 
-                                            : 'border-gray-300 focus:ring-indigo-500'
+                                            ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 focus:ring-green-500' 
+                                            : 'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:ring-indigo-500'
                                     }`}
                                     placeholder={pegawai.pegawai_id ? "Pegawai sudah dipilih" : "Cari nama pegawai..."}
                                     disabled={formLoading}
@@ -666,9 +666,9 @@ const PegawaiForm = ({
                             </div>
                             
                             {/* Status info */}
-                            <div className="mt-1 text-xs text-gray-500">
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 {pegawai.pegawai_id ? (
-                                    <span className="text-green-600 flex items-center">
+                                    <span className="text-green-600 dark:text-green-400 flex items-center">
                                         <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
@@ -685,43 +685,43 @@ const PegawaiForm = ({
                             {showSuggestions[pIndex] && !pegawai.pegawai_id && availableSuggestions && (
                                 <div 
                                     ref={el => suggestionRefs.current[pIndex] = el}
-                                    className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                    className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
                                 >
                                     {getFilteredSuggestions(pIndex).length > 0 ? (
                                         <>
-                                            <div className="px-3 py-2 bg-gray-50 border-b text-xs font-medium text-gray-700">
+                                            <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200">
                                                 Pilih pegawai ({getFilteredSuggestions(pIndex).length} tersedia)
                                             </div>
                                             {getFilteredSuggestions(pIndex).map((suggestion, idx) => (
                                                 <div
                                                     key={`${pIndex}-${idx}`}
-                                                    className={`px-3 py-2 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-indigo-50 ${
-                                                        selectedIndex === idx ? 'bg-indigo-100' : ''
+                                                    className={`px-3 py-2 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 ${
+                                                        selectedIndex === idx ? 'bg-indigo-100 dark:bg-indigo-900/50' : ''
                                                     }`}
                                                     onClick={() => handleSelectPegawai(pIndex, suggestion)}
                                                     onMouseDown={(e) => e.preventDefault()}
                                                     onMouseEnter={() => setSelectedIndex(idx)}
                                                 >
-                                                    <div className="font-medium text-gray-900">{suggestion.nama}</div>
-                                                    <div className="text-xs text-gray-600 mt-1">
+                                                    <div className="font-medium text-gray-900 dark:text-gray-100">{suggestion.nama}</div>
+                                                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                                                         {suggestion.nip && (
-                                                            <span className="inline-block mr-2 px-2 py-0.5 bg-gray-100 rounded">
+                                                            <span className="inline-block mr-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 dark:text-gray-300 rounded">
                                                                 NIP: {suggestion.nip}
                                                             </span>
                                                         )}
                                                         {suggestion.pangkat && (
-                                                            <span className="inline-block mr-2 px-2 py-0.5 bg-green-100 text-green-800 rounded">
+                                                            <span className="inline-block mr-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 rounded">
                                                                 Pangkat: {suggestion.pangkat}
                                                             </span>
                                                         )}
                                                         {suggestion.jabatan && (
-                                                            <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                                                            <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded">
                                                                 {suggestion.jabatan}
                                                             </span>
                                                         )}
                                                     </div>
                                                     {suggestion.username && (
-                                                        <div className="text-xs text-gray-500 mt-1">
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                             Username: {suggestion.username}
                                                         </div>
                                                     )}
@@ -729,10 +729,10 @@ const PegawaiForm = ({
                                             ))}
                                         </>
                                     ) : (
-                                        <div className="px-3 py-3 text-gray-500 text-center">
+                                        <div className="px-3 py-3 text-gray-500 dark:text-gray-400 text-center">
                                             {searchTerms[pIndex]?.length >= 1 ? (
                                                 <div>
-                                                    <svg className="w-6 h-6 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-6 h-6 mx-auto text-gray-400 dark:text-gray-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
                                                     Tidak ditemukan untuk "{searchTerms[pIndex]}"
@@ -760,7 +760,7 @@ const PegawaiForm = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 NIP
                             </label>
                             <input
@@ -769,15 +769,15 @@ const PegawaiForm = ({
                                 onChange={(e) => handlePegawaiChange(pIndex, 'nip', e.target.value)}
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                                     pegawai.pegawai_id 
-                                        ? 'border-green-300 bg-green-50 focus:ring-green-500' 
-                                        : 'border-gray-300 focus:ring-indigo-500'
+                                        ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 focus:ring-green-500' 
+                                        : 'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:ring-indigo-500'
                                 }`}
                                 disabled={formLoading || pegawai.pegawai_id}
                                 placeholder={pegawai.pegawai_id ? "Terisi otomatis" : "Akan terisi otomatis"}
                                 readOnly={pegawai.pegawai_id}
                             />
                             {pegawai.pegawai_id && (
-                                <div className="mt-1 text-xs text-green-600 flex items-center">
+                                <div className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center">
                                     <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                     </svg>
@@ -787,7 +787,7 @@ const PegawaiForm = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Pangkat
                             </label>
                             <input
@@ -796,15 +796,15 @@ const PegawaiForm = ({
                                 onChange={(e) => handlePegawaiChange(pIndex, 'pangkat', e.target.value)}
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                                     pegawai.pegawai_id 
-                                        ? 'border-green-300 bg-green-50 focus:ring-green-500' 
-                                        : 'border-gray-300 focus:ring-indigo-500'
+                                        ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 focus:ring-green-500' 
+                                        : 'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:ring-indigo-500'
                                 }`}
                                 disabled={formLoading || pegawai.pegawai_id}
                                 placeholder={pegawai.pegawai_id ? "Terisi otomatis" : "Akan terisi otomatis"}
                                 readOnly={pegawai.pegawai_id}
                             />
                             {pegawai.pegawai_id && (
-                                <div className="mt-1 text-xs text-green-600 flex items-center">
+                                <div className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center">
                                     <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                     </svg>
@@ -814,7 +814,7 @@ const PegawaiForm = ({
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Jabatan
                             </label>
                             <input
@@ -823,8 +823,8 @@ const PegawaiForm = ({
                                 onChange={(e) => handlePegawaiChange(pIndex, 'jabatan', e.target.value)}
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                                     pegawai.pegawai_id 
-                                        ? 'border-green-300 bg-green-50 focus:ring-green-500' 
-                                        : 'border-gray-300 focus:ring-indigo-500'
+                                        ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 focus:ring-green-500' 
+                                        : 'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:ring-indigo-500'
                                 }`}
                                 disabled={formLoading || pegawai.pegawai_id}
                                 placeholder={pegawai.pegawai_id ? "Terisi otomatis" : "Akan terisi otomatis"}
@@ -840,12 +840,12 @@ const PegawaiForm = ({
 
                     {/* Info jika pegawai sudah dipilih */}
                     {pegawai.pegawai_id && (
-                        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-md">
                             <div className="flex items-center">
-                                <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-4 h-4 mr-2 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
-                                <div className="text-sm text-green-700">
+                                <div className="text-sm text-green-700 dark:text-green-300">
                                     <span className="font-medium">Pegawai sudah dipilih dari sistem.</span> 
                                     <span className="ml-1">Tidak akan muncul di daftar pencarian untuk pegawai lain.</span>
                                 </div>
@@ -856,9 +856,9 @@ const PegawaiForm = ({
                     {/* Rincian Biaya */}
                     <div className="space-y-6 mt-6">
                         {/* Transportasi */}
-                        <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                             <div className="flex justify-between items-center mb-3">
-                                <h6 className="font-medium text-gray-700 flex items-center">
+                                <h6 className="font-medium text-gray-700 dark:text-gray-200 flex items-center">
                                     <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                     </svg>
@@ -879,31 +879,31 @@ const PegawaiForm = ({
                             {pegawai.biaya[0].transportasi.map((transport, tIndex) => (
                                 <div key={tIndex} className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 last:mb-0">
                                     <div>
-                                        <label className="block text-xs text-gray-600 mb-1">Jenis</label>
+                                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Jenis</label>
                                         <input
                                             type="text"
                                             placeholder="Berangkat/Pulang/Pesawat/dll"
                                             value={transport.trans}
                                             onChange={(e) => handleBiayaChange(pIndex, 0, 'transportasi', tIndex, 'trans', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                             disabled={formLoading}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-gray-600 mb-1">Harga (Rp)</label>
+                                        <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Harga (Rp)</label>
                                         <input
                                             type="number"
                                             placeholder="0"
                                             value={transport.harga}
                                             onChange={(e) => handleBiayaChange(pIndex, 0, 'transportasi', tIndex, 'harga', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                             disabled={formLoading}
                                         />
                                     </div>
                                     <div className="flex items-end space-x-2">
                                         <div className="flex-1">
-                                            <label className="block text-xs text-gray-600 mb-1">Total</label>
-                                            <div className="px-3 py-2 bg-gray-100 rounded text-sm font-medium">
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Total</label>
+                                            <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded text-sm font-medium dark:text-gray-200">
                                                 Rp {formatRupiah(transport.total)}
                                             </div>
                                         </div>
@@ -924,9 +924,9 @@ const PegawaiForm = ({
 
                         {/* Uang Harian - Hanya untuk LS */}
                         {jenisSPM === 'LS' && (
-                            <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                 <div className="flex justify-between items-center mb-3">
-                                    <h6 className="font-medium text-gray-700 flex items-center">
+                                    <h6 className="font-medium text-gray-700 dark:text-gray-200 flex items-center">
                                        <svg className="w-4 h-4 mr-2 text-green-500" viewBox="0 0 24 24">
                                             <text x="0" y="18" fontFamily="Arial" fontSize="18" fontWeight="bold">Rp</text>
                                         </svg>
@@ -935,7 +935,7 @@ const PegawaiForm = ({
                                     <button
                                         type="button"
                                         onClick={() => addBiayaItem(pIndex, 0, 'uang_harian_items')}
-                                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center"
                                         disabled={formLoading}
                                     >
                                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -947,42 +947,42 @@ const PegawaiForm = ({
                                 {pegawai.biaya[0].uang_harian_items.map((uh, uIndex) => (
                                     <div key={uIndex} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 last:mb-0">
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Jenis</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Jenis</label>
                                             <input
                                                 type="text"
                                                 placeholder="UH Biasa, UH Diklat, UH 8 Jam"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 value={uh.jenis}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'uang_harian_items', uIndex, 'jenis', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Qty</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Qty</label>
                                             <input
                                                 type="number"
                                                 placeholder="0"
                                                 value={uh.qty}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'uang_harian_items', uIndex, 'qty', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Harga (Rp)</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Harga (Rp)</label>
                                             <input
                                                 type="number"
                                                 placeholder="0"
                                                 value={uh.harga}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'uang_harian_items', uIndex, 'harga', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div className="flex items-end space-x-2">
                                             <div className="flex-1">
-                                                <label className="block text-xs text-gray-600 mb-1">Total</label>
-                                                <div className="px-3 py-2 bg-gray-100 rounded text-sm font-medium">
+                                                <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Total</label>
+                                                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded text-sm font-medium dark:text-gray-200">
                                                     Rp {formatRupiah(uh.total)}
                                                 </div>
                                             </div>
@@ -1004,9 +1004,9 @@ const PegawaiForm = ({
 
                         {/* Penginapan - Hanya untuk LS */}
                         {jenisSPM === 'LS' && (
-                            <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                 <div className="flex justify-between items-center mb-3">
-                                    <h6 className="font-medium text-gray-700 flex items-center">
+                                    <h6 className="font-medium text-gray-700 dark:text-gray-200 flex items-center">
                                         <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                         </svg>
@@ -1015,7 +1015,7 @@ const PegawaiForm = ({
                                     <button
                                         type="button"
                                         onClick={() => addBiayaItem(pIndex, 0, 'penginapan_items')}
-                                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center"
                                         disabled={formLoading}
                                     >
                                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1027,42 +1027,42 @@ const PegawaiForm = ({
                                 {pegawai.biaya[0].penginapan_items.map((penginapan, pIdx) => (
                                     <div key={pIdx} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 last:mb-0">
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Jenis</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Jenis</label>
                                             <input
                                                 type="text"
                                                 placeholder="Hotel/Penginapan"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 value={penginapan.jenis}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'penginapan_items', pIdx, 'jenis', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Qty (Malam)</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Qty (Malam)</label>
                                             <input
                                                 type="number"
                                                 placeholder="0"
                                                 value={penginapan.qty}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'penginapan_items', pIdx, 'qty', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Harga (Rp)</label>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Harga (Rp)</label>
                                             <input
                                                 type="number"
                                                 placeholder="0"
                                                 value={penginapan.harga}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'penginapan_items', pIdx, 'harga', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 disabled={formLoading}
                                             />
                                         </div>
                                         <div className="flex items-end space-x-2">
                                             <div className="flex-1">
-                                                <label className="block text-xs text-gray-600 mb-1">Total</label>
-                                                <div className="px-3 py-2 bg-gray-100 rounded text-sm font-medium">
+                                                <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Total</label>
+                                                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded text-sm font-medium dark:text-gray-200">
                                                     Rp {formatRupiah(penginapan.total)}
                                                 </div>
                                             </div>

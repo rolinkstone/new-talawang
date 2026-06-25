@@ -117,7 +117,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 />
                 
                 {/* Modal */}
-                <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                <div className="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
                     <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -147,17 +147,17 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     
                     <div className="px-6 py-5">
                         {/* Info Kegiatan */}
-                        <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 p-4">
                             <div className="mb-3">
-                                <h4 className="text-lg font-semibold text-gray-900">{kegiatan.kegiatan}</h4>
+                                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{kegiatan.kegiatan}</h4>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                                    <span className="rounded-full bg-blue-100 dark:bg-blue-900/50 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-200">
                                         No. ST: {kegiatan.no_st || 'Belum ada'}
                                     </span>
-                                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                                    <span className="rounded-full bg-green-100 dark:bg-green-900/50 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-200">
                                         MAK: {kegiatan.mak || 'Belum diisi'}
                                     </span>
-                                    <span className="rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
+                                    <span className="rounded-full bg-yellow-100 dark:bg-yellow-900/50 px-2.5 py-0.5 text-xs font-medium text-yellow-800 dark:text-yellow-200">
                                         Status: {kegiatan.status || 'Draft'}
                                     </span>
                                 </div>
@@ -165,14 +165,14 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             
                             <div className="grid grid-cols-2 gap-3 text-sm">
                                 <div className="space-y-1">
-                                    <div className="text-gray-500">Total Biaya</div>
-                                    <div className="font-semibold text-lg text-green-700">
+                                    <div className="text-gray-500 dark:text-gray-400">Total Biaya</div>
+                                    <div className="font-semibold text-lg text-green-700 dark:text-green-400">
                                         Rp {Number(kegiatan.total_nominatif || 0).toLocaleString('id-ID')}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <div className="text-gray-500">Tanggal Diajukan</div>
-                                    <div className="font-semibold text-gray-700">
+                                    <div className="text-gray-500 dark:text-gray-400">Tanggal Diajukan</div>
+                                    <div className="font-semibold text-gray-700 dark:text-gray-200">
                                         {kegiatan.tanggal_diajukan ? new Date(kegiatan.tanggal_diajukan).toLocaleDateString('id-ID') : '-'}
                                     </div>
                                 </div>
@@ -181,7 +181,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                         
                         {/* Pilihan Aksi */}
                         <div className="mb-6">
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Pilih Tindakan *
                             </label>
                             <div className="grid grid-cols-2 gap-3">
@@ -190,8 +190,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     onClick={() => setAction('setuju')}
                                     className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all ${
                                         action === 'setuju'
-                                            ? 'border-green-500 bg-green-50 text-green-700'
-                                            : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                                            ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                            : 'border-gray-200 dark:border-gray-600 hover:border-green-300 hover:bg-green-50 dark:hover:bg-green-900/30'
                                     }`}
                                     disabled={loading}
                                 >
@@ -211,8 +211,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                     onClick={() => setAction('kembalikan')}
                                     className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all ${
                                         action === 'kembalikan'
-                                            ? 'border-red-500 bg-red-50 text-red-700'
-                                            : 'border-gray-200 hover:border-red-300 hover:bg-red-50'
+                                            ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                            : 'border-gray-200 dark:border-gray-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-900/30'
                                     }`}
                                     disabled={loading}
                                 >
@@ -225,15 +225,15 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             </div>
                             
                             {error && (
-                                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                                    <p className="text-sm text-red-600">{error}</p>
+                                <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md">
+                                    <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
                                 </div>
                             )}
                         </div>
                         
                         {/* Catatan Input */}
                         <div className="mb-6">
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Catatan {action === 'kembalikan' ? 'Pengembalian' : 'Persetujuan'}
                                 {action === 'kembalikan' && <span className="ml-1 text-red-500">*</span>}
                             </label>
@@ -241,7 +241,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 value={catatan}
                                 onChange={(e) => setCatatan(e.target.value)}
                                 rows={4}
-                                className="block w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                                className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
                                 placeholder={
                                     action === 'kembalikan' 
                                         ? 'Berikan alasan pengembalian...' 
@@ -250,7 +250,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 required={action === 'kembalikan'}
                                 disabled={loading}
                             />
-                            <p className="mt-1.5 text-sm text-gray-500">
+                            <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
                                 {action === 'kembalikan' 
                                     ? 'Catatan wajib diisi untuk memberi tahu user alasan pengembalian'
                                     : 'Catatan opsional untuk memberikan informasi tambahan'}
@@ -258,14 +258,14 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                         </div>
                         
                         {/* Informasi */}
-                        <div className="rounded-lg bg-blue-50 p-4">
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/30 p-4">
                             <div className="flex">
-                                <svg className="h-5 w-5 flex-shrink-0 text-blue-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="h-5 w-5 flex-shrink-0 text-blue-500 dark:text-blue-300 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                                 </svg>
                                 <div className="ml-3">
-                                    <h4 className="text-sm font-medium text-blue-800">Informasi Penting</h4>
-                                    <div className="mt-1 text-sm text-blue-700 space-y-1">
+                                    <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">Informasi Penting</h4>
+                                    <div className="mt-1 text-sm text-blue-700 dark:text-blue-200 space-y-1">
                                         {kegiatan.status === 'diajukan' ? (
                                             <>
                                                 <p>• <span className="font-semibold">Setujui:</span> Status menjadi "Diketahui" dan diteruskan ke Kabalai</p>
@@ -286,13 +286,13 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     </div>
                     
                     {/* Footer / Actions */}
-                    <div className="bg-gray-50 px-6 py-4">
+                    <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4">
                         <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3">
                             <button
                                 type="button"
                                 onClick={handleCloseModal}
                                 disabled={loading}
-                                className="mt-3 inline-flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
+                                className="mt-3 inline-flex w-full justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-base font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm"
                             >
                                 Batal
                             </button>

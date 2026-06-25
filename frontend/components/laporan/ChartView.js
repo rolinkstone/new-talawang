@@ -33,7 +33,7 @@ export default function ChartView({ data, formatRupiah }) {
   
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-6 text-center">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
         <p className="text-gray-500">Tidak ada data untuk ditampilkan</p>
       </div>
     );
@@ -45,16 +45,16 @@ export default function ChartView({ data, formatRupiah }) {
   const totalHariTransportLokal = data.reduce((sum, item) => sum + (item.total_hari_transport_lokal || 0), 0);
   
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
-        <h3 className="font-semibold text-gray-700">Visualisasi Data Perjalanan Dinas</h3>
+        <h3 className="font-semibold text-gray-700 dark:text-gray-200">Visualisasi Data Perjalanan Dinas</h3>
         <div className="flex gap-2">
           <button
             onClick={() => setChartType('uang_harian')}
             className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
               chartType === 'uang_harian' 
                 ? 'bg-green-600 text-white' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             <FaChartBar /> Uang Harian
@@ -64,7 +64,7 @@ export default function ChartView({ data, formatRupiah }) {
             className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
               chartType === 'transport' 
                 ? 'bg-blue-600 text-white' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             <FaChartBar /> Transport Lokal
@@ -74,7 +74,7 @@ export default function ChartView({ data, formatRupiah }) {
             className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
               chartType === 'total' 
                 ? 'bg-purple-600 text-white' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             <FaChartBar /> Total Keseluruhan
@@ -84,7 +84,7 @@ export default function ChartView({ data, formatRupiah }) {
       
       {/* Top 10 Chart */}
       <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-600 mb-4">{chartTitle}</h4>
+        <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">{chartTitle}</h4>
         <div className="space-y-3">
           {top10.map((item, idx) => {
             let value = 0;
@@ -96,14 +96,14 @@ export default function ChartView({ data, formatRupiah }) {
             return (
               <div key={item.pegawai_id}>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">
+                  <span className="font-medium dark:text-gray-200">
                     {idx + 1}. {item.pegawai_nama}
                   </span>
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 dark:text-gray-400">
                     Rp {formatRupiah(value)}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden">
                   <div
                     className={`h-full rounded-full flex items-center justify-end px-2 text-xs text-white bg-gradient-to-r ${colorGradient}`}
                     style={{ width: `${percentage}%` }}
@@ -119,64 +119,64 @@ export default function ChartView({ data, formatRupiah }) {
       
       {/* Summary Stats - 6 Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        <div className="text-center p-2 bg-blue-50 rounded-lg">
-          <p className="text-xl font-bold text-blue-600">{data.length}</p>
-          <p className="text-xs text-gray-600">Total Pegawai</p>
+        <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{data.length}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Total Pegawai</p>
         </div>
-        <div className="text-center p-2 bg-green-50 rounded-lg">
-          <p className="text-xl font-bold text-green-600">
+        <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
+          <p className="text-xl font-bold text-green-600 dark:text-green-400">
             {data.reduce((sum, item) => sum + (item.jumlah_perjalanan || 0), 0)}
           </p>
-          <p className="text-xs text-gray-600">Total Perjalanan</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Total Perjalanan</p>
         </div>
-        <div className="text-center p-2 bg-yellow-50 rounded-lg">
-          <p className="text-xl font-bold text-yellow-600">
+        <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+          <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
             {data.reduce((sum, item) => sum + (item.total_hari_dinas || 0), 0)}
           </p>
-          <p className="text-xs text-gray-600">Total Hari Dinas</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Total Hari Dinas</p>
         </div>
-        <div className="text-center p-2 bg-orange-50 rounded-lg">
-          <p className="text-xl font-bold text-orange-600">
+        <div className="text-center p-2 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+          <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
             {totalHariTransportLokal}
           </p>
-          <p className="text-xs text-gray-600">Hari Transport Lokal</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Hari Transport Lokal</p>
         </div>
-        <div className="text-center p-2 bg-teal-50 rounded-lg">
-          <p className="text-xl font-bold text-teal-600">Rp {formatRupiah(totalUH)}</p>
-          <p className="text-xs text-gray-600">Total Uang Harian</p>
+        <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/30 rounded-lg">
+          <p className="text-xl font-bold text-teal-600 dark:text-teal-400">Rp {formatRupiah(totalUH)}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Total Uang Harian</p>
         </div>
-        <div className="text-center p-2 bg-purple-50 rounded-lg">
-          <p className="text-xl font-bold text-purple-600">Rp {formatRupiah(totalKeseluruhan)}</p>
-          <p className="text-xs text-gray-600">Total Keseluruhan</p>
+        <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+          <p className="text-xl font-bold text-purple-600 dark:text-purple-400">Rp {formatRupiah(totalKeseluruhan)}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Total Keseluruhan</p>
         </div>
       </div>
       
       {/* Statistik Ringkasan */}
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-600 mb-3">Ringkasan Biaya</h4>
+      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">Ringkasan Biaya</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Uang Harian:</span>
-              <span className="font-semibold text-green-600">Rp {formatRupiah(totalUH)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Total Uang Harian:</span>
+              <span className="font-semibold text-green-600 dark:text-green-400">Rp {formatRupiah(totalUH)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Transport Lokal:</span>
-              <span className="font-semibold text-blue-600">Rp {formatRupiah(totalTransport)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Total Transport Lokal:</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400">Rp {formatRupiah(totalTransport)}</span>
             </div>
-            <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-              <span className="text-sm font-semibold text-gray-700">Total Keseluruhan:</span>
-              <span className="font-bold text-purple-600">Rp {formatRupiah(totalKeseluruhan)}</span>
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-600">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Total Keseluruhan:</span>
+              <span className="font-bold text-purple-600 dark:text-purple-400">Rp {formatRupiah(totalKeseluruhan)}</span>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Rata-rata UH per Pegawai:</span>
-              <span className="font-semibold">Rp {formatRupiah(totalUH / data.length)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Rata-rata UH per Pegawai:</span>
+              <span className="font-semibold dark:text-gray-200">Rp {formatRupiah(totalUH / data.length)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Rata-rata Transport per Pegawai:</span>
-              <span className="font-semibold">Rp {formatRupiah(totalTransport / data.length)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Rata-rata Transport per Pegawai:</span>
+              <span className="font-semibold dark:text-gray-200">Rp {formatRupiah(totalTransport / data.length)}</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-gray-200">
               <span className="text-sm text-gray-600">Rata-rata Total per Pegawai:</span>

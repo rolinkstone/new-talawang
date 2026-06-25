@@ -500,13 +500,13 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
-                <div className="relative bg-white rounded-lg max-w-5xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                    <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white">
-                        <h3 className="text-lg font-medium">
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg max-w-5xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center border-b dark:border-gray-700 pb-3 mb-4 sticky top-0 bg-white dark:bg-gray-800">
+                        <h3 className="text-lg font-medium dark:text-gray-100">
                             {isEdit ? '✏️ Edit Kwitansi' : 'Input Kwitansi'} - {pegawai.nama}
-                            {dataLoading && <span className="ml-2 text-sm text-gray-400">Memuat data...</span>}
+                            {dataLoading && <span className="ml-2 text-sm text-gray-400 dark:text-gray-500">Memuat data...</span>}
                         </h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+                        <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -515,7 +515,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     
                     {message && (
                         <div className={`mb-4 p-3 rounded-lg ${
-                            messageType === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            messageType === 'error' ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200' : 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200'
                         }`}>
                             {message}
                         </div>
@@ -523,19 +523,19 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     
                     <form onSubmit={handleSubmit}>
                         {/* Info Kegiatan */}
-                        <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                            <h4 className="font-semibold text-gray-700 mb-2">Informasi Kegiatan</h4>
+                        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
+                            <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Informasi Kegiatan</h4>
                             <div className="grid grid-cols-2 gap-3 text-sm">
-                                <div><span className="font-medium">Kegiatan:</span> {kegiatan.kegiatan}</div>
-                                <div><span className="font-medium">No ST:</span> {kegiatan.no_st || '-'}</div>
-                                <div><span className="font-medium">MAK:</span> {kegiatan.mak}</div>
-                                <div><span className="font-medium">Pegawai:</span> {pegawai.nama}</div>
+                                <div><span className="font-medium dark:text-gray-200">Kegiatan:</span> <span className="dark:text-gray-300">{kegiatan.kegiatan}</span></div>
+                                <div><span className="font-medium dark:text-gray-200">No ST:</span> <span className="dark:text-gray-300">{kegiatan.no_st || '-'}</span></div>
+                                <div><span className="font-medium dark:text-gray-200">MAK:</span> <span className="dark:text-gray-300">{kegiatan.mak}</span></div>
+                                <div><span className="font-medium dark:text-gray-200">Pegawai:</span> <span className="dark:text-gray-300">{pegawai.nama}</span></div>
                             </div>
                         </div>
                         
                         {/* KOMPONEN NOMINATIF - TABEL RINCIAN BIAYA */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 overflow-x-auto">
-                            <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 overflow-x-auto">
+                            <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center gap-2">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                 </svg>
@@ -545,12 +545,12 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             {/* Tabel 2 Kolom: Transportasi dan Penginapan */}
                             <div className="grid grid-cols-2 gap-4">
                                 {/* Kolom Transportasi */}
-                                <div className="bg-white rounded-lg overflow-hidden">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
                                     <div className="bg-blue-600 text-white p-2 text-center font-semibold text-sm">
                                         Transportasi
                                     </div>
                                     <table className="w-full text-xs">
-                                        <thead className="bg-gray-100">
+                                        <thead className="bg-gray-100 dark:bg-gray-700">
                                             <tr>
                                                 <th className="p-2 text-left">Jenis</th>
                                                 <th className="p-2 text-right">Harga</th>
@@ -560,21 +560,21 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                         <tbody>
                                             {transport.length > 0 ? (
                                                 transport.map((item, idx) => (
-                                                    <tr key={idx} className="border-b border-gray-100">
-                                                        <td className="p-2">{item.jenis || '-'}</td>
-                                                        <td className="p-2 text-right">{formatRupiah(item.harga_satuan)}</td>
-                                                        <td className="p-2 text-right font-medium">{formatRupiah(item.total)}</td>
+                                                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                                                        <td className="p-2 dark:text-gray-200">{item.jenis || '-'}</td>
+                                                        <td className="p-2 text-right dark:text-gray-200">{formatRupiah(item.harga_satuan)}</td>
+                                                        <td className="p-2 text-right font-medium dark:text-gray-200">{formatRupiah(item.total)}</td>
                                                     </tr>
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="3" className="p-4 text-center text-gray-400">
+                                                    <td colSpan="3" className="p-4 text-center text-gray-400 dark:text-gray-500">
                                                         Tidak ada data transportasi
                                                     </td>
                                                 </tr>
                                             )}
-                                            <tr className="bg-blue-50 font-semibold">
-                                                <td className="p-2">Total Transportasi</td>
+                                            <tr className="bg-blue-50 dark:bg-blue-900/40 font-semibold">
+                                                <td className="p-2 dark:text-gray-200">Total Transportasi</td>
                                                 <td className="p-2 text-right" colSpan="2">
                                                     {formatRupiah(totalTransportasi)}
                                                 </td>
@@ -584,12 +584,12 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 </div>
                                 
                                 {/* Kolom Penginapan */}
-                                <div className="bg-white rounded-lg overflow-hidden">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
                                     <div className="bg-purple-600 text-white p-2 text-center font-semibold text-sm">
                                         Penginapan
                                     </div>
                                     <table className="w-full text-xs">
-                                        <thead className="bg-gray-100">
+                                        <thead className="bg-gray-100 dark:bg-gray-700">
                                             <tr>
                                                 <th className="p-2 text-left">Jenis</th>
                                                 <th className="p-2 text-center">Qty</th>
@@ -600,22 +600,22 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                         <tbody>
                                             {penginapan.length > 0 ? (
                                                 penginapan.map((item, idx) => (
-                                                    <tr key={idx} className="border-b border-gray-100">
-                                                        <td className="p-2">{item.jenis || item.nama_hotel || '-'}</td>
-                                                        <td className="p-2 text-center">{item.qty || item.jumlah_malam || '-'}</td>
-                                                        <td className="p-2 text-right">{formatRupiah(item.harga_satuan)}</td>
-                                                        <td className="p-2 text-right font-medium">{formatRupiah(item.total)}</td>
+                                                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                                                        <td className="p-2 dark:text-gray-200">{item.jenis || item.nama_hotel || '-'}</td>
+                                                        <td className="p-2 text-center dark:text-gray-200">{item.qty || item.jumlah_malam || '-'}</td>
+                                                        <td className="p-2 text-right dark:text-gray-200">{formatRupiah(item.harga_satuan)}</td>
+                                                        <td className="p-2 text-right font-medium dark:text-gray-200">{formatRupiah(item.total)}</td>
                                                     </tr>
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="4" className="p-4 text-center text-gray-400">
+                                                    <td colSpan="4" className="p-4 text-center text-gray-400 dark:text-gray-500">
                                                         Tidak ada data penginapan
                                                     </td>
                                                 </tr>
                                             )}
-                                            <tr className="bg-purple-50 font-semibold">
-                                                <td colSpan="3" className="p-2">Total Penginapan</td>
+                                            <tr className="bg-purple-50 dark:bg-purple-900/40 font-semibold">
+                                                <td colSpan="3" className="p-2 dark:text-gray-200">Total Penginapan</td>
                                                 <td className="p-2 text-right">{formatRupiah(totalPenginapan)}</td>
                                             </tr>
                                         </tbody>
@@ -624,53 +624,53 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             </div>
                             
                             {/* Grand Total */}
-                            <div className="mt-4 p-3 bg-yellow-100 rounded-lg flex justify-between items-center">
-                                <span className="font-bold text-lg">TOTAL KESELURUHAN</span>
-                                <span className="font-bold text-2xl text-red-600">{formatRupiah(totalKeseluruhan)}</span>
+                            <div className="mt-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex justify-between items-center">
+                                <span className="font-bold text-lg dark:text-gray-100">TOTAL KESELURUHAN</span>
+                                <span className="font-bold text-2xl text-red-600 dark:text-red-400">{formatRupiah(totalKeseluruhan)}</span>
                             </div>
                         </div>
                         
                         {/* Data Kwitansi */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No SPD *</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">No SPD *</label>
                                 <input
                                     type="text"
                                     value={formData.no_lpd}
                                     onChange={(e) => setFormData({ ...formData, no_lpd: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     placeholder="Masukkan No SPD"
                                     required
                                 />
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal SPD *</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tanggal SPD *</label>
                                 <input
                                     type="date"
                                     value={formData.tgl_spd}
                                     onChange={(e) => setFormData({ ...formData, tgl_spd: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kwitansi *</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tanggal Kwitansi *</label>
                                 <input
                                     type="date"
                                     value={formData.tgl_kwitansi}
                                     onChange={(e) => setFormData({ ...formData, tgl_kwitansi: e.target.value })}
-                                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     required
                                 />
                             </div>
                         </div>
                         
                         {/* SPTJM Transport Section */}
-                        <div className="border-t pt-4 mt-4">
+                        <div className="border-t dark:border-gray-700 pt-4 mt-4">
                             <div className="flex justify-between items-center mb-3">
-                                <h4 className="font-semibold text-gray-700">SPTJM Transport</h4>
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-200">SPTJM Transport</h4>
                                 <button
                                     type="button"
                                     onClick={addSptjmEntry}
@@ -683,17 +683,17 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 </button>
                             </div>
                             
-                            <p className="text-xs text-gray-500 mb-3">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                                 Isi data transportasi yang digunakan selama perjalanan dinas.
                             </p>
                             
                             {sptjmList.map((item, index) => (
-                                <div key={item.id} className="border border-gray-200 rounded-lg p-4 mb-3 relative">
+                                <div key={item.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 relative">
                                     <div className="absolute top-2 right-2">
                                         <button
                                             type="button"
                                             onClick={() => removeSptjmEntry(item.id)}
-                                            className="text-red-500 hover:text-red-700"
+                                            className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                                             title="Hapus"
                                         >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -704,13 +704,13 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Jenis Transport {index === 0 ? '*' : ''}
                                             </label>
                                             <select
                                                 value={item.jenis_transport}
                                                 onChange={(e) => updateSptjmEntry(item.id, 'jenis_transport', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             >
                                                 {jenisTransportOptions.map(opt => (
                                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -719,42 +719,42 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Maskapai / Perusahaan</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Nama Maskapai / Perusahaan</label>
                                             <input
                                                 type="text"
                                                 value={item.nama_maskapai}
                                                 onChange={(e) => updateSptjmEntry(item.id, 'nama_maskapai', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                 placeholder="Contoh: Garuda Indonesia, Arjuna Express"
                                             />
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Kode Penerbangan / No. Polisi</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Kode Penerbangan / No. Polisi</label>
                                             <input
                                                 type="text"
                                                 value={item.kode_penerbangan}
                                                 onChange={(e) => updateSptjmEntry(item.id, 'kode_penerbangan', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                 placeholder="Contoh: GA-123, B-1234 AB"
                                             />
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Kursi / Kabin</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Nomor Kursi / Kabin</label>
                                             <input
                                                 type="text"
                                                 value={item.nomor_kursi}
                                                 onChange={(e) => updateSptjmEntry(item.id, 'nomor_kursi', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                                 placeholder="Contoh: 12A, Eksekutif"
                                             />
                                         </div>
                                     </div>
                                     
                                     {/* File Upload untuk Transport */}
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                                             File Pendukung (tiket, boarding pass, dll)
                                         </label>
                                         <div className="flex items-center gap-2">
@@ -767,24 +767,24 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                     e.target.value = '';
                                                 }}
                                                 accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                                                className="flex-1 text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                                className="flex-1 text-sm text-gray-500 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900/40 file:text-indigo-700 dark:file:text-indigo-200 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-800/50"
                                             />
                                         </div>
                                         
                                         {item.files.length > 0 && (
                                             <div className="mt-2 space-y-1">
                                                 {item.files.map((fileObj, fileIdx) => (
-                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                                                         <div className="flex items-center gap-2">
                                                             {fileObj.file.type.startsWith('image/') && fileObj.preview && (
                                                                 <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
                                                             )}
-                                                            <span className="text-sm text-gray-600 truncate max-w-xs">{fileObj.file.name}</span>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-300 truncate max-w-xs">{fileObj.file.name}</span>
                                                         </div>
                                                         <button
                                                             type="button"
                                                             onClick={() => removeFileFromSptjm(item.id, fileIdx)}
-                                                            className="text-red-500 hover:text-red-700"
+                                                            className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -800,9 +800,9 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                         </div>
                         
                         {/* SPTJM Penginapan Section */}
-                        <div className="border-t pt-4 mt-4">
+                        <div className="border-t dark:border-gray-700 pt-4 mt-4">
                             <div className="flex justify-between items-center mb-3">
-                                <h4 className="font-semibold text-gray-700">SPTJM Penginapan</h4>
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-200">SPTJM Penginapan</h4>
                                 <button
                                     type="button"
                                     onClick={addPenginapanEntry}
@@ -815,17 +815,17 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 </button>
                             </div>
                             
-                            <p className="text-xs text-gray-500 mb-3">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                                 Isi data penginapan selama perjalanan dinas (jika ada).
                             </p>
                             
                             {penginapanList.map((item, index) => (
-                                <div key={item.id} className="border border-gray-200 rounded-lg p-4 mb-3 relative">
+                                <div key={item.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 relative">
                                     <div className="absolute top-2 right-2">
                                         <button
                                             type="button"
                                             onClick={() => removePenginapanEntry(item.id)}
-                                            className="text-red-500 hover:text-red-700"
+                                            className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                                             title="Hapus"
                                         >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -836,78 +836,78 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Nama Hotel/Penginapan
                                             </label>
                                             <input
                                                 type="text"
                                                 value={item.nama_penginapan}
                                                 onChange={(e) => updatePenginapanEntry(item.id, 'nama_penginapan', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                                 placeholder="Contoh: Hotel Santika, RedDoorz"
                                             />
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Alamat Penginapan
                                             </label>
                                             <input
                                                 type="text"
                                                 value={item.alamat_penginapan}
                                                 onChange={(e) => updatePenginapanEntry(item.id, 'alamat_penginapan', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                                 placeholder="Alamat lengkap hotel"
                                             />
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Nomor Kamar
                                             </label>
                                             <input
                                                 type="text"
                                                 value={item.nomor_kamar}
                                                 onChange={(e) => updatePenginapanEntry(item.id, 'nomor_kamar', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                                 placeholder="Contoh: 301, Suite Room"
                                             />
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Tarif Hotel (Rp)
                                             </label>
                                             <input
                                                 type="number"
                                                 value={item.tarif_hotel}
                                                 onChange={(e) => updatePenginapanEntry(item.id, 'tarif_hotel', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                                 placeholder="0"
                                             />
                                             {item.tarif_hotel && (
-                                                <p className="text-xs text-gray-500 mt-1">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                     {formatRupiah(item.tarif_hotel)}
                                                 </p>
                                             )}
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                                                 Tanggal Menginap
                                             </label>
                                             <input
                                                 type="date"
                                                 value={item.tgl_menginap}
                                                 onChange={(e) => updatePenginapanEntry(item.id, 'tgl_menginap', e.target.value)}
-                                                className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                                             />
                                         </div>
                                     </div>
                                     
                                     {/* File Upload untuk Penginapan */}
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                                             File Pendukung (bukti booking, invoice, dll)
                                         </label>
                                         <div className="flex items-center gap-2">
@@ -920,24 +920,24 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                     e.target.value = '';
                                                 }}
                                                 accept=".jpg,.jpeg,.png,.pdf"
-                                                className="flex-1 text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                                                className="flex-1 text-sm text-gray-500 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 dark:file:bg-purple-900/40 file:text-purple-700 dark:file:text-purple-200 hover:file:bg-purple-100 dark:hover:file:bg-purple-800/50"
                                             />
                                         </div>
                                         
                                         {item.files.length > 0 && (
                                             <div className="mt-2 space-y-1">
                                                 {item.files.map((fileObj, fileIdx) => (
-                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                                                    <div key={fileIdx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
                                                         <div className="flex items-center gap-2">
                                                             {fileObj.file.type.startsWith('image/') && fileObj.preview && (
                                                                 <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
                                                             )}
-                                                            <span className="text-sm text-gray-600 truncate max-w-xs">{fileObj.file.name}</span>
+                                                            <span className="text-sm text-gray-600 dark:text-gray-300 truncate max-w-xs">{fileObj.file.name}</span>
                                                         </div>
                                                         <button
                                                             type="button"
                                                             onClick={() => removeFileFromPenginapan(item.id, fileIdx)}
-                                                            className="text-red-500 hover:text-red-700"
+                                                            className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -952,7 +952,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                             ))}
                         </div>
                         
-                        <div className="flex gap-3 pt-4 border-t mt-4 sticky bottom-0 bg-white">
+                        <div className="flex gap-3 pt-4 border-t dark:border-gray-700 mt-4 sticky bottom-0 bg-white dark:bg-gray-800">
                             <button
                                 type="submit"
                                 disabled={loading}

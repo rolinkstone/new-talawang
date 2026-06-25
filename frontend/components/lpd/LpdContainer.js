@@ -602,8 +602,8 @@ export default function LpdContainer({ session, status }) {
                     {pegawai.map((p, idx) => (
                         <div key={idx} className="text-sm border-b border-gray-100 pb-1 last:border-0">
                             <div className="font-medium text-gray-800">{p.nama || '-'}</div>
-                            {p.nip && <div className="text-xs text-gray-500">NIP: {p.nip}</div>}
-                            {p.jabatan && <div className="text-xs text-gray-500">{p.jabatan}</div>}
+                            {p.nip && <div className="text-xs text-gray-500 dark:text-gray-400">NIP: {p.nip}</div>}
+                            {p.jabatan && <div className="text-xs text-gray-500 dark:text-gray-400">{p.jabatan}</div>}
                             {p.pangkat_golongan && <div className="text-xs text-gray-400">{p.pangkat_golongan}</div>}
                         </div>
                     ))}
@@ -624,7 +624,7 @@ export default function LpdContainer({ session, status }) {
                 <div>
                     <div className="space-y-1">
                         {previewNames.map((name, idx) => (
-                            <div key={idx} className="text-sm text-gray-700">{name}</div>
+                            <div key={idx} className="text-sm text-gray-700 dark:text-gray-300">{name}</div>
                         ))}
                         {remainingCount > 0 && (
                             <div className="text-sm text-blue-600">
@@ -710,7 +710,7 @@ export default function LpdContainer({ session, status }) {
             <div className="max-w-[95vw] mx-auto p-6 shadow-md rounded-lg overflow-x-auto">
                 <button
                     onClick={handleBackToList}
-                    className="mb-4 flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                    className="mb-4 flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -785,14 +785,14 @@ export default function LpdContainer({ session, status }) {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900">Laporan Perjalanan Dinas (LPD)</h2>
-                    <p className="text-gray-600 mt-1">
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Laporan Perjalanan Dinas (LPD)</h2>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | 
                         Role: {userRole || 'User'} | 
                         Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKatim ? 'Katim/Kabag TU' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
                     </p>
                     {userNip && (
-                        <p className="text-sm text-gray-500 mt-1">NIP: {userNip}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">NIP: {userNip}</p>
                     )}
                 </div>
                 <div className="flex space-x-2">
@@ -840,14 +840,14 @@ export default function LpdContainer({ session, status }) {
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-gray-200 mb-6">
+            <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
                 <nav className="-mb-px flex space-x-8 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('milik_saya')}
                         className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                             activeTab === 'milik_saya' 
                                 ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                     >
                         Kegiatan Saya
@@ -863,7 +863,7 @@ export default function LpdContainer({ session, status }) {
                         className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                             activeTab === 'pegawai_lain' 
                                 ? 'border-teal-500 text-teal-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                     >
                         Kegiatan Saya & Pegawai Lain
@@ -880,7 +880,7 @@ export default function LpdContainer({ session, status }) {
                             className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                                 activeTab === 'approval_katim' 
                                     ? 'border-yellow-500 text-yellow-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                             }`}
                         >
                             📋 Persetujuan Kabag TU/Katim
@@ -898,7 +898,7 @@ export default function LpdContainer({ session, status }) {
                             className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                                 activeTab === 'approval_kabalai' 
                                     ? 'border-purple-500 text-purple-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                             }`}
                         >
                             👔 Persetujuan Kabalai
@@ -918,9 +918,9 @@ export default function LpdContainer({ session, status }) {
             </div>
 
             {/* Info Tab */}
-            <div className="mb-4 p-3 rounded-md bg-blue-50 border border-blue-200">
-                <div className="flex items-center text-sm">
-                    <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <div className="mb-4 p-3 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center text-sm dark:text-gray-200">
+                    <svg className="h-5 w-5 text-blue-500 dark:text-blue-300 mr-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     <div>
@@ -934,14 +934,14 @@ export default function LpdContainer({ session, status }) {
 
             {/* Filter Section */}
             {showFilter && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status LPD</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status LPD</label>
                             <select 
                                 value={filterStatus} 
                                 onChange={(e) => setFilterStatus(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
                             >
                                 <option value="">Semua</option>
                                 <option value="selesai">Selesai</option>
@@ -950,41 +950,41 @@ export default function LpdContainer({ session, status }) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal ST</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dari Tanggal ST</label>
                             <input 
                                 type="date" 
                                 value={filterDateFrom} 
                                 onChange={(e) => setFilterDateFrom(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal ST</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sampai Tanggal ST</label>
                             <input 
                                 type="date" 
                                 value={filterDateTo} 
                                 onChange={(e) => setFilterDateTo(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">MAK</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MAK</label>
                             <input 
                                 type="text" 
                                 placeholder="Cari MAK..." 
                                 value={filterMak} 
                                 onChange={(e) => setFilterMak(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lokasi</label>
                             <input 
                                 type="text" 
                                 placeholder="Cari Lokasi..." 
                                 value={filterLokasi} 
                                 onChange={(e) => setFilterLokasi(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-md"
+                                className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md"
                             />
                         </div>
                     </div>
@@ -992,7 +992,7 @@ export default function LpdContainer({ session, status }) {
                         <button onClick={resetFilter} className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition">
                             Reset Filter
                         </button>
-                        <span className="text-sm text-gray-500">{filteredKegiatan.length} data ditemukan</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{filteredKegiatan.length} data ditemukan</span>
                     </div>
                 </div>
             )}
@@ -1004,7 +1004,7 @@ export default function LpdContainer({ session, status }) {
                     placeholder="Cari berdasarkan Nama Kegiatan, No ST, MAK, atau Lokasi..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-1/2 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full md:w-1/2 p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
             </div>
 
@@ -1016,18 +1016,18 @@ export default function LpdContainer({ session, status }) {
             ) : (
                 <>
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300">
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('id')}>ID</th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('kegiatan')}>Kegiatan & MAK</th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight">Pegawai Pelaksana</th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tempat')}>Lokasi & Tanggal</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-tight cursor-pointer hover:bg-gray-200" onClick={() => handleSort('lpd_status')}>Status LPD</th>
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-700">
+                                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600">
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('id')}>ID</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('kegiatan')}>Kegiatan & MAK</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight">Pegawai Pelaksana</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('tempat')}>Lokasi & Tanggal</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('lpd_status')}>Status LPD</th>
                                     <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-tight bg-gradient-to-r from-blue-600 to-blue-700">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 {paginatedItems.length > 0 ? (
                                     paginatedItems.map(item => {
                                         const status = getStatusBadge(item);
@@ -1041,13 +1041,13 @@ export default function LpdContainer({ session, status }) {
                                         const isSelesai = lpdStatus === 'selesai';
                                         
                                         return (
-                                            <tr key={item.id} className="hover:bg-gray-50">
+                                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                                 <td className="px-4 py-4 align-top">{item.id}</td>
                                                 
                                                 <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
-                                                        <div className="font-medium text-gray-900">{item.kegiatan || '-'}</div>
-                                                        <div className="text-sm text-gray-600">MAK: {item.mak || '-'}</div>
+                                                        <div className="font-medium text-gray-900 dark:text-gray-100">{item.kegiatan || '-'}</div>
+                                                        <div className="text-sm text-gray-600 dark:text-gray-400">MAK: {item.mak || '-'}</div>
                                                         {item.no_st && <div className="text-xs text-gray-500">No ST: {item.no_st}</div>}
                                                         {!isMine && (activeTab === 'pegawai_lain' || activeTab === 'approval_katim' || activeTab === 'approval_kabalai') && (
                                                             <div className="text-xs text-purple-600 mt-1">Dibuat oleh: Pegawai Lain</div>
@@ -1074,7 +1074,7 @@ export default function LpdContainer({ session, status }) {
                                                     <div className="flex flex-col items-center gap-1">
                                                         <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${status.color}`}>{status.text}</span>
                                                         {lpdStatus === 'menunggu_katim' && item.katim_nama && <span className="text-xs text-gray-500">Kepada: {item.katim_nama}</span>}
-                                                        {lpdStatus === 'menunggu_kabalai' && item.kabalai_nama && <span className="text-xs text-gray-500">Kepada: {item.kabalai_nama}</span>}
+                                                        {lpdStatus === 'menunggu_kabalai' && item.kabalai_nama && <span className="text-xs text-gray-500 dark:text-gray-400">Kepada: {item.kabalai_nama}</span>}
                                                     </div>
                                                 </td>
                                                 
@@ -1151,13 +1151,13 @@ export default function LpdContainer({ session, status }) {
                                                         )}
 
                                                         {activeTab === 'approval_katim' && item.lpd_status === 'menunggu_kabalai' && (
-                                                            <div className="text-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                                                            <div className="text-center text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded">
                                                                 ✓ Sudah disetujui, menunggu persetujuan Kabalai
                                                             </div>
                                                         )}
 
                                                         {activeTab === 'approval_katim' && item.lpd_status === 'selesai' && (
-                                                            <div className="text-center text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                                            <div className="text-center text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
                                                                 ✓ LPD Selesai
                                                             </div>
                                                         )}
@@ -1172,7 +1172,7 @@ export default function LpdContainer({ session, status }) {
                                                         )}
 
                                                         {activeTab === 'approval_kabalai' && item.lpd_status === 'selesai' && (
-                                                            <div className="text-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-md mx-auto">
+                                                            <div className="text-center text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1.5 rounded-md mx-auto">
                                                                 <div className="flex items-center gap-1 justify-center">
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1193,8 +1193,8 @@ export default function LpdContainer({ session, status }) {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                            <svg className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                            <svg className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             <p>
@@ -1203,7 +1203,7 @@ export default function LpdContainer({ session, status }) {
                                                 {activeTab === 'approval_katim' && 'Tidak ada kegiatan yang menunggu persetujuan Katim'}
                                                 {activeTab === 'approval_kabalai' && 'Tidak ada kegiatan yang menunggu persetujuan Kabalai'}
                                             </p>
-                                            <p className="text-sm text-gray-400 mt-1">
+                                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                                                 {activeTab === 'approval_katim' && 'Kegiatan yang sudah dikirim akan muncul di sini (menunggu_katim).'}
                                                 {activeTab === 'approval_kabalai' && 'Kegiatan yang sudah disetujui Katim akan muncul di sini.'}
                                                 {(activeTab === 'milik_saya' || activeTab === 'pegawai_lain') && 'Kegiatan dengan status "Selesai" akan muncul di sini setelah LPD diisi.'}
@@ -1218,13 +1218,13 @@ export default function LpdContainer({ session, status }) {
                     {/* Pagination */}
                     {totalPages > 1 && (
                         <div className="mt-4 flex items-center justify-between">
-                            <div className="text-sm text-gray-700">
+                            <div className="text-sm text-gray-700 dark:text-gray-300">
                                 Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} dari {totalItems} kegiatan
                             </div>
                             <div className="space-x-2">
-                                <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Previous</button>
-                                <span className="px-3 py-2">Halaman {currentPage} dari {totalPages}</span>
-                                <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50">Next</button>
+                                <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 dark:text-gray-200">Previous</button>
+                                <span className="px-3 py-2 dark:text-gray-300">Halaman {currentPage} dari {totalPages}</span>
+                                <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 dark:text-gray-200">Next</button>
                             </div>
                         </div>
                     )}

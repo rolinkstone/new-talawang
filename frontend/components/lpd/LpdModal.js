@@ -164,17 +164,17 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                 <img 
                     src={url}
                     alt={`Preview ${index + 1}`}
-                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                    className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                 />
             );
         } else {
             const fileExtension = file?.name?.split('.').pop()?.toUpperCase() || 'FILE';
             return (
-                <div className="w-20 h-20 bg-blue-50 rounded-lg flex flex-col items-center justify-center border border-blue-200">
-                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/40 rounded-lg flex flex-col items-center justify-center border border-blue-200 dark:border-blue-700">
+                    <svg className="w-8 h-8 text-blue-500 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span className="text-xs text-blue-600 font-medium mt-1">{fileExtension}</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-1">{fileExtension}</span>
                 </div>
             );
         }
@@ -187,10 +187,10 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
             <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
 
-                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                     {/* Header */}
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+                    <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{title}</h3>
                     </div>
 
                     {/* Body */}
@@ -199,13 +199,13 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                             <div>
                                 <div className="space-y-4 max-h-96 overflow-y-auto">
                                     {rincianList.map((item, index) => (
-                                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                                        <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                                             <div className="flex justify-between items-start mb-3">
-                                                <h4 className="text-sm font-medium text-gray-700">Rincian {index + 1}</h4>
+                                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Rincian {index + 1}</h4>
                                                 {rincianList.length > 1 && (
                                                     <button
                                                         onClick={() => handleRemoveRincian(index)}
-                                                        className="text-red-600 hover:text-red-800"
+                                                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                                                     >
                                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -215,22 +215,22 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                                             </div>
                                             <div className="space-y-3">
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Tanggal</label>
+                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal</label>
                                                     <input
                                                         type="date"
                                                         value={item.tanggal || ''}
                                                         onChange={(e) => handleRincianChange(index, 'tanggal', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                                         required
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Kegiatan</label>
+                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Kegiatan</label>
                                                     <textarea
                                                         value={item.kegiatan || ''}
                                                         onChange={(e) => handleRincianChange(index, 'kegiatan', e.target.value)}
                                                         rows="3"
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                                         placeholder="Deskripsi kegiatan..."
                                                         required
                                                     />
@@ -241,7 +241,7 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                                 </div>
                                 <button
                                     onClick={handleAddRincian}
-                                    className="mt-4 w-full px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:text-indigo-600 hover:border-indigo-300 transition"
+                                    className="mt-4 w-full px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-600 transition"
                                 >
                                     + Tambah Rincian
                                 </button>
@@ -251,21 +251,21 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                         {type === 'dokumentasi' && (
                             <div>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Pilih File (Gambar, PDF, Word)</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pilih File (Gambar, PDF, Word)</label>
                                     <input
                                         type="file"
                                         multiple
                                         accept="image/*,.pdf,.doc,.docx"
                                         onChange={handleFileChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Maksimal 20 file, masing-masing maksimal 10MB</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maksimal 20 file, masing-masing maksimal 10MB</p>
                                 </div>
 
                                 {selectedFiles.length > 0 && (
                                     <div className="space-y-3 max-h-96 overflow-y-auto">
                                         {selectedFiles.map((file, index) => (
-                                            <div key={index} className="border border-gray-200 rounded-lg p-3">
+                                            <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                                 <div className="flex items-start space-x-3">
                                                     {renderPreviewImage(previewUrls[index], index)}
                                                     <div className="flex-1">
@@ -300,19 +300,19 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                                 <svg className="mx-auto h-12 w-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
-                                <p className="mt-2 text-sm text-gray-500">
+                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                     Apakah Anda yakin ingin menghapus dokumentasi "{selectedItem?.file_name}"?
                                 </p>
-                                <p className="text-xs text-gray-400 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
                             </div>
                         )}
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
                         <button
                             onClick={onClose}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+                            className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition"
                         >
                             Batal
                         </button>

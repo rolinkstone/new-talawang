@@ -5,7 +5,7 @@ export default function TentangTalawangModal({ show, onClose, onLogin }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
-      <div className="relative bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden transform animate-slideUp">
+      <div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden transform animate-slideUp">
         {/* Modal Header dengan Logo */}
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-700 p-6">
           <div className="flex items-center justify-between">
@@ -192,7 +192,7 @@ function PrinsipCard({ letter, title, desc, color, tag }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start mb-3">
         <div className={`w-10 h-10 ${colorMap[color]?.split(' ')[0] || 'bg-gray-100'} rounded-lg flex items-center justify-center mr-3 flex-shrink-0`}>
           <span className={`${colorMap[color]?.split(' ')[1] || 'text-gray-600'} font-bold`}>{letter}</span>

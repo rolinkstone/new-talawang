@@ -157,22 +157,22 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
                 {/* Header */}
-                <div className="px-6 py-4 border-b">
+                <div className="px-6 py-4 border-b dark:border-gray-700">
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex items-center space-x-3">
-                                <div className="p-2 bg-teal-100 rounded-lg">
-                                    <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="p-2 bg-teal-100 dark:bg-teal-900/50 rounded-lg">
+                                    <svg className="w-6 h-6 text-teal-600 dark:text-teal-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                         Aksi Kabalai - Persetujuan Kegiatan
                                     </h3>
-                                    <p className="text-sm text-gray-600 mt-1">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                                         Pilih aksi yang akan dilakukan untuk kegiatan ini
                                     </p>
                                 </div>
@@ -181,33 +181,33 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                            
                             {kegiatan && (
                                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div className="bg-gray-50 p-3 rounded-lg">
-                                        <p className="text-sm text-gray-600">
+                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                                        <p className="text-sm text-gray-600 dark:text-gray-300">
                                             <span className="font-medium">Kegiatan:</span> {kegiatan.kegiatan}
                                         </p>
-                                        <p className="text-sm text-gray-600 mt-1">
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                                             <span className="font-medium">No ST:</span> {kegiatan.no_st || '-'}
                                         </p>
                                     </div>
-                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm text-gray-600">
+                                                <p className="text-sm text-gray-600 dark:text-gray-300">
                                                     <span className="font-medium">Status Saat Ini:</span>
                                                 </p>
                                                 <div className="flex items-center mt-1">
                                                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                                                         kegiatan.status === 'Disetujui PPK' 
-                                                            ? 'bg-green-100 text-green-800' 
-                                                            : 'bg-yellow-100 text-yellow-800'
+                                                            ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
+                                                            : 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200'
                                                     }`}>
                                                         {kegiatan.status}
                                                     </span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xs text-gray-500">Terakhir diupdate:</p>
-                                                <p className="text-xs font-medium text-gray-700">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">Terakhir diupdate:</p>
+                                                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
                                                     {kegiatan.updated_at ? new Date(kegiatan.updated_at).toLocaleDateString('id-ID') : '-'}
                                                 </p>
                                             </div>
@@ -218,7 +218,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                         </div>
                         <button
                             onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500 ml-4"
+                            className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 ml-4"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -228,14 +228,14 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                 </div>
                 
                 {/* Action Tabs */}
-                <div className="border-b">
+                <div className="border-b dark:border-gray-700">
                     <div className="flex">
                         <button
                             onClick={() => setAction('menyetujui')}
                             className={`flex-1 py-3 px-4 text-center font-medium text-sm transition-colors ${
                                 action === 'menyetujui'
-                                    ? 'border-b-2 border-teal-500 text-teal-600 bg-teal-50'
-                                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                                    ? 'border-b-2 border-teal-500 text-teal-600 bg-teal-50 dark:bg-teal-900/30'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
                             }`}
                         >
                             <div className="flex items-center justify-center space-x-2">
@@ -249,8 +249,8 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                             onClick={() => setAction('kembalikan')}
                             className={`flex-1 py-3 px-4 text-center font-medium text-sm transition-colors ${
                                 action === 'kembalikan'
-                                    ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50'
-                                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                                    ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-900/30'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
                             }`}
                         >
                             <div className="flex items-center justify-center space-x-2">
@@ -268,13 +268,13 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     <div className="px-6 py-4 space-y-4 max-h-[50vh] overflow-y-auto">
                         {/* Error Message */}
                         {error && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md">
                                 <div className="flex">
-                                    <svg className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="h-5 w-5 text-red-400 dark:text-red-300 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                     </svg>
                                     <div>
-                                        <p className="text-sm text-red-600 whitespace-pre-line">{error}</p>
+                                        <p className="text-sm text-red-600 dark:text-red-300 whitespace-pre-line">{error}</p>
                                     </div>
                                 </div>
                             </div>
@@ -284,7 +284,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                         {action === 'menyetujui' ? (
                             <>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Tanggal Persetujuan
                                     </label>
                                     <input
@@ -292,40 +292,40 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                         name="tanggal_mengetahui"
                                         value={formData.tanggal_mengetahui}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                         Tanggal persetujuan Kabalai
                                     </p>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Catatan Tambahan (Opsional)
                                     </label>
                                     <textarea
                                         name="catatan_kabalai"
                                         value={formData.catatan_kabalai}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                         rows="4"
                                         placeholder="Tambahkan catatan atau instruksi jika diperlukan..."
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                         Catatan akan dicatat dalam riwayat kegiatan
                                     </p>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+                                <div className="p-3 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-md">
                                     <div className="flex">
-                                        <svg className="h-5 w-5 text-orange-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <svg className="h-5 w-5 text-orange-400 dark:text-orange-300 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                         </svg>
                                         <div>
-                                            <p className="text-sm font-medium text-orange-700 mb-1">Kembalikan ke User</p>
-                                            <p className="text-xs text-orange-600">
+                                            <p className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">Kembalikan ke User</p>
+                                            <p className="text-xs text-orange-600 dark:text-orange-300">
                                                 Aksi ini akan mengembalikan kegiatan ke user untuk perbaikan. Kegiatan akan dikembalikan ke status sebelumnya dan user dapat memperbaiki data yang diperlukan.
                                             </p>
                                         </div>
@@ -333,19 +333,19 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Alasan Pengembalian *
                                     </label>
                                     <textarea
                                         name="catatan_kabalai"
                                         value={formData.catatan_kabalai}
                                         onChange={handleInputChange}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                         rows="4"
                                         placeholder="Berikan alasan mengapa kegiatan perlu dikembalikan ke user (contoh: data tidak lengkap, perlu revisi, dll.)"
                                         required
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                         Alasan wajib diisi untuk membantu user memahami apa yang perlu diperbaiki
                                     </p>
                                 </div>
@@ -354,16 +354,16 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                     </div>
                     
                     {/* Footer */}
-                    <div className="px-6 py-4 border-t bg-gray-50">
+                    <div className="px-6 py-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                         <div className="flex justify-between items-center">
                             <div className="text-sm">
-                                <p className="text-gray-600">
+                                <p className="text-gray-600 dark:text-gray-300">
                                     <span className="font-medium">Kabalai:</span> {session?.user?.name || session?.user?.username || 'Unknown'}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     NIP: {session?.user?.nip_raw || session?.user?.nip || '-'}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     {new Date().toLocaleDateString('id-ID', { 
                                         weekday: 'long', 
                                         year: 'numeric', 
@@ -376,7 +376,7 @@ const PersetujuanModal = ({ show, kegiatan, onClose, onSuccess }) => {
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                                     disabled={loading || kembalikanLoading}
                                 >
                                     Batal

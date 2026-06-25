@@ -334,14 +334,14 @@ const Home = () => {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Header */}
-        <div className="bg-white shadow-sm border-b">
+        <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
           <div className="px-6 py-5">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard Sistem Nominatif</h1>
-                <p className="text-gray-500 mt-1">Sistem Pengelolaan Kegiatan dan Perjalanan Dinas</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard Sistem Nominatif</h1>
+                <p className="text-gray-500 dark:text-gray-400 mt-1">Sistem Pengelolaan Kegiatan dan Perjalanan Dinas</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleColor(userInfo.role)}`}>
@@ -352,11 +352,11 @@ const Home = () => {
             
             {/* Progress Bar Session */}
             <div className="mt-4">
-              <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                 <span>Session: {userInfo.sessionRemaining}</span>
                 <span>{userInfo.sessionPercentage.toFixed(0)}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div className={`h-2 rounded-full transition-all ${getSessionColor(userInfo.sessionPercentage, userInfo.isSessionExpiring)}`} style={{ width: `${userInfo.sessionPercentage}%` }}></div>
               </div>
             </div>
@@ -393,47 +393,47 @@ const Home = () => {
           {/* Kartu Informasi */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Kartu Kiri - Informasi Pribadi */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Informasi Pribadi</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Informasi Pribadi</h3>
               </div>
               
               <div className="space-y-4">
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Nama Lengkap</span>
-                  <span className="font-medium">{userInfo.fullName}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Nama Lengkap</span>
+                  <span className="font-medium dark:text-gray-100">{userInfo.fullName}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">NIP</span>
-                  <span className="font-mono font-bold text-blue-600 text-lg">{userInfo.nip}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">NIP</span>
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-lg">{userInfo.nip}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Pangkat / Golongan</span>
-                  <span className="font-medium">{pangkatGolonganDisplay}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Pangkat / Golongan</span>
+                  <span className="font-medium dark:text-gray-100">{pangkatGolonganDisplay}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Jabatan</span>
-                  <span className="font-medium">{userInfo.jabatan}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Jabatan</span>
+                  <span className="font-medium dark:text-gray-100">{userInfo.jabatan}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Email</span>
-                  <span>{userInfo.email}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Email</span>
+                  <span className="dark:text-gray-100">{userInfo.email}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Username</span>
-                  <span className="font-mono text-sm">{userInfo.username}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Username</span>
+                  <span className="font-mono text-sm dark:text-gray-100">{userInfo.username}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Login Time</span>
-                  <span className="text-sm">{userInfo.loginTime}</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Login Time</span>
+                  <span className="text-sm dark:text-gray-100">{userInfo.loginTime}</span>
                 </div>
                 {userInfo.nipSource !== 'Not found' && (
-                  <div className="text-xs text-gray-400 text-right">
+                  <div className="text-xs text-gray-400 dark:text-gray-500 text-right">
                     Sumber NIP: {userInfo.nipSource}
                   </div>
                 )}
@@ -441,73 +441,73 @@ const Home = () => {
             </div>
 
             {/* Kartu Kanan - Informasi Sistem */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Informasi Sistem</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Informasi Sistem</h3>
               </div>
               
               <div className="space-y-4">
-                <div className="bg-purple-50 rounded-lg p-4">
+                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-4">
                   <div className="text-center mb-3">
-                    <div className={`text-2xl font-bold ${userInfo.isSessionExpiring ? 'text-red-600' : 'text-purple-600'}`}>
+                    <div className={`text-2xl font-bold ${userInfo.isSessionExpiring ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
                       {userInfo.sessionRemaining}
                     </div>
-                    <div className="text-sm text-gray-500">Sisa Waktu Session</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Sisa Waktu Session</div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                     <div className={`h-2 rounded-full ${getSessionColor(userInfo.sessionPercentage, userInfo.isSessionExpiring)}`} style={{ width: `${userInfo.sessionPercentage}%` }}></div>
                   </div>
-                  <div className="text-center text-xs text-gray-500">
+                  <div className="text-center text-xs text-gray-500 dark:text-gray-400">
                     Session berakhir: {userInfo.sessionExpires}
                   </div>
                 </div>
                 
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">Metode Login</span>
-                  <span>Keycloak SSO</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Metode Login</span>
+                  <span className="dark:text-gray-100">Keycloak SSO</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b">
-                  <span className="text-gray-500">User ID</span>
-                  <span className="font-mono text-xs">{userInfo.userId.substring(0, 30)}...</span>
+                <div className="flex justify-between pb-2 border-b dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">User ID</span>
+                  <span className="font-mono text-xs dark:text-gray-100">{userInfo.userId.substring(0, 30)}...</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Aksi Cepat</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Aksi Cepat</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <a href="/kegiatan" className="bg-blue-50 hover:bg-blue-100 rounded-lg p-4 text-center transition border border-blue-200">
-                <div className="font-medium text-blue-700">Nominatif Kegiatan</div>
-                <p className="text-xs text-gray-500 mt-1">Buat & kelola kegiatan</p>
+              <a href="/kegiatan" className="bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg p-4 text-center transition border border-blue-200 dark:border-blue-800">
+                <div className="font-medium text-blue-700 dark:text-blue-300">Nominatif Kegiatan</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Buat & kelola kegiatan</p>
               </a>
-              <a href="/kwitansi" className="bg-green-50 hover:bg-green-100 rounded-lg p-4 text-center transition border border-green-200">
-                <div className="font-medium text-green-700">Kwitansi Perjadin</div>
-                <p className="text-xs text-gray-500 mt-1">Input kwitansi</p>
+              <a href="/kwitansi" className="bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg p-4 text-center transition border border-green-200 dark:border-green-800">
+                <div className="font-medium text-green-700 dark:text-green-300">Kwitansi Perjadin</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Input kwitansi</p>
               </a>
-              <a href="/lpd" className="bg-yellow-50 hover:bg-yellow-100 rounded-lg p-4 text-center transition border border-yellow-200">
-                <div className="font-medium text-yellow-700">Laporan Perjalanan Dinas</div>
-                <p className="text-xs text-gray-500 mt-1">Buat & kelola LPD</p>
+              <a href="/lpd" className="bg-yellow-50 dark:bg-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/50 rounded-lg p-4 text-center transition border border-yellow-200 dark:border-yellow-800">
+                <div className="font-medium text-yellow-700 dark:text-yellow-300">Laporan Perjalanan Dinas</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Buat & kelola LPD</p>
               </a>
-              <a href="/profile" className="bg-purple-50 hover:bg-purple-100 rounded-lg p-4 text-center transition border border-purple-200">
-                <div className="font-medium text-purple-700">Profil Saya</div>
-                <p className="text-xs text-gray-500 mt-1">Kelola profil</p>
+              <a href="/profile" className="bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg p-4 text-center transition border border-purple-200 dark:border-purple-800">
+                <div className="font-medium text-purple-700 dark:text-purple-300">Profil Saya</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Kelola profil</p>
               </a>
-              <button onClick={() => router.push('/api/auth/signout')} className="bg-red-50 hover:bg-red-100 rounded-lg p-4 text-center transition border border-red-200">
-                <div className="font-medium text-red-700">Keluar</div>
-                <p className="text-xs text-gray-500 mt-1">Akhiri session</p>
+              <button onClick={() => router.push('/api/auth/signout')} className="bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg p-4 text-center transition border border-red-200 dark:border-red-800">
+                <div className="font-medium text-red-700 dark:text-red-300">Keluar</div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Akhiri session</p>
               </button>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="mt-6 text-center text-sm text-gray-500">
+          <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             <p>Sistem Nominatif Kegiatan v1.0 • {userInfo.fullName} • NIP: <span className="font-mono font-bold text-blue-600">{userInfo.nip}</span> • {pangkatGolonganDisplay !== '-' ? pangkatGolonganDisplay + ' • ' : ''}{userInfo.jabatan}</p>
             <p className="text-xs text-gray-400 mt-1">Hak akses: {userInfo.role} • Session: {userInfo.sessionRemaining}</p>
           </div>

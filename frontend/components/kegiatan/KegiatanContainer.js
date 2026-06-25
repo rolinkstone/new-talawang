@@ -993,8 +993,8 @@ export default function KegiatanContainer({ session, status }) {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900">Nominatif Kegiatan</h2>
-                    <p className="text-gray-600 mt-1">
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Nominatif Kegiatan</h2>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
                         User: {session.user?.name || session.user?.email || 'Unknown User'} | 
                         Role: {userRole || 'User'} | 
                         Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
@@ -1003,7 +1003,7 @@ export default function KegiatanContainer({ session, status }) {
                 <div className="flex space-x-2">
                     <button
                         onClick={() => setShowFilter(!showFilter)}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition flex items-center"
+                        className="px-4 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-md hover:bg-gray-700 dark:hover:bg-gray-600 transition flex items-center"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -1113,14 +1113,14 @@ export default function KegiatanContainer({ session, status }) {
                     placeholder="Search by Kegiatan, No ST, atau MAK"
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full md:w-1/3 p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
             </div>
 
             {/* Informasi role user */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center text-sm">
-                    <svg className="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-md">
+                <div className="flex items-center text-sm dark:text-gray-200">
+                    <svg className="h-5 w-5 text-blue-500 dark:text-blue-300 mr-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     <div>
@@ -1134,46 +1134,46 @@ export default function KegiatanContainer({ session, status }) {
             </div>
 
             {/* Active Filters */}
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm font-medium text-gray-700 mb-2">Filter Aktif:</div>
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Filter Aktif:</div>
                 <div className="flex flex-wrap gap-2">
                     {filterStatus && (
-                        <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 text-sm rounded-full">
                             Status: {filterStatus}
                         </span>
                     )}
                     {filterStatus2 && (
-                        <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-sm rounded-full">
                             Status Proses: {filterStatus2}
                         </span>
                     )}
                     {filterJenisSpm && (
-                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-sm rounded-full">
                             Jenis SPM: {filterJenisSpm}
                         </span>
                     )}
                     {filterDateFrom && (
-                        <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 text-sm rounded-full">
                             Dari: {filterDateFrom}
                         </span>
                     )}
                     {filterDateTo && (
-                        <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 text-sm rounded-full">
                             Sampai: {filterDateTo}
                         </span>
                     )}
                     {filterMak && (
-                        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 text-sm rounded-full">
                             MAK: {filterMak}
                         </span>
                     )}
                     {filterLokasi && (
-                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 text-sm rounded-full">
                             Lokasi: {filterLokasi}
                         </span>
                     )}
                     {filterCatatanStatus2 && (
-                        <span className="px-3 py-1 bg-pink-100 text-pink-800 text-sm rounded-full">
+                        <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-800 dark:text-pink-200 text-sm rounded-full">
                             No SPM: {filterCatatanStatus2}
                         </span>
                     )}
