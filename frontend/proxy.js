@@ -1,8 +1,21 @@
-// middleware.js
+// proxy.js
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
-export async function middleware(req) {
+/**
+ * Menambahkan security headers ke response
+ */
+function withSecurityHeaders(response) {
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  response.headers.set('X-DNS-Prefetch-Control', 'off');
+  return response;
+}
+
+export async function proxy(req) {
   const path = req.nextUrl.pathname;
   
   // Public paths - no auth required
@@ -24,33 +37,33 @@ export async function middleware(req) {
   );
   
   if (isPublicPath) {
-    console.log("🛡️ Middleware - Public path:", path);
+    console.log("🛡️ Proxy - Public path:", path);
     
     // Rewrite /api/uploads ke backend
     if (path.startsWith('/api/uploads')) {
       const targetUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace('/api', '') + path.replace('/api/uploads', '/uploads');
-      return NextResponse.rewrite(targetUrl);
+      return withSecurityHeaders(NextResponse.rewrite(targetUrl));
     }
     
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
   
   // Home page - allow both authenticated and unauthenticated
   if (path === '/') {
-    console.log("🛡️ Middleware - Home page, allowing access");
-    return NextResponse.next();
+    console.log("🛡️ Proxy - Home page, allowing access");
+    return withSecurityHeaders(NextResponse.next());
   }
   
   // Decode token from cookie explicitly
-  console.log("🛡️ Middleware - Path:", path);
-  console.log("🛡️ Middleware - Hostname:", req.nextUrl.hostname);
+  console.log("🛡️ Proxy - Path:", path);
+  console.log("🛡️ Proxy - Hostname:", req.nextUrl.hostname);
   
   const secret = process.env.NEXTAUTH_SECRET;
   const cookieName = "next-auth.session-token";
   const rawCookie = req.cookies.get(cookieName)?.value;
   
-  console.log("🛡️ Middleware - Cookie present:", !!rawCookie);
-  console.log("🛡️ Middleware - NEXTAUTH_SECRET defined:", !!secret);
+  console.log("🛡️ Proxy - Cookie present:", !!rawCookie);
+  console.log("🛡️ Proxy - NEXTAUTH_SECRET defined:", !!secret);
   
   const token = await getToken({ 
     req, 
@@ -58,13 +71,13 @@ export async function middleware(req) {
     raw: false
   });
   
-  console.log("🛡️ Middleware - Token decoded:", !!token);
+  console.log("🛡️ Proxy - Token decoded:", !!token);
   
   if (!token) {
-    console.log("🛡️ Middleware - No token, access denied for:", path);
+    console.log("🛡️ Proxy - No token, access denied for:", path);
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('callbackUrl', encodeURIComponent(path));
-    return NextResponse.redirect(loginUrl);
+    return withSecurityHeaders(NextResponse.redirect(loginUrl));
   }
   
   console.log(`✅ Access granted for ${path} - User: ${token.name}, Role: ${token.role}`);
@@ -72,10 +85,10 @@ export async function middleware(req) {
   // Role-based access control
   if (path.startsWith('/admin') && token.role !== 'admin') {
     const url = new URL('/unauthorized', req.url);
-    return NextResponse.redirect(url);
+    return withSecurityHeaders(NextResponse.redirect(url));
   }
   
-  return NextResponse.next();
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {
