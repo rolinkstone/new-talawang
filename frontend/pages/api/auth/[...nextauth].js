@@ -29,6 +29,9 @@ export const authOptions = {
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
       issuer: process.env.KEYCLOAK_ISSUER,
       idToken: true,
+      httpOptions: {
+        timeout: 15000,
+      },
       
       authorization: {
         params: {
