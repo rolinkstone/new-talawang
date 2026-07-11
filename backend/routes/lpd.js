@@ -246,16 +246,24 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
         else if (roleInfo.isKatim || roleInfo.isKabagTu) {
             // ============ PERBAIKAN UNTUK KATIM/KABAG TU ============
             // Katim/Kabag TU bisa melihat:
-            // 1. Kegiatan yang menunggu persetujuan mereka (status 'menunggu_katim')
-            // 2. Kegiatan yang sudah mereka setujui (status 'menunggu_kabalai' atau 'selesai')
-            // 3. Kegiatan yang sudah ditolak (status 'ditolak_katim')
+            // 1. Kegiatan yang mereka buat sendiri (sebagai creator)
+            // 2. Kegiatan di mana NIP mereka terdaftar sebagai pegawai
+            // 3. Kegiatan yang menunggu persetujuan mereka (status 'menunggu_katim')
+            // 4. Kegiatan yang sudah mereka setujui (status 'menunggu_kabalai' atau 'selesai')
+            // 5. Kegiatan yang sudah ditolak (status 'ditolak_katim')
             query += ` AND (
-                COALESCE(l.lpd_status, 'draft') = 'menunggu_katim'
+                n.user_id = ?
+                OR EXISTS (
+                    SELECT 1 FROM nominatif_pegawai p 
+                    WHERE p.kegiatan_id = n.id 
+                    AND REPLACE(p.nip, ' ', '') = ?
+                )
+                OR COALESCE(l.lpd_status, 'draft') = 'menunggu_katim'
                 OR (l.lpd_status = 'menunggu_kabalai' AND l.katim_id = ?)
                 OR (l.lpd_status = 'selesai' AND l.katim_id = ?)
                 OR (l.lpd_status = 'ditolak_katim' AND l.katim_id = ?)
             )`;
-            params.push(userId, userId, userId);
+            params.push(userId, cleanUserNip, userId, userId, userId);
             query += ` ORDER BY 
                 CASE 
                     WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_katim' THEN 1
