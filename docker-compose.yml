@@ -11,6 +11,8 @@ services:
     environment:
       - DB_HOST=127.0.0.1
       - DB_PORT=3306
+      - DB_USER=accounting
+      - DB_PASSWORD=cXnBtsX7mmpSD5zK
       - DB_NAME=accounting
       - KEYCLOAK_SERVER_URL=https://auth.bbpompky.id
       - KEYCLOAK_REALM=master
