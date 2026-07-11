@@ -53,6 +53,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.no_st,
                     nk.tgl_st,
                     nk.status,
+                    nk.status_2,
                     nk.kota_kab_kecamatan,
                     nk.rencana_tanggal_pelaksanaan,
                     nk.ppk_nama,
@@ -60,14 +61,13 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.tanggal_disetujui,
                     nk.diketahui_oleh,
                     nk.tanggal_diketahui,
+                    nk.user_id,
                     nk.created_at,
                     nk.updated_at,
                     (SELECT COUNT(*) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as jumlah_pegawai,
                     (SELECT COALESCE(SUM(total_biaya), 0) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as total_biaya
                 FROM accounting.nominatif_kegiatan nk
-                WHERE nk.status != 'diajukan' 
-                AND nk.status != 'selesai' 
-                AND nk.status != 'dikembalikan'
+                WHERE nk.status != 'dibatalkan'
                 AND (
                     nk.kegiatan LIKE ? OR
                     nk.mak LIKE ? OR
@@ -75,17 +75,18 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.status LIKE ? OR
                     nk.kota_kab_kecamatan LIKE ? OR
                     nk.ppk_nama LIKE ? OR
-                    nk.diketahui_oleh LIKE ?
+                    nk.diketahui_oleh LIKE ? OR
+                    nk.user_id LIKE ?
                 )
                 ORDER BY nk.updated_at DESC
                 LIMIT ?
             `;
             params = [
                 searchPattern, searchPattern, searchPattern, searchPattern,
-                searchPattern, searchPattern, searchPattern,
+                searchPattern, searchPattern, searchPattern, searchPattern,
                 parseInt(limit)
             ];
-            console.log('👑 Admin mode: mencari semua kegiatan');
+            console.log('👑 Admin mode: mencari semua kegiatan (semua status kecuali dibatalkan)');
         } else if (userRole === 'ppk') {
             // PPK: Hanya bisa melihat kegiatan yang menjadi tanggung jawabnya
             query = `
@@ -96,6 +97,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.no_st,
                     nk.tgl_st,
                     nk.status,
+                    nk.status_2,
                     nk.kota_kab_kecamatan,
                     nk.rencana_tanggal_pelaksanaan,
                     nk.ppk_nama,
@@ -103,15 +105,14 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.tanggal_disetujui,
                     nk.diketahui_oleh,
                     nk.tanggal_diketahui,
+                    nk.user_id,
                     nk.created_at,
                     nk.updated_at,
                     (SELECT COUNT(*) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as jumlah_pegawai,
                     (SELECT COALESCE(SUM(total_biaya), 0) FROM accounting.nominatif_pegawai p WHERE p.kegiatan_id = nk.id) as total_biaya
                 FROM accounting.nominatif_kegiatan nk
                 WHERE (nk.ppk_id = ? OR nk.ppk_nama = ? OR nk.ppk_nip = ?)
-                AND nk.status != 'diajukan' 
-                AND nk.status != 'selesai' 
-                AND nk.status != 'dikembalikan'
+                AND nk.status != 'dibatalkan'
                 AND (
                     nk.kegiatan LIKE ? OR
                     nk.mak LIKE ? OR
@@ -119,7 +120,8 @@ router.get('/search', keycloakAuth, async (req, res) => {
                     nk.status LIKE ? OR
                     nk.kota_kab_kecamatan LIKE ? OR
                     nk.ppk_nama LIKE ? OR
-                    nk.diketahui_oleh LIKE ?
+                    nk.diketahui_oleh LIKE ? OR
+                    nk.user_id LIKE ?
                 )
                 ORDER BY nk.updated_at DESC
                 LIMIT ?
@@ -127,7 +129,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
             params = [
                 userId, username, userId,  // ppk_id, ppk_nama, ppk_nip
                 searchPattern, searchPattern, searchPattern, searchPattern,
-                searchPattern, searchPattern, searchPattern,
+                searchPattern, searchPattern, searchPattern, searchPattern,
                 parseInt(limit)
             ];
             console.log(`📋 PPK mode: mencari kegiatan untuk PPK ID: ${userId}, Nama: ${username}`);
@@ -153,6 +155,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
             no_st: row.no_st,
             tgl_st: row.tgl_st,
             status: row.status,
+            status_2: row.status_2,
             kota_kab_kecamatan: row.kota_kab_kecamatan,
             rencana_tanggal_pelaksanaan: row.rencana_tanggal_pelaksanaan,
             ppk_nama: row.ppk_nama,
@@ -160,6 +163,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
             tanggal_disetujui: row.tanggal_disetujui,
             diketahui_oleh: row.diketahui_oleh,
             tanggal_diketahui: row.tanggal_diketahui,
+            user_id: row.user_id,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             jumlah_pegawai: row.jumlah_pegawai,
@@ -175,7 +179,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
                 searchTerm: searchTerm.trim(),
                 userRole: userRole,
                 filter_type: userRole === 'admin' ? 'admin_all' : 'ppk_filtered',
-                status_filter: 'excluding_diajukan_selesai_dikembalikan',
+                status_filter: 'excluding_dibatalkan_only',
                 message: results.length > 0 
                     ? `Ditemukan ${results.length} data untuk ${userRole === 'admin' ? 'Admin' : `PPK: ${username}`}`
                     : `Tidak ada data yang ditemukan`

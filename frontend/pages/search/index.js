@@ -18,7 +18,8 @@ export default function SearchKegiatanPage() {
     const [activeFilters, setActiveFilters] = useState([]);
     const [sortBy, setSortBy] = useState('updated');
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, completed: 0 });
+    const [stats, setStats] = useState({ total: 0, draft: 0, diajukan: 0, approved: 0, diketahui: 0, dikembalikan: 0, completed: 0, canceled: 0, totalBudget: 0 });
+    const [statusFilter, setStatusFilter] = useState('');
     const [cancelingId, setCancelingId] = useState(null);
     const [userRole, setUserRole] = useState('');
 
@@ -213,7 +214,10 @@ export default function SearchKegiatanPage() {
         const stats = {
             total: results.length,
             draft: results.filter(r => r.status === 'draft').length,
+            diajukan: results.filter(r => r.status === 'diajukan').length,
             approved: results.filter(r => r.status === 'disetujui').length,
+            diketahui: results.filter(r => r.status === 'diketahui').length,
+            dikembalikan: results.filter(r => r.status === 'dikembalikan').length,
             completed: results.filter(r => r.no_st && r.tgl_st).length,
             canceled: results.filter(r => r.status === 'dibatalkan').length,
             totalBudget: results.reduce((sum, r) => sum + (r.total_biaya || 0), 0)
@@ -239,11 +243,11 @@ export default function SearchKegiatanPage() {
             return;
         }
         
-        // Minta konfirmasi dengan alasan (opsional)
+        // Minta alasan pembatalan (Cancel = batal)
         const userReason = prompt(`${confirmMessage}\n\nMasukkan alasan pembatalan (opsional):`, 'Dibatalkan melalui sistem pencarian');
         
-        if (!confirm(confirmMessage)) {
-            return;
+        if (userReason === null) {
+            return; // User membatalkan
         }
 
         setCancelingId(id);
@@ -316,7 +320,8 @@ export default function SearchKegiatanPage() {
         setSearchTerm('');
         setSearchResults([]);
         setActiveFilters([]);
-        setStats({ total: 0, draft: 0, approved: 0, completed: 0, canceled: 0, totalBudget: 0 });
+        setStatusFilter('');
+        setStats({ total: 0, draft: 0, diajukan: 0, approved: 0, diketahui: 0, dikembalikan: 0, completed: 0, canceled: 0, totalBudget: 0 });
     };
 
     // Notification helper
@@ -367,6 +372,11 @@ export default function SearchKegiatanPage() {
     // Cek apakah user berhak membatalkan (Admin atau PPK)
     const canCancel = userRole === 'admin' || userRole === 'ppk';
 
+    // Filter results berdasarkan status
+    const filteredResults = statusFilter
+        ? searchResults.filter(item => item.status === statusFilter)
+        : searchResults;
+
     return (
         <DashboardLayout onLogout={handleLogout}>
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -409,7 +419,7 @@ export default function SearchKegiatanPage() {
                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Cari Data Kegiatan</h2>
-                                    <p className="text-gray-600 dark:text-gray-400">Gunakan kata kunci untuk mencari data kegiatan yang spesifik</p>
+                                    <p className="text-gray-600 dark:text-gray-400">Cari semua data kegiatan (semua status termasuk diajukan/selesai) untuk dibatalkan</p>
                                     {/* Role Info */}
                                     <div className="mt-2">
                                         <span className={`text-xs px-2 py-1 rounded-full ${
@@ -426,26 +436,57 @@ export default function SearchKegiatanPage() {
                                 
                                 {/* Stats Overview */}
                                 {searchResults.length > 0 && (
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/30 p-3 rounded-lg">
-                                            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{stats.total}</div>
-                                            <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total</div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 p-3 rounded-lg">
-                                            <div className="text-lg font-bold text-gray-700 dark:text-gray-200">{stats.draft}</div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Draft</div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-900/40 dark:to-green-800/30 p-3 rounded-lg">
-                                            <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{stats.approved}</div>
-                                            <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Disetujui</div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/30 p-3 rounded-lg">
-                                            <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{stats.completed}</div>
-                                            <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">Selesai</div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-500 p-3 rounded-lg">
-                                            <div className="text-lg font-bold text-gray-800 dark:text-gray-100">{stats.canceled}</div>
-                                            <div className="text-xs text-gray-700 dark:text-gray-200 font-medium">Dibatalkan</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button onClick={() => setStatusFilter(statusFilter === '' ? '' : '')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === '' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            Semua ({stats.total})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'draft' ? '' : 'draft')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'draft' ? 'ring-2 ring-gray-500 bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            📝 Draft ({stats.draft})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'diajukan' ? '' : 'diajukan')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'diajukan' ? 'ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            ⬆️ Diajukan ({stats.diajukan})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'disetujui' ? '' : 'disetujui')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'disetujui' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            ✅ Disetujui ({stats.approved})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'diketahui' ? '' : 'diketahui')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'diketahui' ? 'ring-2 ring-indigo-500 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            👁️ Diketahui ({stats.diketahui})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'dikembalikan' ? '' : 'dikembalikan')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'dikembalikan' ? 'ring-2 ring-rose-500 bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            ↩️ Dikembalikan ({stats.dikembalikan})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'selesai' ? '' : 'selesai')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'selesai' ? 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            ✓ Selesai ({stats.completed})
+                                        </button>
+                                        <button onClick={() => setStatusFilter(statusFilter === 'dibatalkan' ? '' : 'dibatalkan')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                statusFilter === 'dibatalkan' ? 'ring-2 ring-gray-500 bg-gray-300 dark:bg-gray-500 text-gray-800 dark:text-gray-100' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}>
+                                            ✗ Dibatalkan ({stats.canceled})
+                                        </button>
+                                        <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 self-center">
+                                            Total: <span className="font-bold">{formatRupiah(stats.totalBudget)}</span>
                                         </div>
                                     </div>
                                 )}
@@ -464,7 +505,7 @@ export default function SearchKegiatanPage() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         onKeyPress={handleKeyPress}
-                                        placeholder="Ketik kata kunci: nama kegiatan, MAK, no. ST, lokasi, PPK, Kabalai..."
+                                        placeholder="Ketik kata kunci: nama kegiatan, MAK, no. ST, lokasi, PPK, pembuat, status..."
                                         className="w-full pl-12 pr-40 py-3 text-base border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-800 transition-all duration-200"
                                         disabled={isSearching}
                                     />
@@ -501,7 +542,7 @@ export default function SearchKegiatanPage() {
 
                         {/* Results Section */}
                         <div className="space-y-8">
-                            {searchResults.length > 0 ? (
+                            {filteredResults.length > 0 ? (
                                 <>
                                     {/* Results Header */}
                                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
@@ -511,7 +552,7 @@ export default function SearchKegiatanPage() {
                                                     Hasil Pencarian: <span className="text-blue-600 dark:text-blue-400">{searchTerm}</span>
                                                 </h3>
                                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                    Ditemukan <span className="font-bold text-gray-900 dark:text-gray-100">{searchResults.length}</span> data • 
+                                                    Ditemukan <span className="font-bold text-gray-900 dark:text-gray-100">{filteredResults.length}</span>{statusFilter ? ` dari ${searchResults.length}` : ''} data • 
                                                     Total anggaran: <span className="font-bold text-green-600 dark:text-green-400">{formatRupiah(stats.totalBudget)}</span>
                                                 </p>
                                             </div>
@@ -544,6 +585,7 @@ export default function SearchKegiatanPage() {
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">No</th>
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Status</th>
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Kegiatan</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Pembuat</th>
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">MAK & Lokasi</th>
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Tanggal Pelaksanaan</th>
                                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Anggaran</th>
@@ -551,7 +593,7 @@ export default function SearchKegiatanPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                                    {searchResults.map((item, index) => (
+                                                    {filteredResults.map((item, index) => (
                                                         <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">
                                                                 {index + 1}
@@ -564,6 +606,11 @@ export default function SearchKegiatanPage() {
                                                                             ST: <span className="font-medium dark:text-gray-200">{item.no_st}</span>
                                                                         </div>
                                                                     )}
+                                                                    {item.status_2 && item.status_2 !== item.status && (
+                                                                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                                                                            status_2: {item.status_2}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3 border-r border-gray-100 dark:border-gray-700">
@@ -572,6 +619,12 @@ export default function SearchKegiatanPage() {
                                                                     <div className="text-xs text-gray-500 dark:text-gray-400">
                                                                         ID: {item.id}
                                                                     </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap border-r border-gray-100 dark:border-gray-700">
+                                                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                                    <div>User ID: {item.user_id || '-'}</div>
+                                                                    <div className="mt-1 text-gray-400 dark:text-gray-500">Dibuat: {formatDate(item.createdAt)}</div>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3 border-r border-gray-100 dark:border-gray-700">
@@ -653,7 +706,7 @@ export default function SearchKegiatanPage() {
                                         <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="text-sm text-gray-500 dark:text-gray-400 mb-2 sm:mb-0">
-                                                    Menampilkan <span className="font-medium">{searchResults.length}</span> dari <span className="font-medium">{searchResults.length}</span> hasil
+                                                    Menampilkan <span className="font-medium">{filteredResults.length}</span>{statusFilter ? ` dari ${searchResults.length}` : ''} hasil
                                                 </div>
                                                 <div className="text-sm text-gray-500 dark:text-gray-400">
                                                     Total anggaran: <span className="font-bold text-green-700 dark:text-green-400">{formatRupiah(stats.totalBudget)}</span>
@@ -662,8 +715,8 @@ export default function SearchKegiatanPage() {
                                         </div>
                                     </div>
                                 </>
-                            ) : searchTerm && !isSearching ? (
-                                // Empty State
+                            ) : searchTerm && !isSearching && searchResults.length === 0 ? (
+                                // Empty State - No search results
                                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700">
                                     <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -677,6 +730,21 @@ export default function SearchKegiatanPage() {
                                         Hapus Pencarian
                                     </button>
                                 </div>
+                            ) : searchTerm && !isSearching && searchResults.length > 0 && filteredResults.length === 0 ? (
+                                // Empty State - Status filter has no matches
+                                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700">
+                                    <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Tidak ada data dengan status ini</h3>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-4">Tidak ada data dengan status tersebut dari pencarian "{searchTerm}". Coba pilih status lain.</p>
+                                    <button
+                                        onClick={() => setStatusFilter('')}
+                                        className="px-4 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+                                    >
+                                        Tampilkan Semua Status
+                                    </button>
+                                </div>
                             ) : !searchTerm && !isSearching ? (
                                 // Initial State
                                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700">
@@ -684,7 +752,7 @@ export default function SearchKegiatanPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                     <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Masukkan kata kunci pencarian</h3>
-                                    <p className="text-gray-600 dark:text-gray-400">Gunakan kolom pencarian di atas untuk mencari data kegiatan</p>
+                                    <p className="text-gray-600 dark:text-gray-400">Cari berdasarkan nama kegiatan, MAK, no. ST, lokasi, PPK, atau ID pembuat. Semua status ditampilkan termasuk yang sudah diajukan/selesai.</p>
                                 </div>
                             ) : null}
                         </div>
