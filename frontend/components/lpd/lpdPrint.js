@@ -1,7 +1,7 @@
     // components/lpd/lpdPrint.js
     import React from 'react';
 
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
     export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) => {
         try {

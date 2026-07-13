@@ -4,7 +4,7 @@ import { formatDateForDisplay } from '../../utils/formatters';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
   const { data: session } = useSession();

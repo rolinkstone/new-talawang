@@ -81,7 +81,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 lastModified: null
                             },
                             preview: f.file_path 
-                                ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${f.file_path}`
+                                ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}${f.file_path}`
                                 : null,
                             name: f.file_name || '',
                             id: f.id,
@@ -108,7 +108,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                 lastModified: null
                             },
                             preview: f.file_path 
-                                ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}${f.file_path}`
+                                ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}${f.file_path}`
                                 : null,
                             name: f.file_name || '',
                             id: f.id,
