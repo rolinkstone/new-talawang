@@ -1,8 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-    turbopack: {
-        root: 'D:\\talawang update\\keuangan',
-    },
-};
+const nextConfig = {};
 
 export default nextConfig;
