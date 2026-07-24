@@ -90,6 +90,18 @@ const normalizeNip = (nip) => {
     return String(nip).replace(/\s/g, '');
 };
 
+// Helper untuk mencocokkan NIP secara fleksibel (mengatasi perbedaan format digit)
+function matchNip(nip1, nip2) {
+    if (!nip1 || !nip2) return false;
+    const a = normalizeNip(nip1);
+    const b = normalizeNip(nip2);
+    if (a === b) return true;
+    if (a.length > 0 && b.length > 0) {
+        if (a.includes(b) || b.includes(a)) return true;
+    }
+    return false;
+}
+
 // Helper untuk mengecek role user
 function getUserRoleInfo(user) {
     const roles = user.extractedRoles || user.role || [];
@@ -216,22 +228,30 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     -- KONDISI 2: User adalah PESERTA PERJADIN
                     (
                         REPLACE(p.nip, ' ', '') = ?
+                        OR
+                        ? LIKE CONCAT('%', REPLACE(p.nip, ' ', ''))
+                        OR
+                        REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?)
                     )
                     OR
                     -- KONDISI 3: User adalah PEJABAT PPK
                     (
                         n.ppk_id = ? OR REPLACE(n.ppk_nip, ' ', '') = ?
+                        OR ? LIKE CONCAT('%', REPLACE(n.ppk_nip, ' ', ''))
+                        OR REPLACE(n.ppk_nip, ' ', '') LIKE CONCAT('%', ?)
                     )
                     OR
                     -- KONDISI 4: User adalah PEJABAT BENDAHARA
                     (
                         n.bendahara_id = ? OR REPLACE(n.bendahara_nip, ' ', '') = ?
+                        OR ? LIKE CONCAT('%', REPLACE(n.bendahara_nip, ' ', ''))
+                        OR REPLACE(n.bendahara_nip, ' ', '') LIKE CONCAT('%', ?)
                     )
                 )
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
-            queryParams = [userId, normalizedUserNip, userId, normalizedUserNip, userId, normalizedUserNip];
+            queryParams = [userId, normalizedUserNip, normalizedUserNip, normalizedUserNip, userId, normalizedUserNip, normalizedUserNip, normalizedUserNip, userId, normalizedUserNip, normalizedUserNip, normalizedUserNip];
             console.log('👤 User mode (hanya LPD selesai)');
         }
         
@@ -330,14 +350,14 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             
             // ============ CEK PERAN USER ============
             const currentUserPegawai = pegawaiList.find(p => 
-                normalizeNip(p.nip) === normalizedUserNip
+                matchNip(p.nip, normalizedUserNip)
             );
             const isPesertaPerjadin = !!currentUserPegawai;
             const isCreator = kegiatan.user_id === userId;
             const isPejabatPPK = kegiatan.ppk_id === userId || 
-                                 (kegiatan.ppk_nip && normalizeNip(kegiatan.ppk_nip) === normalizedUserNip);
+                                 (kegiatan.ppk_nip && matchNip(kegiatan.ppk_nip, normalizedUserNip));
             const isPejabatBendahara = kegiatan.bendahara_id === userId || 
-                                       (kegiatan.bendahara_nip && normalizeNip(kegiatan.bendahara_nip) === normalizedUserNip);
+                                       (kegiatan.bendahara_nip && matchNip(kegiatan.bendahara_nip, normalizedUserNip));
             
             console.log(`🔍 PERAN USER dalam kegiatan ${kegiatan.id}:`, {
                 isCreator,
@@ -363,7 +383,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             // KASUS 2: User adalah PESERTA PERJADIN - hanya lihat dirinya sendiri
             else if (isPesertaPerjadin) {
                 filteredPegawaiList = pegawaiList.filter(p => 
-                    normalizeNip(p.nip) === normalizedUserNip
+                    matchNip(p.nip, normalizedUserNip)
                 );
                 
                 if (filteredPegawaiList.length > 0) {
@@ -1069,11 +1089,11 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
         const normalizedPpkNip = normalizeNip(kwitansiData.ppk_nip);
         const normalizedBendaharaNip = normalizeNip(kwitansiData.bendahara_nip);
         
-        const isPegawai = normalizedUserNip === normalizedPegawaiNip;
+        const isPegawai = matchNip(normalizedUserNip, normalizedPegawaiNip);
         // PERBAIKAN: PPK diambil dari data nominatif kegiatan (berdasarkan ppk_id ATAU ppk_nip)
-        const isPPKFromNominatif = kwitansiData.ppk_id === userId || normalizedUserNip === normalizedPpkNip;
+        const isPPKFromNominatif = kwitansiData.ppk_id === userId || matchNip(normalizedUserNip, normalizedPpkNip);
         // Bendahara diambil dari data nominatif kegiatan (berdasarkan bendahara_id ATAU bendahara_nip)
-        const isBendaharaFromNominatif = kwitansiData.bendahara_id === userId || normalizedUserNip === normalizedBendaharaNip;
+        const isBendaharaFromNominatif = kwitansiData.bendahara_id === userId || matchNip(normalizedUserNip, normalizedBendaharaNip);
         
         console.log('🔍 Approval check:', {
             isPegawai,

@@ -56,6 +56,7 @@ export default function KwitansiContainer() {
     const [currentUserNip, setCurrentUserNip] = useState('');
     const [currentUserId, setCurrentUserId] = useState('');
     const [currentUserName, setCurrentUserName] = useState('');
+    const [currentUserUsername, setCurrentUserUsername] = useState('');
     
     const formatRupiah = (number) => {
         if (number === undefined || number === null) return '0';
@@ -73,6 +74,18 @@ export default function KwitansiContainer() {
     const normalizeNip = (nip) => {
         if (!nip) return '';
         return String(nip).replace(/\s/g, '');
+    };
+
+    // Helper untuk mencocokkan NIP secara fleksibel
+    const matchNip = (nip1, nip2) => {
+        if (!nip1 || !nip2) return false;
+        const a = normalizeNip(nip1);
+        const b = normalizeNip(nip2);
+        if (a === b) return true;
+        if (a.length > 0 && b.length > 0) {
+            if (a.includes(b) || b.includes(a)) return true;
+        }
+        return false;
     };
     
     useEffect(() => {
@@ -106,6 +119,7 @@ export default function KwitansiContainer() {
             setCurrentUserNip(normalizeNip(userNip));
             setCurrentUserId(userId);
             setCurrentUserName(userData.name || userData.email || 'User');
+            setCurrentUserUsername(normalizeNip(userData.username || ''));
             
             console.log('📊 User Type Info:', {
                 isAdmin,
@@ -349,7 +363,8 @@ export default function KwitansiContainer() {
                     const pegawaiList = kegiatan.pegawai || [];
                     
                     const pegawaiWithFlag = pegawaiList.map(pegawai => {
-                        const isCurrentUser = normalizeNip(pegawai.nip) === currentUserNip;
+                        const isCurrentUser = matchNip(pegawai.nip, currentUserNip) ||
+                                              matchNip(pegawai.nip, currentUserUsername);
                         return {
                             ...pegawai,
                             isCurrentUser: isCurrentUser
@@ -390,10 +405,10 @@ export default function KwitansiContainer() {
     };
     
     useEffect(() => {
-        if (session?.accessToken && currentUserNip) {
+        if (session?.accessToken && (currentUserNip || currentUserUsername)) {
             fetchNeedKwitansi();
         }
-    }, [session, currentUserNip, activeTab]);
+    }, [session, currentUserNip, currentUserUsername, activeTab]);
     
     useEffect(() => {
         if (kegiatanList.length > 0) {

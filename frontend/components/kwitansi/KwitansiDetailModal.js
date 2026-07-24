@@ -47,14 +47,26 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
         return String(value).replace(/\s/g, '');
     };
     
+    // Helper untuk mencocokkan NIP secara fleksibel
+    const matchNip = (nip1, nip2) => {
+        if (!nip1 || !nip2) return false;
+        const a = normalizeNip(nip1);
+        const b = normalizeNip(nip2);
+        if (a === b) return true;
+        if (a.length > 0 && b.length > 0) {
+            if (a.includes(b) || b.includes(a)) return true;
+        }
+        return false;
+    };
+    
     const userNip = normalizeNip(session?.user?.nip || session?.user?.username || '');
     const pegawaiNip = normalizeNip(item.pegawai_nip || item.nip || '');
     const bendaharaNip = normalizeNip(item.bendahara_nip || '');
     const ppkNip = normalizeNip(item.ppk_nip || '');
     
-    const isPegawai = userNip && pegawaiNip && userNip === pegawaiNip;
-    const isBendahara = userNip && bendaharaNip && userNip === bendaharaNip;
-    const isPpk = userNip && ppkNip && userNip === ppkNip;
+    const isPegawai = userNip && pegawaiNip && matchNip(userNip, pegawaiNip);
+    const isBendahara = userNip && bendaharaNip && matchNip(userNip, bendaharaNip);
+    const isPpk = userNip && ppkNip && matchNip(userNip, ppkNip);
     
     // Cek apakah kwitansi ditolak dan pegawai bisa edit
     const isRejected = statusPegawai === 'ditolak' || statusPpk === 'ditolak' || statusBendahara === 'ditolak';
@@ -112,58 +124,26 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
         }
     };
     
-    // Fungsi untuk download file transport
-    const downloadFile = async (fileId, fileName) => {
-        try {
-            const response = await axios.get(
-                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-transport-file/${fileId}/download`,
-                {
-                    headers: { Authorization: `Bearer ${session?.accessToken}` },
-                    responseType: 'blob'
-                }
-            );
-            
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Error downloading file:', error);
-            setMessage('Gagal mengunduh file');
-            setMessageType('error');
-            setTimeout(() => setMessage(''), 3000);
-        }
+    // Helper untuk dapatkan base URL tanpa /api
+    const getBaseUrl = () => {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        return apiUrl.replace(/\/api$/, '');
     };
     
-    // Fungsi untuk download file penginapan
-    const downloadPenginapanFile = async (fileId, fileName) => {
-        try {
-            const response = await axios.get(
-                `${process.env.NEXT_PUBLIC_API_URL}/kwitansi/sptjm-penginapan-file/${fileId}/download`,
-                {
-                    headers: { Authorization: `Bearer ${session?.accessToken}` },
-                    responseType: 'blob'
-                }
-            );
-            
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Error downloading penginapan file:', error);
-            setMessage('Gagal mengunduh file penginapan');
-            setMessageType('error');
-            setTimeout(() => setMessage(''), 3000);
-        }
+    // Fungsi untuk preview file transport di tab baru
+    const previewFile = (fileId, fileName, filePath) => {
+        const baseUrl = getBaseUrl();
+        const cleanPath = filePath ? filePath.replace(/^\/api/, '').replace(/^\/public/, '') : `/uploads/sptjm-transport/${fileName}`;
+        const fileUrl = `${baseUrl}${cleanPath.startsWith('/') ? '' : '/'}${cleanPath}`;
+        window.open(fileUrl, '_blank');
+    };
+    
+    // Fungsi untuk preview file penginapan di tab baru
+    const previewPenginapanFile = (fileId, fileName, filePath) => {
+        const baseUrl = getBaseUrl();
+        const cleanPath = filePath ? filePath.replace(/^\/api/, '').replace(/^\/public/, '') : `/uploads/sptjm-penginapan/${fileName}`;
+        const fileUrl = `${baseUrl}${cleanPath.startsWith('/') ? '' : '/'}${cleanPath}`;
+        window.open(fileUrl, '_blank');
     };
     
     // Ambil data SPTJM saat modal dibuka
@@ -693,13 +673,14 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                                                             )}
                                                                         </div>
                                                                         <button
-                                                                            onClick={() => downloadFile(file.id, file.file_name)}
+                                                                            onClick={() => previewFile(file.id, file.file_name, file.file_path)}
                                                                             className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
                                                                         >
                                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                                             </svg>
-                                                                            Unduh
+                                                                            Lihat
                                                                         </button>
                                                                     </div>
                                                                 ))}
@@ -801,13 +782,14 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
                                                                             )}
                                                                         </div>
                                                                         <button
-                                                                            onClick={() => downloadPenginapanFile(file.id, file.file_name)}
+                                                                            onClick={() => previewPenginapanFile(file.id, file.file_name, file.file_path)}
                                                                             className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
                                                                         >
                                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                                             </svg>
-                                                                            Unduh
+                                                                            Lihat
                                                                         </button>
                                                                     </div>
                                                                 ))}

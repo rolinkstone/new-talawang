@@ -251,15 +251,15 @@ export default function LpdModal({ isOpen, onClose, type, title, kegiatanId, exi
                         {type === 'dokumentasi' && (
                             <div>
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pilih File (Gambar, PDF, Word)</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pilih File Gambar</label>
                                     <input
                                         type="file"
                                         multiple
-                                        accept="image/*,.pdf,.doc,.docx"
+                                        accept="image/*"
                                         onChange={handleFileChange}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     />
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maksimal 20 file, masing-masing maksimal 10MB</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maksimal 20 file, masing-masing maksimal 10MB. Hanya file gambar (JPG, PNG, GIF, WebP)</p>
                                 </div>
 
                                 {selectedFiles.length > 0 && (

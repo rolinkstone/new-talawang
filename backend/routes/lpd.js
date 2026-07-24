@@ -31,13 +31,13 @@ const uploadLpd = multer({
     storage: lpdStorage,
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
         if (mimetype && extname) {
             return cb(null, true);
         } else {
-            cb(new Error('Hanya file gambar (jpeg, jpg, png), PDF, atau Word yang diperbolehkan'));
+            cb(new Error('Hanya file gambar (jpeg, jpg, png, gif, webp) yang diperbolehkan'));
         }
     }
 });
@@ -57,6 +57,18 @@ const normalizeNip = (nip) => {
     if (!nip) return '';
     return String(nip).replace(/\s/g, '');
 };
+
+// Helper untuk mencocokkan NIP secara fleksibel (mengatasi perbedaan format digit)
+function matchNip(nip1, nip2) {
+    if (!nip1 || !nip2) return false;
+    const a = normalizeNip(nip1);
+    const b = normalizeNip(nip2);
+    if (a === b) return true;
+    if (a.length > 0 && b.length > 0) {
+        if (a.includes(b) || b.includes(a)) return true;
+    }
+    return false;
+}
 
 // Helper untuk mengecek role user
 function getUserRoleInfo(user) {
@@ -140,10 +152,11 @@ async function getTtdByUser(user) {
 }
 
 // Helper untuk cek apakah user adalah pegawai dalam kegiatan
-async function isUserInKegiatan(kegiatanId, userId, userNip) {
+async function isUserInKegiatan(kegiatanId, userId, userNip, userUsername) {
     try {
         const cleanNip = normalizeNip(userNip);
-        console.log(`🔍 Checking if user ${userId} (NIP: ${cleanNip}) is in kegiatan ${kegiatanId}`);
+        const cleanUsername = normalizeNip(userUsername || '');
+        console.log(`🔍 Checking if user ${userId} (NIP: ${cleanNip}, Username: ${cleanUsername}) is in kegiatan ${kegiatanId}`);
         
         const [result] = await db.query(`
             SELECT p.id 
@@ -152,10 +165,11 @@ async function isUserInKegiatan(kegiatanId, userId, userNip) {
             WHERE p.kegiatan_id = ? 
             AND (
                 REPLACE(p.nip, ' ', '') = ? 
+                OR REPLACE(p.nip, ' ', '') = ?
                 OR p.user_id = ?
             )
             LIMIT 1
-        `, [kegiatanId, cleanNip, userId]);
+        `, [kegiatanId, cleanNip, cleanUsername, userId]);
         
         const isPegawai = result.length > 0;
         console.log(`✅ User is in kegiatan: ${isPegawai}`);
@@ -173,11 +187,14 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
         const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
         const cleanUserNip = normalizeNip(userNip);
+        const userUsername = req.user?.username || req.user?.preferred_username || '';
+        const cleanUsername = normalizeNip(userUsername);
         
         console.log('👤 User info for daftar-kegiatan:', {
             userId: userId,
             userNip: userNip,
             cleanUserNip: cleanUserNip,
+            username: cleanUsername,
             isAdmin: roleInfo.isAdmin,
             isKatim: roleInfo.isKatim,
             isKabagTu: roleInfo.isKabagTu,
@@ -256,14 +273,14 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 OR EXISTS (
                     SELECT 1 FROM nominatif_pegawai p 
                     WHERE p.kegiatan_id = n.id 
-                    AND REPLACE(p.nip, ' ', '') = ?
+                    AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
                 )
                 OR COALESCE(l.lpd_status, 'draft') = 'menunggu_katim'
                 OR (l.lpd_status = 'menunggu_kabalai' AND l.katim_id = ?)
                 OR (l.lpd_status = 'selesai' AND l.katim_id = ?)
                 OR (l.lpd_status = 'ditolak_katim' AND l.katim_id = ?)
             )`;
-            params.push(userId, cleanUserNip, userId, userId, userId);
+            params.push(userId, cleanUserNip, cleanUserNip, cleanUserNip, userId, userId, userId);
             query += ` ORDER BY 
                 CASE 
                     WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_katim' THEN 1
@@ -286,10 +303,10 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 OR EXISTS (
                     SELECT 1 FROM nominatif_pegawai p 
                     WHERE p.kegiatan_id = n.id 
-                    AND REPLACE(p.nip, ' ', '') = ?
+                    AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
                 )
             )`;
-            params.push(userId, cleanUserNip);
+            params.push(userId, cleanUserNip, cleanUserNip, cleanUserNip);
             query += ` ORDER BY 
                 CASE 
                     WHEN COALESCE(l.lpd_status, 'draft') = 'menunggu_kabalai' THEN 1
@@ -308,10 +325,10 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 OR EXISTS (
                     SELECT 1 FROM nominatif_pegawai p 
                     WHERE p.kegiatan_id = n.id 
-                    AND REPLACE(p.nip, ' ', '') = ?
+                    AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
                 )
             )`;
-            params.push(userId, cleanUserNip);
+            params.push(userId, cleanUserNip, cleanUserNip, cleanUserNip);
             query += ` ORDER BY n.created_at DESC`;
             console.log('👤 Regular user mode: melihat kegiatan yang dibuat atau NIP terdaftar sebagai pegawai');
         }
@@ -335,8 +352,8 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
             // Cek apakah user terdaftar sebagai pegawai dalam kegiatan ini
             const [pegawaiCheck] = await db.query(`
                 SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [kegiatan.id, cleanUserNip]);
+                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+            `, [kegiatan.id, cleanUserNip, cleanUserNip, cleanUserNip]);
             
             const isPegawaiInKegiatan = pegawaiCheck.length > 0;
             
@@ -420,6 +437,8 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         const userNip = user?.nip || '';
         const roleInfo = getUserRoleInfo(user);
         const cleanUserNip = normalizeNip(userNip);
+        const userUsername = req.user?.username || req.user?.preferred_username || '';
+        const cleanUsername = normalizeNip(userUsername);
         
         console.log('👤 User info for kegiatan detail:', {
             kegiatanId,
@@ -453,8 +472,8 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             
             const [pegawaiCheck] = await db.query(`
                 SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [kegiatanId, cleanUserNip]);
+                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+            `, [kegiatanId, cleanUserNip, cleanUserNip, cleanUserNip]);
             const isPegawaiInKegiatan = pegawaiCheck.length > 0;
             
             hasAccess = isCreator || isPegawaiInKegiatan;
@@ -718,10 +737,11 @@ router.post('/rincian', keycloakAuth, async (req, res) => {
             hasAccess = true;
         } else {
             const cleanUserNip = normalizeNip(userNip);
+            const cleanUsername = normalizeNip(req.user?.username || req.user?.preferred_username || '');
             const [pegawaiCheck] = await db.query(`
                 SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [kegiatan_id, cleanUserNip]);
+                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+            `, [kegiatan_id, cleanUserNip, cleanUserNip, cleanUserNip]);
             if (pegawaiCheck.length > 0) {
                 hasAccess = true;
             }
@@ -839,10 +859,11 @@ router.post('/dokumentasi/:kegiatanId', keycloakAuth, (req, res) => {
             // Pegawai yang terdaftar dalam kegiatan bisa upload (jika status draft atau ditolak)
             else {
                 const cleanUserNip = normalizeNip(userNip);
+                const cleanUsername = normalizeNip(req.user?.username || req.user?.preferred_username || '');
                 const [pegawaiCheck] = await db.query(`
                     SELECT p.id FROM nominatif_pegawai p 
-                    WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-                `, [kegiatanId, cleanUserNip]);
+                    WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+                `, [kegiatanId, cleanUserNip, cleanUserNip, cleanUserNip]);
                 
                 if (pegawaiCheck.length > 0) {
                     hasAccess = true;
@@ -980,10 +1001,11 @@ router.delete('/dokumentasi/:dokumentasiId', keycloakAuth, async (req, res) => {
         // Pegawai yang terdaftar dalam kegiatan bisa menghapus (jika status draft atau ditolak)
         else {
             const cleanUserNip = normalizeNip(userNip);
+            const cleanUsername = normalizeNip(req.user?.username || req.user?.preferred_username || '');
             const [pegawaiCheck] = await db.query(`
                 SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [dokumentasi[0].kegiatan_id, cleanUserNip]);
+                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+            `, [dokumentasi[0].kegiatan_id, cleanUserNip, cleanUserNip, cleanUserNip]);
             
             if (pegawaiCheck.length > 0) {
                 hasAccess = true;
@@ -1594,10 +1616,11 @@ router.get('/print/:kegiatanId', keycloakAuth, async (req, res) => {
             `, [kegiatanId, userId]);
             const isCreator = creatorCheck.length > 0;
             
+            const cleanUsername = normalizeNip(req.user?.username || req.user?.preferred_username || '');
             const [pesertaCheck] = await db.query(`
                 SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND REPLACE(p.nip, ' ', '') = ?
-            `, [kegiatanId, cleanUserNip]);
+                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
+            `, [kegiatanId, cleanUserNip, cleanUserNip, cleanUserNip]);
             const isPeserta = pesertaCheck.length > 0;
             
             hasAccess = isCreator || isPeserta;
