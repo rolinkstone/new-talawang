@@ -250,7 +250,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     if (transportDetail.length > 0) {
       transportDetail.forEach((t, idx) => {
         const namaTransport = t.transport || t.trans || '-';
-        const lokasiTujuan = t.tujuan || t.keterangan || 'Pulang Pisau';
+        const lokasiTujuan = t.tujuan || t.keterangan || kegiatan?.kota_kab_kecamatan || '';
         const nominal = t.total ? `${formatRupiah(t.total)}` : '';
         rows += `
           <tr>
@@ -275,7 +275,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
           <td style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">
             <strong>Uang Transport</strong>
             <div style="padding-left: 20px; font-size: 10px; margin-top: 2px;">
-              Uang Transport (Palangka Raya - Pulang Pisau)
+              Uang Transport (Palangka Raya - ${kegiatan?.kota_kab_kecamatan || ''})
             </div>
           </td>
           <td class="text-right" style="border: 1px solid #000; padding: 6px; vertical-align: top; border-bottom: none;">

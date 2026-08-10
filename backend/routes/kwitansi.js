@@ -945,7 +945,7 @@ router.post('/', keycloakAuth, async (req, res) => {
             hasAccess = true;
             console.log('👑 Admin access granted');
         } 
-        else if (pegawaiNip === normalizedUserNip) {
+        else if (matchNip(pegawaiNip, normalizedUserNip)) {
             // INI YANG PENTING: PPK dan Bendahara akan masuk ke sini
             // karena mereka adalah pegawai yang bersangkutan
             hasAccess = true;
@@ -1245,8 +1245,13 @@ router.get('/:id', keycloakAuth, async (req, res) => {
         let params = [id];
         
         if (!roleInfo.isAdmin && !roleInfo.isPPK && !roleInfo.isBendahara) {
-            query += ` AND REPLACE(p.nip, ' ', '') = ?`;
-            params.push(userNip);
+            // Gunakan pencocokan fleksibel agar NIP parsial di DB cocok dengan NIP lengkap user
+            query += ` AND (
+                REPLACE(p.nip, ' ', '') = ?
+                OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', ''))
+                OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?)
+            )`;
+            params.push(userNip, userNip, userNip);
         }
         
         const [results] = await db.query(query, params);
@@ -1329,7 +1334,8 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         const normalizedUserNip = normalizeNip(userNip);
         const normalizedPegawaiNip = normalizeNip(kwitansi.pegawai_nip);
         
-        const canUpdate = roleInfo.isAdmin || normalizedUserNip === normalizedPegawaiNip;
+        // Gunakan matchNip agar NIP parsial di DB (mis. 804960002) cocok dengan NIP lengkap user (6271030804960002)
+        const canUpdate = roleInfo.isAdmin || matchNip(normalizedUserNip, normalizedPegawaiNip);
         
         if (!canUpdate) {
             return res.status(403).json({ success: false, message: 'Tidak memiliki akses untuk mengubah kwitansi ini' });
