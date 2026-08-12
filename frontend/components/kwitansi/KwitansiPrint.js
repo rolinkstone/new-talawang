@@ -245,7 +245,9 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       return null;
     };
 
-    if (!ttdPegawai) {
+    // Hanya tampilkan TTD fallback jika orang tsb sudah approve (status = 'sudah')
+    // TTD pegawai/ppk/bendahara tidak boleh muncul sebelum mereka menyetujui kwitansi
+    if (!ttdPegawai && statusPegawai === 'sudah') {
       const candidates = [pegawai?.nip, item?.pegawai_nip];
       // Jika ini kwitansi milik user yang login, tambahkan NIP/username session
       // (format NIP di nominatif kadang beda dengan user_profiles, mis. 16 vs 18 digit)
@@ -255,11 +257,11 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       const fallbackUrl = await fetchTtdByNip(candidates);
       if (fallbackUrl) setTtdPegawaiUrl(fallbackUrl);
     }
-    if (!ttdPpk) {
+    if (!ttdPpk && statusPpk === 'sudah') {
       const fallbackUrl = await fetchTtdByNip([kegiatan?.ppk_nip]);
       if (fallbackUrl) setTtdPpkUrl(fallbackUrl);
     }
-    if (!ttdBendahara) {
+    if (!ttdBendahara && statusBendahara === 'sudah') {
       const fallbackUrl = await fetchTtdByNip([kegiatan?.bendahara_nip]);
       if (fallbackUrl) setTtdBendaharaUrl(fallbackUrl);
     }
@@ -267,7 +269,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
 
   useEffect(() => {
     loadTtdImages();
-  }, [item, pegawai, kegiatan, session]);
+  }, [item, pegawai, kegiatan, session, statusPegawai, statusPpk, statusBendahara]);
 
   const ppkNama = kegiatan?.ppk_nama || 'PPK';
   const bendaharaNama = kegiatan?.bendahara_nama || 'Bendahara';
