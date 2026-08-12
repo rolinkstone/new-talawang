@@ -384,6 +384,63 @@ router.get('/ttd', keycloakAuth, async (req, res) => {
     }
 });
 
+// GET - Ambil ttd_path terbaru dari user_profiles berdasarkan NIP
+// (fallback cetak kwitansi: ttd_pegawai_path/ttd_ppk_path/ttd_bendahara_path di
+//  kwitansi_perjadin kadang null karena user approve sebelum ttd_path direkam)
+router.get('/ttd-by-nip/:nip', keycloakAuth, async (req, res) => {
+    try {
+        const { nip } = req.params;
+        if (!nip) {
+            return res.status(400).json({
+                success: false,
+                message: 'NIP tidak ditemukan'
+            });
+        }
+        
+        const cleanNip = String(nip).replace(/\s/g, '');
+        // Pencocokan fleksibel: format NIP di user_profiles kadang beda dengan NIP di nominatif
+        // (contoh: 18 digit vs 16 digit, dengan/tanpa spasi). Prioritaskan exact match.
+        const [profile] = await db.query(`
+            SELECT ttd_path, REPLACE(nip, ' ', '') as clean_nip
+            FROM user_profiles 
+            WHERE REPLACE(nip, ' ', '') = ? 
+               OR REPLACE(username, ' ', '') = ?
+               OR REPLACE(nip, ' ', '') LIKE CONCAT('%', ?)
+               OR ? LIKE CONCAT('%', REPLACE(nip, ' ', ''))
+            ORDER BY 
+              CASE 
+                WHEN REPLACE(nip, ' ', '') = ? OR REPLACE(username, ' ', '') = ? THEN 0 
+                ELSE 1 
+              END,
+              CHAR_LENGTH(REPLACE(nip, ' ', '')) DESC
+            LIMIT 1
+        `, [cleanNip, cleanNip, cleanNip, cleanNip, cleanNip, cleanNip]);
+        
+        if (profile.length === 0 || !profile[0].ttd_path) {
+            return res.status(404).json({
+                success: false,
+                message: 'TTD tidak ditemukan'
+            });
+        }
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                nip: nip,
+                ttd_path: cleanFilePath(profile[0].ttd_path)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting TTD by NIP:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengambil TTD',
+            error: error.message
+        });
+    }
+});
+
 // GET - Search users by name or NIP (for admin)
 router.get('/users/search', keycloakAuth, async (req, res) => {
     try {

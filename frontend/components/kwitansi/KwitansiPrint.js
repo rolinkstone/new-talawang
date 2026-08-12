@@ -200,7 +200,7 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1) + ' rupiah';
   };
 
-  const loadTtdImages = () => {
+  const loadTtdImages = async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     const getImageUrl = (path) => {
       if (!path) return null;
@@ -221,11 +221,53 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
     setTtdPegawaiUrl(getImageUrl(ttdPegawai));
     setTtdPpkUrl(getImageUrl(ttdPpk));
     setTtdBendaharaUrl(getImageUrl(ttdBendahara));
+
+    // === FALLBACK: jika path TTD di kwitansi null, ambil ttd_path terbaru dari user_profiles ===
+    // (kasus: user approve sebelum ttd_path direkam di profile, jadi ttd_*_path null)
+    const headers = session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
+
+    const fetchTtdByNip = async (nips) => {
+      const candidates = [].concat(nips || []).filter(Boolean);
+      for (const nip of candidates) {
+        if (!nip) continue;
+        try {
+          const res = await axios.get(
+            `${apiUrl}/profile/ttd-by-nip/${encodeURIComponent(String(nip).trim())}`,
+            { headers }
+          );
+          if (res.data?.success && res.data.data?.ttd_path) {
+            return getImageUrl(res.data.data.ttd_path);
+          }
+        } catch (e) {
+          // 404 = TTD belum diunggah di profile, coba kandidat berikutnya
+        }
+      }
+      return null;
+    };
+
+    if (!ttdPegawai) {
+      const candidates = [pegawai?.nip, item?.pegawai_nip];
+      // Jika ini kwitansi milik user yang login, tambahkan NIP/username session
+      // (format NIP di nominatif kadang beda dengan user_profiles, mis. 16 vs 18 digit)
+      if (pegawai?.isCurrentUser) {
+        candidates.push(session?.user?.nip, session?.user?.username, session?.user?.nip_raw);
+      }
+      const fallbackUrl = await fetchTtdByNip(candidates);
+      if (fallbackUrl) setTtdPegawaiUrl(fallbackUrl);
+    }
+    if (!ttdPpk) {
+      const fallbackUrl = await fetchTtdByNip([kegiatan?.ppk_nip]);
+      if (fallbackUrl) setTtdPpkUrl(fallbackUrl);
+    }
+    if (!ttdBendahara) {
+      const fallbackUrl = await fetchTtdByNip([kegiatan?.bendahara_nip]);
+      if (fallbackUrl) setTtdBendaharaUrl(fallbackUrl);
+    }
   };
 
   useEffect(() => {
     loadTtdImages();
-  }, [item, pegawai]);
+  }, [item, pegawai, kegiatan, session]);
 
   const ppkNama = kegiatan?.ppk_nama || 'PPK';
   const bendaharaNama = kegiatan?.bendahara_nama || 'Bendahara';
