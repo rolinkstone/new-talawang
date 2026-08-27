@@ -133,6 +133,24 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                 </div>
             )}
 
+            {/* Banner LPD Shared (No ST yang sama) */}
+            {lpdData?.lpd_shared_done === true && (
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 border-b border-emerald-200 dark:border-emerald-800">
+                    <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <h4 className="font-medium text-emerald-800 dark:text-emerald-300">LPD Sudah Terisi (No ST yang sama)</h4>
+                            <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                                Rincian kegiatan &amp; dokumentasi LPD ditampilkan dari kegiatan lain dengan No ST yang sama.
+                                Anda tidak perlu mengisi LPD lagi — langsung isi Kwitansi (LPJ) di menu Kwitansi.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Informasi Kegiatan */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Informasi Kegiatan</h3>

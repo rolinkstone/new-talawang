@@ -348,31 +348,106 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
         
         const result = [];
         
+        // ============ OPTIMASI PERFORMANCE: batch query (hindari N+1 request) ============
+        const kegiatanIds = kegiatanList.map(k => k.id);
+        
+        let rincianCountMap = {};
+        let dokumentasiCountMap = {};
+        let pegawaiByKegiatan = {};
+        let dokumentasiPreviewMap = {};
+        
+        if (kegiatanIds.length > 0) {
+            const idsPlaceholder = kegiatanIds.map(() => '?').join(',');
+            
+            // Batch: jumlah rincian per kegiatan
+            const [rincianRows] = await db.query(
+                `SELECT kegiatan_id, COUNT(*) as count FROM lpd_rincian_kegiatan 
+                 WHERE kegiatan_id IN (${idsPlaceholder}) GROUP BY kegiatan_id`,
+                kegiatanIds
+            );
+            rincianRows.forEach(r => { rincianCountMap[r.kegiatan_id] = Number(r.count) || 0; });
+            
+            // Batch: jumlah dokumentasi per kegiatan
+            const [dokumentasiRows] = await db.query(
+                `SELECT kegiatan_id, COUNT(*) as count FROM lpd_dokumentasi 
+                 WHERE kegiatan_id IN (${idsPlaceholder}) GROUP BY kegiatan_id`,
+                kegiatanIds
+            );
+            dokumentasiRows.forEach(r => { dokumentasiCountMap[r.kegiatan_id] = Number(r.count) || 0; });
+            
+            // Batch: semua pegawai untuk kegiatan ini (daftar petugas pelaksana + cek keanggotaan)
+            const [pegawaiRows] = await db.query(
+                `SELECT kegiatan_id, id, nama, nip, pangkat, jabatan 
+                 FROM nominatif_pegawai WHERE kegiatan_id IN (${idsPlaceholder}) ORDER BY id ASC`,
+                kegiatanIds
+            );
+            pegawaiRows.forEach(p => {
+                if (!pegawaiByKegiatan[p.kegiatan_id]) pegawaiByKegiatan[p.kegiatan_id] = [];
+                pegawaiByKegiatan[p.kegiatan_id].push({
+                    id: p.id,
+                    nama: p.nama,
+                    nip: p.nip,
+                    pangkat_golongan: p.pangkat || '',
+                    jabatan: p.jabatan
+                });
+            });
+            
+            // Batch: dokumentasi preview (dokumen pertama per kegiatan)
+            const [dokumenRows] = await db.query(
+                `SELECT kegiatan_id, id, file_path, file_name, file_type, file_size, keterangan, created_at 
+                 FROM lpd_dokumentasi WHERE kegiatan_id IN (${idsPlaceholder}) ORDER BY created_at ASC`,
+                kegiatanIds
+            );
+            dokumenRows.forEach(d => {
+                if (!dokumentasiPreviewMap[d.kegiatan_id]) {
+                    dokumentasiPreviewMap[d.kegiatan_id] = {
+                        id: d.id,
+                        file_path: d.file_path,
+                        file_name: d.file_name,
+                        file_type: d.file_type,
+                        file_size: d.file_size,
+                        keterangan: d.keterangan,
+                        created_at: d.created_at
+                    };
+                }
+            });
+        }
+        
+        // ============ LPD SHARED per No ST: LPD cukup diisi 1x untuk No ST yang sama ============
+        const noStGroup = {};
+        kegiatanList.forEach(k => {
+            if (k.no_st && String(k.no_st).trim()) {
+                const key = String(k.no_st).trim();
+                if (!noStGroup[key]) noStGroup[key] = [];
+                noStGroup[key].push(k.id);
+            }
+        });
+        const lpdDoneByNoSt = {};
+        Object.entries(noStGroup).forEach(([noSt, ids]) => {
+            lpdDoneByNoSt[noSt] = ids.some(id => {
+                const k = kegiatanList.find(x => x.id === id);
+                return k && k.lpd_status === 'selesai';
+            });
+        });
+        
         for (const kegiatan of kegiatanList) {
             // Cek apakah user terdaftar sebagai pegawai dalam kegiatan ini
-            const [pegawaiCheck] = await db.query(`
-                SELECT p.id FROM nominatif_pegawai p 
-                WHERE p.kegiatan_id = ? AND (REPLACE(p.nip, ' ', '') = ? OR ? LIKE CONCAT('%', REPLACE(p.nip, ' ', '')) OR REPLACE(p.nip, ' ', '') LIKE CONCAT('%', ?))
-            `, [kegiatan.id, cleanUserNip, cleanUserNip, cleanUserNip]);
+            const pegawaiListKegiatan = pegawaiByKegiatan[kegiatan.id] || [];
+            const isPegawaiInKegiatan = pegawaiListKegiatan.some(p => matchNip(p.nip, cleanUserNip));
             
-            const isPegawaiInKegiatan = pegawaiCheck.length > 0;
-            
-            // Cek apakah ada rincian kegiatan
-            const [rincianCheck] = await db.query(
-                'SELECT COUNT(*) as count FROM lpd_rincian_kegiatan WHERE kegiatan_id = ?',
-                [kegiatan.id]
-            );
-            
-            // Cek apakah ada dokumentasi
-            const [dokumentasiCheck] = await db.query(
-                'SELECT COUNT(*) as count FROM lpd_dokumentasi WHERE kegiatan_id = ?',
-                [kegiatan.id]
-            );
+            const hasRincian = (rincianCountMap[kegiatan.id] || 0) > 0;
+            const hasDokumentasi = (dokumentasiCountMap[kegiatan.id] || 0) > 0;
             
             const isSubmitted = kegiatan.lpd_status && kegiatan.lpd_status !== 'draft' && kegiatan.lpd_status !== null;
             
+            // LPD shared: ada kegiatan lain dengan No ST yang sama yang LPD-nya sudah 'selesai'
+            const noStKey = kegiatan.no_st ? String(kegiatan.no_st).trim() : '';
+            const lpdSharedDone = !!noStKey && kegiatan.lpd_status !== 'selesai' && lpdDoneByNoSt[noStKey] === true;
+            
             // Tentukan apakah user bisa mengedit LPD (hanya jika status draft dan user adalah pegawai atau creator)
-            const canEditLpd = (kegiatan.lpd_status === 'draft' || kegiatan.lpd_status === null) && 
+            // Jika LPD sudah terisi via No ST yang sama, tidak perlu isi LPD lagi
+            const canEditLpd = !lpdSharedDone && 
+                               (kegiatan.lpd_status === 'draft' || kegiatan.lpd_status === null) && 
                                (kegiatan.user_id === userId || isPegawaiInKegiatan);
             
             // Cek apakah user adalah Katim/Kabag TU yang sudah approve kegiatan ini
@@ -395,8 +470,13 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 tgl_mulai: kegiatan.tgl_mulai,
                 tgl_selesai: kegiatan.tgl_selesai,
                 status: kegiatan.status_2,
-                has_rincian: (rincianCheck[0]?.count || 0) > 0,
-                has_dokumentasi: (dokumentasiCheck[0]?.count || 0) > 0,
+                has_rincian: hasRincian,
+                has_dokumentasi: hasDokumentasi,
+                // LPD shared: LPD cukup diisi 1x per No ST yang sama
+                lpd_shared_done: lpdSharedDone,
+                // Data langsung dari backend (menggantikan N+1 request di frontend)
+                pegawai_list: pegawaiListKegiatan,
+                dokumentasi_preview: dokumentasiPreviewMap[kegiatan.id] || null,
                 created_by_me: kegiatan.user_id === userId,
                 is_pegawai_in_kegiatan: isPegawaiInKegiatan,
                 is_submitted: isSubmitted,
@@ -537,8 +617,29 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
         const isPegawaiInKegiatan = pegawaiCheck.length > 0;
         const lpdStatus = kegiatanData.lpd_status || 'draft';
         
+        // === LPD SHARED per No ST: jika LPD belum diisi sendiri tetapi ada kegiatan lain
+        //     dengan No ST yang sama yang LPD-nya sudah 'selesai', maka LPD dianggap sudah
+        //     terisi (pakai data LPD dari kegiatan tsb), tidak perlu isi ulang. ===
+        let lpdSharedDone = false;
+        let lpdSharedSourceId = null;
+        if (kegiatanData.no_st && String(kegiatanData.no_st).trim() &&
+            lpdStatus !== 'selesai' && lpdStatus !== 'menunggu_katim' && lpdStatus !== 'menunggu_kabalai') {
+            const [sharedRows] = await db.query(`
+                SELECT n2.id 
+                FROM nominatif_kegiatan n2
+                INNER JOIN lpd_status l2 ON n2.id = l2.kegiatan_id
+                WHERE n2.no_st = ? AND n2.id <> ? AND l2.lpd_status = 'selesai'
+                LIMIT 1
+            `, [kegiatanData.no_st, kegiatanId]);
+            if (sharedRows.length > 0) {
+                lpdSharedDone = true;
+                lpdSharedSourceId = sharedRows[0].id;
+            }
+        }
+        
         // 🔥 PERBAIKAN: canEdit hanya jika status 'draft' atau null, dan user adalah creator/pegawai
-        const canEdit = (lpdStatus === 'draft' || lpdStatus === null) && 
+        // Jika LPD sudah terisi via No ST yang sama, tidak perlu edit lagi
+        const canEdit = !lpdSharedDone && (lpdStatus === 'draft' || lpdStatus === null) && 
                         (roleInfo.isAdmin || kegiatanData.kegiatan_creator_id === userId || isPegawaiInKegiatan);
         
         // 🔥 PERBAIKAN: canApproveKatim hanya untuk role yang sesuai
@@ -562,6 +663,9 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             ORDER BY p.id ASC
         `, [kegiatanId]);
         
+        // Jika LPD shared, ambil rincian & dokumentasi dari kegiatan sumber (No ST yang sama)
+        const lpdSourceId = lpdSharedDone && lpdSharedSourceId ? lpdSharedSourceId : parseInt(kegiatanId);
+        
         const [rincianKegiatan] = await db.query(`
             SELECT 
                 id,
@@ -571,7 +675,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             FROM lpd_rincian_kegiatan
             WHERE kegiatan_id = ?
             ORDER BY urutan ASC, tanggal ASC
-        `, [kegiatanId]);
+        `, [lpdSourceId]);
         
         const [dokumentasi] = await db.query(`
             SELECT 
@@ -585,7 +689,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
             FROM lpd_dokumentasi
             WHERE kegiatan_id = ?
             ORDER BY created_at ASC
-        `, [kegiatanId]);
+        `, [lpdSourceId]);
         
         const formatTanggal = (date) => {
             if (!date) return null;
@@ -647,7 +751,8 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 created_at: doc.created_at
             })),
             status: kegiatanData.status_2 || 'draft',
-            lpd_status: lpdStatus,
+            lpd_status: lpdSharedDone ? 'selesai' : lpdStatus,
+            lpd_shared_done: lpdSharedDone,
             can_edit: canEdit,
             can_approve_katim: canApproveKatim,
             can_approve_kabalai: canApproveKabalai,

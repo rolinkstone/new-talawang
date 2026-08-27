@@ -214,16 +214,18 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       return `${apiUrl}${cleanPath}`;
     };
     
-    const ttdPegawai = item?.ttd_pegawai_path || pegawai?.ttd_pegawai_path;
-    const ttdPpk = item?.ttd_ppk_path || pegawai?.ttd_ppk_path;
-    const ttdBendahara = item?.ttd_bendahara_path || pegawai?.ttd_bendahara_path;
+    // Path TTD yang tersimpan di kwitansi. Bisa jadi basi: saat user upload ulang
+    // TTD di profile, file TTD lama DIHAPUS dari disk, sehingga path yang tersimpan
+    // di kwitansi menunjuk ke file yang tidak ada lagi (broken image).
+    const storedTtdPegawai = item?.ttd_pegawai_path || pegawai?.ttd_pegawai_path;
+    const storedTtdPpk = item?.ttd_ppk_path || pegawai?.ttd_ppk_path;
+    const storedTtdBendahara = item?.ttd_bendahara_path || pegawai?.ttd_bendahara_path;
 
-    setTtdPegawaiUrl(getImageUrl(ttdPegawai));
-    setTtdPpkUrl(getImageUrl(ttdPpk));
-    setTtdBendaharaUrl(getImageUrl(ttdBendahara));
+    // Tampilkan path tersimpan dulu (jika ada) sebagai state awal
+    setTtdPegawaiUrl(getImageUrl(storedTtdPegawai));
+    setTtdPpkUrl(getImageUrl(storedTtdPpk));
+    setTtdBendaharaUrl(getImageUrl(storedTtdBendahara));
 
-    // === FALLBACK: jika path TTD di kwitansi null, ambil ttd_path terbaru dari user_profiles ===
-    // (kasus: user approve sebelum ttd_path direkam di profile, jadi ttd_*_path null)
     const headers = session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
 
     const fetchTtdByNip = async (nips) => {
@@ -245,25 +247,30 @@ export default function KwitansiPrint({ item, kegiatan, pegawai, onClose }) {
       return null;
     };
 
-    // Hanya tampilkan TTD fallback jika orang tsb sudah approve (status = 'sudah')
-    // TTD pegawai/ppk/bendahara tidak boleh muncul sebelum mereka menyetujui kwitansi
-    if (!ttdPegawai && statusPegawai === 'sudah') {
-      const candidates = [pegawai?.nip, item?.pegawai_nip];
+    const collectCandidates = (nips) => [].concat(nips || []).filter(Boolean);
+
+    // === Selalu ambil TTD TERBARU dari user_profiles untuk penandatangan yang sudah
+    //     approve (status = 'sudah'), dan utamakan itu daripada path yang tersimpan.
+    //     Ini memastikan TTD hasil upload ulang di profile otomatis tampil di dokumen,
+    //     dan tidak menampilkan file lama yang sudah terhapus (broken image). ===
+    //     TTD pegawai/ppk/bendahara tetap tidak boleh muncul sebelum mereka menyetujui kwitansi.
+    if (statusPegawai === 'sudah') {
+      const candidates = collectCandidates([pegawai?.nip, item?.pegawai_nip]);
       // Jika ini kwitansi milik user yang login, tambahkan NIP/username session
       // (format NIP di nominatif kadang beda dengan user_profiles, mis. 16 vs 18 digit)
       if (pegawai?.isCurrentUser) {
         candidates.push(session?.user?.nip, session?.user?.username, session?.user?.nip_raw);
       }
-      const fallbackUrl = await fetchTtdByNip(candidates);
-      if (fallbackUrl) setTtdPegawaiUrl(fallbackUrl);
+      const latestUrl = await fetchTtdByNip(candidates);
+      if (latestUrl) setTtdPegawaiUrl(latestUrl);
     }
-    if (!ttdPpk && statusPpk === 'sudah') {
-      const fallbackUrl = await fetchTtdByNip([kegiatan?.ppk_nip]);
-      if (fallbackUrl) setTtdPpkUrl(fallbackUrl);
+    if (statusPpk === 'sudah') {
+      const latestUrl = await fetchTtdByNip(collectCandidates([kegiatan?.ppk_nip, item?.ppk_nip]));
+      if (latestUrl) setTtdPpkUrl(latestUrl);
     }
-    if (!ttdBendahara && statusBendahara === 'sudah') {
-      const fallbackUrl = await fetchTtdByNip([kegiatan?.bendahara_nip]);
-      if (fallbackUrl) setTtdBendaharaUrl(fallbackUrl);
+    if (statusBendahara === 'sudah') {
+      const latestUrl = await fetchTtdByNip(collectCandidates([kegiatan?.bendahara_nip, item?.bendahara_nip]));
+      if (latestUrl) setTtdBendaharaUrl(latestUrl);
     }
   };
 
@@ -550,15 +557,15 @@ const generateSptjmPenginapanRows = (dataSource = null) => {
     const printWindow = window.open('', '_blank', 'width=900,height=800');
     
     const ttdPegawaiHtml = ttdPegawaiUrl
-      ? `<img src="${ttdPegawaiUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" />`
+      ? `<img src="${ttdPegawaiUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" onerror="this.style.display='none';" />`
       : '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
 
     const ttdPpkHtml = ttdPpkUrl
-      ? `<img src="${ttdPpkUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" />`
+      ? `<img src="${ttdPpkUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" onerror="this.style.display='none';" />`
       : '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
 
     const ttdBendaharaHtml = ttdBendaharaUrl
-      ? `<img src="${ttdBendaharaUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" />`
+      ? `<img src="${ttdBendaharaUrl}" style="max-height:50px;max-width:150px;object-fit:contain;" onerror="this.style.display='none';" />`
       : '<div class="ttd-placeholder">(Tanda tangan digital tidak tersedia)</div>';
 
     const kegiatanText = kegiatan?.kegiatan || '-';

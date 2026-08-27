@@ -178,12 +178,64 @@ export default function KwitansiDetailModal({ item, onClose, formatDateForDispla
         return `${apiUrl}${cleanPath}`;
     };
     
-    // Load TTD images
+    // Load TTD images - utamakan ttd_path TERBARU dari user_profiles
+    // (saat upload ulang TTD di profile, file TTD lama dihapus dari disk sehingga
+    //  path yang tersimpan di kwitansi menjadi basi/broken image)
     useEffect(() => {
         if (item.ttd_pegawai_path) setTtdPegawaiUrl(getTtdImageUrl(item.ttd_pegawai_path));
         if (item.ttd_ppk_path) setTtdPpkUrl(getTtdImageUrl(item.ttd_ppk_path));
         if (item.ttd_bendahara_path) setTtdBendaharaUrl(getTtdImageUrl(item.ttd_bendahara_path));
-    }, [item.ttd_pegawai_path, item.ttd_ppk_path, item.ttd_bendahara_path]);
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        const headers = session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
+
+        const fetchTtdByNip = async (nips) => {
+            const candidates = [].concat(nips || []).filter(Boolean);
+            for (const nip of candidates) {
+                if (!nip) continue;
+                try {
+                    const res = await axios.get(
+                        `${apiUrl}/profile/ttd-by-nip/${encodeURIComponent(String(nip).trim())}`,
+                        { headers }
+                    );
+                    if (res.data?.success && res.data.data?.ttd_path) {
+                        return getTtdImageUrl(res.data.data.ttd_path);
+                    }
+                } catch (e) {
+                    // 404 = TTD belum diunggah di profile, coba kandidat berikutnya
+                }
+            }
+            return null;
+        };
+
+        const collectCandidates = (nips) => [].concat(nips || []).filter(Boolean);
+
+        // Ambil TTD terbaru hanya untuk penandatangan yang sudah approve (status 'sudah')
+        const load = async () => {
+            if (item.status_pegawai === 'sudah') {
+                const candidates = collectCandidates([item.nip, item.pegawai_nip]);
+                if (item.isCurrentUser) {
+                    candidates.push(session?.user?.nip, session?.user?.username, session?.user?.nip_raw);
+                }
+                const url = await fetchTtdByNip(candidates);
+                if (url) setTtdPegawaiUrl(url);
+            }
+            if (item.status_ppk === 'sudah') {
+                const url = await fetchTtdByNip(collectCandidates([item.ppk_nip]));
+                if (url) setTtdPpkUrl(url);
+            }
+            if (item.status_bendahara === 'sudah') {
+                const url = await fetchTtdByNip(collectCandidates([item.bendahara_nip]));
+                if (url) setTtdBendaharaUrl(url);
+            }
+        };
+        load();
+    }, [
+        item.ttd_pegawai_path, item.ttd_ppk_path, item.ttd_bendahara_path,
+        item.status_pegawai, item.status_ppk, item.status_bendahara,
+        item.nip, item.pegawai_nip, item.ppk_nip, item.bendahara_nip, item.isCurrentUser,
+        session
+    ]);
     
     // Setup file URL
     useEffect(() => {

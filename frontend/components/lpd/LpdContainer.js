@@ -142,10 +142,16 @@ export default function LpdContainer({ session, status }) {
                 });
                 setKegiatanList(sortedData);
                 
-                await Promise.all([
-                    fetchPegawaiInfoForKegiatan(sortedData),
-                    fetchDokumentasiPreviewForKegiatan(sortedData)
-                ]);
+                // Data pegawai & dokumentasi preview sudah disertakan langsung di respons
+                // daftar-kegiatan → tidak perlu N+1 request (performa lebih cepat)
+                const pegawaiMap = {};
+                const previewMap = {};
+                sortedData.forEach(k => {
+                    pegawaiMap[k.id] = Array.isArray(k.pegawai_list) ? k.pegawai_list : [];
+                    previewMap[k.id] = k.dokumentasi_preview || null;
+                });
+                setPegawaiInfo(pegawaiMap);
+                setDokumentasiPreview(previewMap);
             } else {
                 setKegiatanList([]);
                 setFilteredKegiatan([]);
@@ -180,68 +186,6 @@ export default function LpdContainer({ session, status }) {
         } finally {
             setLoading(false);
         }
-    };
-
-    // Fetch informasi pegawai untuk setiap kegiatan
-    const fetchPegawaiInfoForKegiatan = async (kegiatanData) => {
-        const pegawaiMap = {};
-        
-        for (const kegiatan of kegiatanData) {
-            try {
-                const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatan.id}`;
-                const response = await axios.get(url, {
-                    headers: { 
-                        'Authorization': `Bearer ${session?.accessToken}`
-                    }
-                });
-                
-                if (response.data.success && response.data.data.petugas_pelaksana) {
-                    pegawaiMap[kegiatan.id] = response.data.data.petugas_pelaksana;
-                } else {
-                    pegawaiMap[kegiatan.id] = [];
-                }
-            } catch (error) {
-                console.error(`Error fetching pegawai for kegiatan ${kegiatan.id}:`, error);
-                pegawaiMap[kegiatan.id] = [];
-            }
-        }
-        
-        setPegawaiInfo(pegawaiMap);
-    };
-
-    // Fetch dokumentasi preview untuk setiap kegiatan
-    const fetchDokumentasiPreviewForKegiatan = async (kegiatanData) => {
-        const previewMap = {};
-        
-        for (const kegiatan of kegiatanData) {
-            try {
-                const url = `${API_BASE_URL}/lpd/kegiatan/${kegiatan.id}`;
-                const response = await axios.get(url, {
-                    headers: { 
-                        'Authorization': `Bearer ${session?.accessToken}`
-                    }
-                });
-                
-                if (response.data.success && response.data.data.dokumentasi && response.data.data.dokumentasi.length > 0) {
-                    const imageDocs = response.data.data.dokumentasi.filter(doc => 
-                        doc.file_type && doc.file_type.startsWith('image/')
-                    );
-                    
-                    if (imageDocs.length > 0) {
-                        previewMap[kegiatan.id] = imageDocs[0];
-                    } else {
-                        previewMap[kegiatan.id] = response.data.data.dokumentasi[0];
-                    }
-                } else {
-                    previewMap[kegiatan.id] = null;
-                }
-            } catch (error) {
-                console.error(`Error fetching dokumentasi for kegiatan ${kegiatan.id}:`, error);
-                previewMap[kegiatan.id] = null;
-            }
-        }
-        
-        setDokumentasiPreview(previewMap);
     };
 
     const fetchLpdData = async (kegiatanId) => {
@@ -563,6 +507,11 @@ export default function LpdContainer({ session, status }) {
 
     const getStatusBadge = (kegiatan) => {
         const lpdStatus = kegiatan.lpd_status || 'draft';
+        
+        // LPD sudah terisi via No ST yang sama (LPD cukup diisi 1x)
+        if (kegiatan.lpd_shared_done === true) {
+            return { text: 'LPD Selesai (No ST sama)', color: 'bg-emerald-100 text-emerald-800' };
+        }
         
         if (lpdStatus === 'selesai') {
             return { text: 'Selesai', color: 'bg-green-100 text-green-800' };
@@ -1034,7 +983,9 @@ export default function LpdContainer({ session, status }) {
                                         const isMine = item.created_by_me === true;
                                         const isExpanded = expandedPegawai[item.id] || false;
                                         const lpdStatus = item.lpd_status || 'draft';
-                                        const isReadyToSend = item.has_rincian && item.has_dokumentasi && 
+                                        // LPD shared: LPD sudah terisi via No ST yang sama, tidak perlu isi LPD lagi
+                                        const isLpdSharedDone = item.lpd_shared_done === true;
+                                        const isReadyToSend = !isLpdSharedDone && item.has_rincian && item.has_dokumentasi && 
                                             (lpdStatus === 'draft' || lpdStatus === null || lpdStatus === 'ditolak_katim' || lpdStatus === 'ditolak_kabalai');
                                         const isWaitingKatim = lpdStatus === 'menunggu_katim';
                                         const isWaitingKabalai = lpdStatus === 'menunggu_kabalai';
@@ -1107,22 +1058,30 @@ export default function LpdContainer({ session, status }) {
                                                         
                                                         {(activeTab === 'milik_saya' || activeTab === 'pegawai_lain') && (isMine || userType.isAdmin || item.is_pegawai_in_kegiatan) ? (
                                                             <>
-                                                                {lpdStatus !== 'menunggu_katim' && (
-                                                                    <button onClick={() => fetchLpdData(item.id)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-1 mx-auto text-sm">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                                        </svg>
-                                                                        {isSelesai ? 'Lihat Laporan' : (isReadyToSend ? 'Isi LPD' : 'Lanjutkan Isi')}
-                                                                    </button>
-                                                                )}
-                                                                
-                                                                {isReadyToSend && lpdStatus !== 'menunggu_katim' && (
-                                                                    <button onClick={() => handleKirimKeKatim(item)} className="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition flex items-center gap-1 mx-auto text-sm">
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                                                        </svg>
-                                                                        Kirim ke Katim
-                                                                    </button>
+                                                                {isLpdSharedDone ? (
+                                                                    <div className="text-center text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded-md mx-auto max-w-[220px]">
+                                                                        ✓ LPD sudah diisi via No ST yang sama — langsung isi Kwitansi (LPJ) di menu Kwitansi
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        {lpdStatus !== 'menunggu_katim' && (
+                                                                            <button onClick={() => fetchLpdData(item.id)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                                </svg>
+                                                                                {isSelesai ? 'Lihat Laporan' : (isReadyToSend ? 'Isi LPD' : 'Lanjutkan Isi')}
+                                                                            </button>
+                                                                        )}
+                                                                        
+                                                                        {isReadyToSend && lpdStatus !== 'menunggu_katim' && (
+                                                                            <button onClick={() => handleKirimKeKatim(item)} className="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition flex items-center gap-1 mx-auto text-sm">
+                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                                                </svg>
+                                                                                Kirim ke Katim
+                                                                            </button>
+                                                                        )}
+                                                                    </>
                                                                 )}
                                                                 
                                                                 {lpdStatus === 'menunggu_katim' && (

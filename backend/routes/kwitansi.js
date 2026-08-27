@@ -193,7 +193,18 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
-                WHERE COALESCE(l.lpd_status, 'belum_ada') = 'selesai'
+                WHERE (
+                    COALESCE(l.lpd_status, 'belum_ada') = 'selesai'
+                    OR EXISTS (
+                        SELECT 1 
+                        FROM nominatif_kegiatan n2
+                        INNER JOIN lpd_status l2 ON n2.id = l2.kegiatan_id
+                        WHERE n2.no_st = n.no_st 
+                        AND n2.no_st IS NOT NULL 
+                        AND TRIM(n2.no_st) <> ''
+                        AND l2.lpd_status = 'selesai'
+                    )
+                )
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
@@ -214,13 +225,24 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     n.user_id,
                     n.rencana_tanggal_pelaksanaan,
                     n.rencana_tanggal_pelaksanaan_akhir,
-                    l.lpd_status
+                    COALESCE(l.lpd_status, 'belum_ada') as lpd_status
                 FROM nominatif_kegiatan n
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
-                INNER JOIN lpd_status l ON n.id = l.kegiatan_id
+                LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND UPPER(n.status_2) = 'SELESAI'
-                AND l.lpd_status = 'selesai'
+                AND (
+                    l.lpd_status = 'selesai'
+                    OR EXISTS (
+                        SELECT 1 
+                        FROM nominatif_kegiatan n2
+                        INNER JOIN lpd_status l2 ON n2.id = l2.kegiatan_id
+                        WHERE n2.no_st = n.no_st 
+                        AND n2.no_st IS NOT NULL 
+                        AND TRIM(n2.no_st) <> ''
+                        AND l2.lpd_status = 'selesai'
+                    )
+                )
                 AND (
                     -- KONDISI 1: User adalah CREATOR
                     n.user_id = ?
