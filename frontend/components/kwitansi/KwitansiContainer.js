@@ -35,6 +35,7 @@ export default function KwitansiContainer() {
     const [printData, setPrintData] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [refreshKey, setRefreshKey] = useState(0);
+    const [exportingXlsx, setExportingXlsx] = useState(false);
     
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -61,6 +62,26 @@ export default function KwitansiContainer() {
     const formatRupiah = (number) => {
         if (number === undefined || number === null) return '0';
         return new Intl.NumberFormat('id-ID').format(number);
+    };
+
+    // Badge pembeda Jenis SPM (LS/KKP)
+    const renderJenisSpmBadge = (kegiatan) => {
+        const jenis = String(kegiatan?.jenis_spm || '').toUpperCase();
+        if (jenis === 'KKP') {
+            return (
+                <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-bold rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-300 dark:border-purple-700" title="KKP (Kartu Kredit Pemerintah) - Transport saja">
+                    KKP
+                </span>
+            );
+        }
+        if (jenis === 'LS') {
+            return (
+                <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-bold rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700" title="LS (Langsung)">
+                    LS
+                </span>
+            );
+        }
+        return <span className="text-xs text-gray-400">-</span>;
     };
     
     const getApprovalBadge = (status) => {
@@ -403,7 +424,49 @@ export default function KwitansiContainer() {
         await fetchNeedKwitansi();
         setRefreshKey(prev => prev + 1);
     };
-    
+
+    // Export XLSX gabungan Nominatif + LPD + Kwitansi (khusus Admin)
+    const handleExportXlsx = async () => {
+        if (!session?.accessToken) return;
+        if (!userType.isAdmin) {
+            setNotificationMessage('Export XLSX hanya dapat dilakukan oleh Admin');
+            setModalOpen(true);
+            return;
+        }
+
+        setExportingXlsx(true);
+        try {
+            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kwitansi/export-xlsx`, {
+                headers: { Authorization: `Bearer ${session.accessToken}` },
+                responseType: 'blob',
+                timeout: 120000
+            });
+
+            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `rekap_nominatif_lpd_kwitansi_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            setNotificationMessage('Export XLSX berhasil');
+            setModalOpen(true);
+        } catch (error) {
+            console.error('Error exporting XLSX:', error);
+            let msg = 'Gagal mengexport XLSX. Silakan coba lagi.';
+            if (error.response?.status === 403) {
+                msg = error.response.data?.message || 'Anda tidak memiliki akses untuk export XLSX';
+            }
+            setNotificationMessage(msg);
+            setModalOpen(true);
+        } finally {
+            setExportingXlsx(false);
+        }
+    };
+
     useEffect(() => {
         if (session?.accessToken && (currentUserNip || currentUserUsername)) {
             fetchNeedKwitansi();
@@ -801,6 +864,23 @@ export default function KwitansiContainer() {
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         Refresh
                     </button>
+                    {userType.isAdmin && (
+                        <button
+                            onClick={handleExportXlsx}
+                            disabled={exportingXlsx}
+                            className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2 disabled:opacity-60"
+                            title="Export seluruh data Nominatif, LPD & Kwitansi ke file Excel (.xlsx) - khusus Admin"
+                        >
+                            {exportingXlsx ? (
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            ) : (
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            )}
+                            Export XLSX
+                        </button>
+                    )}
                 </div>
             </div>
             
@@ -980,7 +1060,7 @@ export default function KwitansiContainer() {
                 </div>
             ) : (
                 paginatedKegiatan.map((kegiatan) => (
-                    <div key={kegiatan.id} className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div key={kegiatan.id} className={`mb-4 rounded-lg overflow-hidden ${String(kegiatan.jenis_spm || '').toUpperCase() === 'KKP' ? 'border border-purple-300 dark:border-purple-700 border-l-4 border-l-purple-500' : 'border border-gray-200 dark:border-gray-700'}`}>
                         <div className={`p-4 border-b cursor-pointer hover:bg-blue-100 dark:hover:bg-gray-700 ${
                             activeTab === 'persetujuan_ppk' 
                                 ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/40 dark:to-purple-800/30' 
@@ -1013,6 +1093,7 @@ export default function KwitansiContainer() {
                                     activeTab === 'riwayat_bendahara' ? 'text-green-900 dark:text-green-300' : 
                                     'text-blue-900 dark:text-blue-300'
                                 }`}>{kegiatan.kegiatan}</h3>
+                                {renderJenisSpmBadge(kegiatan)}
                                 {activeTab === 'diri_sendiri' && (
                                     <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 rounded-full">Anda</span>
                                 )}

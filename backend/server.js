@@ -31,13 +31,19 @@ app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 // Serve juga di /api/uploads untuk localhost (frontend pake NEXT_PUBLIC_API_URL)
 app.use('/api/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// ========== KEYCLOAK CONFIG ==========
+// ========== KEYCLOAK CONFIG (dari env vars — TANPA secret hardcoded) ==========
+require('dotenv').config({ path: '.env.local' });
+
 const KEYCLOAK_CONFIG = {
-    url: 'https://auth.bbpompky.id',
-    realm: 'master',
-    clientId: 'nextjs-local',
-    clientSecret: 'WJGi86sOoEcIW1IvD0ET40BgEnDvuSDj'
+    url: process.env.KEYCLOAK_SERVER_URL || 'https://auth.bbpompky.id',
+    realm: process.env.KEYCLOAK_REALM || 'master',
+    clientId: process.env.KEYCLOAK_CLIENT_ID || 'nextjs-local',
+    clientSecret: process.env.KEYCLOAK_CLIENT_SECRET
 };
+
+if (!KEYCLOAK_CONFIG.clientSecret) {
+    console.error('❌ KEYCLOAK_CLIENT_SECRET tidak diatur di environment. Set di .env / docker-compose sebelum menjalankan server.');
+}
 
 // ========== CUSTOM HTTPS AGENT ==========
 const httpsAgent = new https.Agent({

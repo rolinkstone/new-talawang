@@ -211,6 +211,7 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 n.mak,
                 n.kota_kab_kecamatan as tempat,
                 n.status_2,
+                n.jenis_spm,
                 n.user_id,
                 n.rencana_tanggal_pelaksanaan as tgl_mulai,
                 n.rencana_tanggal_pelaksanaan_akhir as tgl_selesai,
@@ -470,6 +471,7 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 tgl_mulai: kegiatan.tgl_mulai,
                 tgl_selesai: kegiatan.tgl_selesai,
                 status: kegiatan.status_2,
+                jenis_spm: kegiatan.jenis_spm,
                 has_rincian: hasRincian,
                 has_dokumentasi: hasDokumentasi,
                 // LPD shared: LPD cukup diisi 1x per No ST yang sama

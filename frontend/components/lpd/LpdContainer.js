@@ -969,6 +969,7 @@ export default function LpdContainer({ session, status }) {
                             <thead className="bg-gray-50 dark:bg-gray-700">
                                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-300 dark:border-gray-600">
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('id')}>ID</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight">Jenis SPM</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('kegiatan')}>Kegiatan & MAK</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight">Pegawai Pelaksana</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600" onClick={() => handleSort('tempat')}>Lokasi & Tanggal</th>
@@ -990,10 +991,22 @@ export default function LpdContainer({ session, status }) {
                                         const isWaitingKatim = lpdStatus === 'menunggu_katim';
                                         const isWaitingKabalai = lpdStatus === 'menunggu_kabalai';
                                         const isSelesai = lpdStatus === 'selesai';
+                                        const jenisSpm = String(item.jenis_spm || '').toUpperCase();
+                                        const isKKP = jenisSpm === 'KKP';
                                         
                                         return (
-                                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <tr key={item.id} className={isKKP ? 'bg-blue-50/60 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}>
                                                 <td className="px-4 py-4 align-top">{item.id}</td>
+                                                
+                                                <td className="px-4 py-4 align-top text-center">
+                                                    {isKKP ? (
+                                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-bold rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-300 dark:border-purple-700" title="KKP (Kartu Kredit Pemerintah) - Transport saja">KKP</span>
+                                                    ) : jenisSpm === 'LS' ? (
+                                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-bold rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700" title="LS (Langsung)">LS</span>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">-</span>
+                                                    )}
+                                                </td>
                                                 
                                                 <td className="px-4 py-4 align-top">
                                                     <div className="space-y-1">
@@ -1152,7 +1165,7 @@ export default function LpdContainer({ session, status }) {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                             <svg className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>

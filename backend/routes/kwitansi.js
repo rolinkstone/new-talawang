@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db');
+const XLSX = require('xlsx');
 const { keycloakAuth, getUsername, getUserId } = require('../middleware/keycloakAuth');
 
 // Setup upload directory untuk SPTJM Transport
@@ -488,6 +489,10 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             const semuaPpkApprove = pegawaiList.every(p => p.status_ppk === 'sudah');
             const semuaBendaharaApprove = pegawaiList.every(p => p.status_bendahara === 'sudah');
             
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
+            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
+            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
+            
             result.push({
                 ...kegiatan,
                 total_pegawai: pegawaiList.length,
@@ -721,6 +726,10 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 if (p.status_bendahara !== 'sudah') semuaBendaharaApprove = false;
             });
             
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
+            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
+            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
+            
             result.push({
                 ...kegiatan,
                 total_pegawai: pegawaiList.length,
@@ -887,6 +896,10 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
                 pegawai.uang_harian_detail = uangHarian;
                 pegawai.penginapan_detail = penginapan;
             }
+            
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
+            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
+            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
             
             result.push({
                 ...kegiatan,
@@ -1239,6 +1252,278 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
     } catch (error) {
         console.error('Error approving kwitansi:', error);
         res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ GET export XLSX gabungan Nominatif + LPD + Kwitansi (khusus Admin) ============
+router.get('/export-xlsx', keycloakAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const roleInfo = getUserRoleInfo(user);
+
+        // Export hanya boleh diakses role Admin
+        if (!roleInfo.isAdmin) {
+            return res.status(403).json({ success: false, message: 'Export XLSX hanya dapat diakses oleh Admin' });
+        }
+
+        // ===== Helper format =====
+        const fmtDate = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return String(d);
+            return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+        };
+        const fmtDateTime = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return String(d);
+            return `${fmtDate(d)} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+        };
+        const money = (v) => { const n = Number(v || 0); return isNaN(n) ? 0 : n; };
+
+        // ===== Filter: nominatif yang sudah selesai & aktif =====
+        const statusFilter = `n.status = 'selesai' AND UPPER(COALESCE(n.status_2, '')) = 'SELESAI'`;
+
+        // 1) Data Nominatif (header)
+        const [kegiatanRows] = await db.query(`
+            SELECT n.id, n.kegiatan, n.mak, n.no_st, n.tgl_st, n.kota_kab_kecamatan,
+                   n.status, n.status_2, n.jenis_spm, n.user_id,
+                   n.ppk_nama, n.bendahara_nama,
+                   n.rencana_tanggal_pelaksanaan, n.rencana_tanggal_pelaksanaan_akhir,
+                   n.created_at,
+                   (SELECT COUNT(*) FROM nominatif_pegawai p WHERE p.kegiatan_id = n.id) AS jml_pegawai,
+                   (SELECT COALESCE(SUM(p.total_biaya),0) FROM nominatif_pegawai p WHERE p.kegiatan_id = n.id) AS total_biaya
+            FROM nominatif_kegiatan n
+            WHERE ${statusFilter}
+            ORDER BY n.created_at DESC
+        `);
+
+        const kegiatanIds = kegiatanRows.map(k => k.id);
+        const idPlaceholder = kegiatanIds.map(() => '?').join(',');
+
+        let pegawaiRows = [];
+        let lpdRows = [];
+        let rincianDetail = [];
+        let dokumentasiDetail = [];
+        let kwitansiRows = [];
+        const rincianMap = {};
+        const dokumentasiMap = {};
+
+        if (kegiatanIds.length > 0) {
+            // 2) Pegawai + rincian biaya (transport / uang harian / penginapan)
+            [pegawaiRows] = await db.query(`
+                SELECT p.id, p.nama, p.nip, p.pangkat, p.jabatan, p.kegiatan_id, p.total_biaya,
+                       COALESCE(SUM(CASE WHEN x.src = 'tr' THEN x.total END),0) AS tot_transport,
+                       COALESCE(SUM(CASE WHEN x.src = 'uh' THEN x.total END),0) AS tot_uh,
+                       COALESCE(SUM(CASE WHEN x.src = 'pg' THEN x.total END),0) AS tot_penginapan
+                FROM nominatif_pegawai p
+                LEFT JOIN (
+                    SELECT b.pegawai_id, t.total AS total, 'tr' AS src
+                    FROM nominatif_biaya_kegiatan b JOIN nominatif_transportasi t ON t.biaya_id = b.id
+                    UNION ALL
+                    SELECT b.pegawai_id, u.total AS total, 'uh' AS src
+                    FROM nominatif_biaya_kegiatan b JOIN nominatif_uang_harian_items u ON u.biaya_id = b.id
+                    UNION ALL
+                    SELECT b.pegawai_id, m.total AS total, 'pg' AS src
+                    FROM nominatif_biaya_kegiatan b JOIN nominatif_penginapan_items m ON m.biaya_id = b.id
+                ) x ON x.pegawai_id = p.id
+                WHERE p.kegiatan_id IN (${idPlaceholder})
+                GROUP BY p.id, p.nama, p.nip, p.pangkat, p.jabatan, p.kegiatan_id, p.total_biaya
+                ORDER BY p.kegiatan_id, p.id
+            `, kegiatanIds);
+
+            // 3) Data LPD (per kegiatan, termasuk yang belum ada LPD)
+            [lpdRows] = await db.query(`
+                SELECT n.id AS kegiatan_id, n.kegiatan, n.no_st,
+                       COALESCE(l.lpd_status, 'belum_ada') AS lpd_status,
+                       l.katim_nama, l.katim_tgl_ttd, l.catatan_katim,
+                       l.kabalai_nama, l.kabalai_tgl_ttd, l.catatan_kabalai,
+                       l.submitted_at
+                FROM nominatif_kegiatan n
+                LEFT JOIN lpd_status l ON l.kegiatan_id = n.id
+                WHERE ${statusFilter}
+                ORDER BY n.created_at DESC
+            `);
+
+            // 4) Jumlah rincian & dokumentasi per kegiatan
+            const [rincianCount] = await db.query(`
+                SELECT kegiatan_id, COUNT(*) AS c FROM lpd_rincian_kegiatan
+                WHERE kegiatan_id IN (${idPlaceholder}) GROUP BY kegiatan_id
+            `, kegiatanIds);
+            rincianCount.forEach(r => { rincianMap[r.kegiatan_id] = Number(r.c) || 0; });
+
+            const [dokCount] = await db.query(`
+                SELECT kegiatan_id, COUNT(*) AS c FROM lpd_dokumentasi
+                WHERE kegiatan_id IN (${idPlaceholder}) GROUP BY kegiatan_id
+            `, kegiatanIds);
+            dokCount.forEach(r => { dokumentasiMap[r.kegiatan_id] = Number(r.c) || 0; });
+
+            // 5) Detail rincian & dokumentasi LPD
+            [rincianDetail] = await db.query(`
+                SELECT r.kegiatan_id, r.urutan, r.tanggal, r.kegiatan, r.created_at, n.no_st
+                FROM lpd_rincian_kegiatan r
+                JOIN nominatif_kegiatan n ON n.id = r.kegiatan_id
+                WHERE ${statusFilter}
+                ORDER BY r.kegiatan_id, r.urutan
+            `);
+
+            [dokumentasiDetail] = await db.query(`
+                SELECT d.kegiatan_id, d.file_name, d.file_type, d.file_size, d.keterangan, d.created_at, n.no_st
+                FROM lpd_dokumentasi d
+                JOIN nominatif_kegiatan n ON n.id = d.kegiatan_id
+                WHERE ${statusFilter}
+                ORDER BY d.kegiatan_id, d.created_at
+            `);
+
+            // 6) Data Kwitansi
+            [kwitansiRows] = await db.query(`
+                SELECT kw.id, kw.kegiatan_id, kw.pegawai_id, kw.no_lpd, kw.tgl_kwitansi, kw.tgl_spd,
+                       kw.status_pegawai, kw.status_ppk, kw.status_bendahara,
+                       kw.tgl_ttd_pegawai, kw.tgl_ttd_ppk, kw.tgl_ttd_bendahara,
+                       kw.catatan_pegawai, kw.catatan_ppk, kw.catatan_bendahara,
+                       kw.created_at, n.no_st, n.kegiatan, n.jenis_spm,
+                       p.nama AS nama_pegawai, p.nip AS pegawai_nip
+                FROM kwitansi_perjadin kw
+                JOIN nominatif_kegiatan n ON n.id = kw.kegiatan_id
+                JOIN nominatif_pegawai p ON p.id = kw.pegawai_id
+                WHERE ${statusFilter}
+                ORDER BY kw.kegiatan_id, kw.id
+            `);
+        }
+
+        // ================= SUSUN WORKBOOK =================
+        const wb = XLSX.utils.book_new();
+
+        // Helper tambah sheet dengan judul, header, dan data yang rapi
+        const addDataSheet = (sheetName, title, headers, rows, opts = {}) => {
+            const aoa = [[title], [], headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            // Gabungkan judul di baris pertama
+            if (headers.length > 1) {
+                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+            }
+            // Lebar kolom
+            const widths = (opts.widths && opts.widths.length) ? opts.widths : headers.map(h => Math.min(Math.max(String(h).length + 2, 12), 45));
+            ws['!cols'] = widths.map(w => ({ wch: w }));
+            // Format angka untuk kolom uang
+            if (opts.moneyCols && opts.moneyCols.length) {
+                for (let r = 3; r < 3 + rows.length; r++) {
+                    opts.moneyCols.forEach(c => {
+                        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+                        if (cell && typeof cell.v === 'number') cell.z = '#,##0';
+                    });
+                }
+            }
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        };
+
+        // ---- Sheet Ringkasan ----
+        {
+            const lpdSelesaiCount = lpdRows.filter(r => r.lpd_status === 'selesai').length;
+            const fullyApproved = kwitansiRows.filter(k =>
+                k.status_pegawai === 'sudah' && k.status_ppk === 'sudah' && k.status_bendahara === 'sudah'
+            ).length;
+            const title = 'REKAP DATA NOMINATIF, LPD & KWITANSI - SISTEM NOMINATIF PERJALANAN DINAS';
+            const aoa = [
+                [title],
+                [],
+                ['Keterangan', 'Nilai'],
+                ['Tanggal Export', new Date().toLocaleString('id-ID')],
+                ['Jumlah Nominatif (Selesai)', kegiatanRows.length],
+                ['Jumlah Pegawai', pegawaiRows.length],
+                ['Jumlah LPD (Selesai)', lpdSelesaiCount],
+                ['Jumlah Kwitansi', kwitansiRows.length],
+                ['Kwitansi Selesai (Pegawai + PPK + Bendahara)', fullyApproved]
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+            ws['!cols'] = [{ wch: 48 }, { wch: 22 }];
+            XLSX.utils.book_append_sheet(wb, ws, 'Ringkasan');
+        }
+
+        // ---- Sheet Nominatif ----
+        addDataSheet('Nominatif', 'DATA NOMINATIF KEGIATAN',
+            ['No', 'ID', 'Jenis SPM', 'Nama Kegiatan', 'No ST', 'Tanggal ST', 'MAK', 'Lokasi (Kota/Kab/Kec)',
+             'PPK', 'Bendahara', 'Tgl Pelaksanaan', 'Tgl Pelaksanaan Akhir', 'Total Biaya (Rp)', 'Jml Pegawai',
+             'Status', 'Status Sakti (SPM)', 'Dibuat Oleh (User ID)', 'Tanggal Dibuat'],
+            kegiatanRows.map((k, i) => [
+                i + 1, k.id, k.jenis_spm || '-', k.kegiatan, k.no_st || '-', fmtDate(k.tgl_st), k.mak,
+                k.kota_kab_kecamatan || '-', k.ppk_nama || '-', k.bendahara_nama || '-',
+                fmtDate(k.rencana_tanggal_pelaksanaan), fmtDate(k.rencana_tanggal_pelaksanaan_akhir),
+                money(k.total_biaya), k.jml_pegawai || 0, k.status, k.status_2 || '-', k.user_id || '-',
+                fmtDateTime(k.created_at)
+            ]),
+            { widths: [5, 7, 10, 42, 24, 12, 30, 20, 20, 20, 14, 14, 16, 9, 12, 14, 32, 16], moneyCols: [12] }
+        );
+
+        // ---- Sheet Pegawai ----
+        addDataSheet('Pegawai', 'DATA PEGAWAI & RINCIAN BIAYA NOMINATIF',
+            ['No', 'ID Pegawai', 'ID Kegiatan', 'Nama Pegawai', 'NIP', 'Pangkat', 'Jabatan',
+             'Total Transport (Rp)', 'Total Uang Harian (Rp)', 'Total Penginapan (Rp)', 'Total Biaya (Rp)'],
+            pegawaiRows.map((p, i) => [
+                i + 1, p.id, p.kegiatan_id, p.nama, p.nip || '-', p.pangkat || '-', p.jabatan || '-',
+                money(p.tot_transport), money(p.tot_uh), money(p.tot_penginapan), money(p.total_biaya)
+            ]),
+            { widths: [5, 10, 11, 32, 20, 22, 26, 18, 18, 18, 16], moneyCols: [7, 8, 9, 10] }
+        );
+
+        // ---- Sheet LPD ----
+        addDataSheet('LPD', 'DATA STATUS LPD',
+            ['No', 'ID Kegiatan', 'Nama Kegiatan', 'No ST', 'Status LPD', 'Katim', 'Tgl TTD Katim', 'Catatan Katim',
+             'Kabalai', 'Tgl TTD Kabalai', 'Catatan Kabalai', 'Jml Rincian', 'Jml Dokumentasi', 'Tanggal Kirim'],
+            lpdRows.map((l, i) => [
+                i + 1, l.kegiatan_id, l.kegiatan, l.no_st || '-', l.lpd_status, l.katim_nama || '-',
+                fmtDateTime(l.katim_tgl_ttd), l.catatan_katim || '-', l.kabalai_nama || '-',
+                fmtDateTime(l.kabalai_tgl_ttd), l.catatan_kabalai || '-',
+                rincianMap[l.kegiatan_id] || 0, dokumentasiMap[l.kegiatan_id] || 0, fmtDateTime(l.submitted_at)
+            ]),
+            { widths: [5, 11, 42, 24, 18, 22, 16, 30, 22, 16, 30, 11, 14, 16] }
+        );
+
+        // ---- Sheet Rincian LPD ----
+        addDataSheet('Rincian LPD', 'DATA RINCIAN KEGIATAN LPD',
+            ['No', 'ID Kegiatan', 'No ST', 'Urutan', 'Tanggal Kegiatan', 'Uraian Kegiatan', 'Dibuat'],
+            rincianDetail.map((r, i) => [
+                i + 1, r.kegiatan_id, r.no_st || '-', r.urutan, fmtDate(r.tanggal), r.kegiatan, fmtDateTime(r.created_at)
+            ]),
+            { widths: [5, 11, 24, 8, 14, 70, 16] }
+        );
+
+        // ---- Sheet Dokumentasi LPD ----
+        addDataSheet('Dokumentasi LPD', 'DATA DOKUMENTASI LPD',
+            ['No', 'ID Kegiatan', 'No ST', 'Nama File', 'Tipe File', 'Ukuran (KB)', 'Keterangan', 'Tanggal Upload'],
+            dokumentasiDetail.map((d, i) => [
+                i + 1, d.kegiatan_id, d.no_st || '-', d.file_name || '-', d.file_type || '-',
+                d.file_size ? Math.round(Number(d.file_size) / 1024) : 0, d.keterangan || '-', fmtDateTime(d.created_at)
+            ]),
+            { widths: [5, 11, 24, 50, 14, 12, 40, 16] }
+        );
+
+        // ---- Sheet Kwitansi ----
+        addDataSheet('Kwitansi', 'DATA KWITANSI (LPJ)',
+            ['No', 'ID Kwitansi', 'ID Kegiatan', 'Nama Kegiatan', 'No ST', 'Jenis SPM', 'Nama Pegawai', 'NIP Pegawai',
+             'No LPD', 'Tgl Kwitansi', 'Tgl SPD', 'Status Pegawai', 'Status PPK', 'Status Bendahara',
+             'Tgl TTD Pegawai', 'Tgl TTD PPK', 'Tgl TTD Bendahara', 'Catatan Pegawai', 'Catatan PPK',
+             'Catatan Bendahara', 'Tanggal Dibuat'],
+            kwitansiRows.map((k, i) => [
+                i + 1, k.id, k.kegiatan_id, k.kegiatan, k.no_st || '-', k.jenis_spm || '-', k.nama_pegawai,
+                k.pegawai_nip || '-', k.no_lpd || '-', fmtDate(k.tgl_kwitansi), fmtDate(k.tgl_spd),
+                k.status_pegawai || 'belum', k.status_ppk || 'belum', k.status_bendahara || 'belum',
+                fmtDateTime(k.tgl_ttd_pegawai), fmtDateTime(k.tgl_ttd_ppk), fmtDateTime(k.tgl_ttd_bendahara),
+                k.catatan_pegawai || '-', k.catatan_ppk || '-', k.catatan_bendahara || '-', fmtDateTime(k.created_at)
+            ]),
+            { widths: [5, 10, 11, 40, 24, 10, 28, 20, 20, 14, 14, 14, 14, 16, 16, 16, 16, 30, 30, 30, 16] }
+        );
+
+        // ================= KIRIM FILE =================
+        const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+        const dateStr = new Date().toISOString().slice(0, 10);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="rekap_nominatif_lpd_kwitansi_${dateStr}.xlsx"`);
+        res.send(buf);
+    } catch (error) {
+        console.error('❌ Error export XLSX:', error);
+        res.status(500).json({ success: false, message: 'Gagal mengexport XLSX: ' + error.message });
     }
 });
 
