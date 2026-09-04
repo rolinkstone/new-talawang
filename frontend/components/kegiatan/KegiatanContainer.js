@@ -995,9 +995,7 @@ export default function KegiatanContainer({ session, status }) {
                 <div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Nominatif Kegiatan</h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        User: {session.user?.name || session.user?.email || 'Unknown User'} | 
-                        Role: {userRole || 'User'} | 
-                        Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
+                        Kelola nominatif kegiatan &amp; perjalanan dinas sesuai kewenangan Anda.
                     </p>
                 </div>
                 <div className="flex space-x-2">

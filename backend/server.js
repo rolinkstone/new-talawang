@@ -6,8 +6,13 @@ const axios = require('axios');
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
+const { loginLimiter, authLimiter, writeLimiter } = require('./utils/rateLimiter');
 
 const app = express();
+
+// Percayai reverse proxy (nginx) supaya req.ip = IP klien asli.
+// WAJIB untuk rate limiting berbasis IP di belakang proxy.
+app.set('trust proxy', 1);
 
 // ========== CONFIGURATION ==========
 const PORT = process.env.PORT || 5000;
@@ -149,6 +154,16 @@ const enhancedAuth = async (req, res, next) => {
 
 app.use(enhancedAuth);
 
+// ========== RATE LIMITING (anti brute-force & spam form transaksi) ==========
+// Batasi semua request mutasi (bukan GET/HEAD/OPTIONS) di bawah /api per user/IP
+// untuk mencegah submission form berulang / serangan spam.
+app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+    return writeLimiter(req, res, next);
+});
+
 // ========== IMPORT ROUTES ==========
 const kegiatanRoutes = require('./routes/kegiatan');
 const sptjmRoutes = require('./routes/sptjm');
@@ -191,7 +206,7 @@ app.get('/api/auth/logout', (req, res) => {
 });
 
 // ========== AUTH ENDPOINTS ==========
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         
@@ -323,7 +338,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.post('/api/refresh', async (req, res) => {
+app.post('/api/refresh', authLimiter, async (req, res) => {
     try {
         const { refresh_token } = req.body;
         

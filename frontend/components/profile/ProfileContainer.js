@@ -259,7 +259,6 @@ const fetchProfile = async () => {
                             <InfoItem label="Email" value={profile?.email} />
                             <InfoItem label="Jabatan" value={profile?.jabatan || '-'} />
                             <InfoItem label="Unit Kerja" value={profile?.unit_kerja || '-'} />
-                            <InfoItem label="User ID" value={profile?.user_id} />
                             <InfoItem label="Terdaftar Sejak" value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('id-ID') : '-'} />
                         </div>
                     </div>

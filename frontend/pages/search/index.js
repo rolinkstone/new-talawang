@@ -5,6 +5,7 @@ import { getSession } from 'next-auth/react';
 import DashboardLayout from '../../components/DashboardLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import axios from 'axios';
+import { requireRole } from '../../utils/roleChecks';
 
 export default function SearchKegiatanPage() {
     const { data: session, status } = useSession();
@@ -292,7 +293,7 @@ export default function SearchKegiatanPage() {
                 
                 const successMessage = res.data.data?.alasan_pembatalan 
                     ? `Kegiatan "${kegiatanName}" berhasil dibatalkan. Alasan: ${res.data.data.alasan_pembatalan}`
-                    : `Kegiatan "${kegiatanName}" berhasil dibatalkan oleh ${userRole.toUpperCase()}`;
+                    : `Kegiatan "${kegiatanName}" berhasil dibatalkan.`;
                 
                 showNotification(successMessage, 'success');
             } else {
@@ -420,18 +421,10 @@ export default function SearchKegiatanPage() {
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Cari Data Kegiatan</h2>
                                     <p className="text-gray-600 dark:text-gray-400">Cari semua data kegiatan (semua status termasuk diajukan/selesai) untuk dibatalkan</p>
-                                    {/* Role Info */}
-                                    <div className="mt-2">
-                                        <span className={`text-xs px-2 py-1 rounded-full ${
-                                            userRole === 'admin' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200' :
-                                            userRole === 'ppk' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200' :
-                                            'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200'
-                                        }`}>
-                                            Role: {userRole === 'admin' ? 'Administrator' : userRole === 'ppk' ? 'PPK' : 'User'}
-                                            {userRole === 'admin' && ' - Dapat membatalkan semua kegiatan'}
-                                            {userRole === 'ppk' && ' - Dapat membatalkan kegiatan yang menjadi tanggung jawab'}
-                                        </span>
-                                    </div>
+                                    {/* Info kewenangan (tanpa nama role) */}
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Anda dapat membatalkan kegiatan sesuai kewenangan yang dimiliki.
+                                    </p>
                                 </div>
                                 
                                 {/* Stats Overview */}
@@ -770,9 +763,6 @@ export default function SearchKegiatanPage() {
                                 <div className="text-xs text-gray-500 dark:text-gray-400">
                                     Server: <span className="font-medium text-green-600 dark:text-green-400">Online</span>
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    Role: <span className="font-medium text-blue-600 dark:text-blue-400">{userRole.toUpperCase()}</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -784,16 +774,11 @@ export default function SearchKegiatanPage() {
 
 export async function getServerSideProps(context) {
     const session = await getSession(context);
-    
-    if (!session) {
-        return {
-            redirect: {
-                destination: '/login',
-                permanent: false,
-            },
-        };
-    }
-    
+
+    // Batalkan Nominatif hanya untuk PPK atau Admin
+    const guard = requireRole(session, ['ppk', 'admin']);
+    if (guard) return guard;
+
     return {
         props: { session },
     };

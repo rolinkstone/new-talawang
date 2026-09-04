@@ -34,3 +34,12 @@ export default function TestPage() {
     </div>
   );
 }
+
+// Halaman test hanya tersedia di environment development
+// (file ini menampilkan data sesi & cookie untuk debugging)
+export async function getServerSideProps() {
+  if (process.env.NODE_ENV !== 'development') {
+    return { notFound: true };
+  }
+  return { props: {} };
+}

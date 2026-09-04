@@ -38,8 +38,9 @@ const createAxiosInstance = (baseURL = process.env.NEXT_PUBLIC_API_URL || 'http:
         if (error.response.status === 401) {
           // Token expired atau tidak valid
           console.error('Unauthorized access - token mungkin expired');
-          // Bisa dispatch event untuk logout atau refresh token
+          // Dispatch event agar watcher global mengarahkan ke halaman login
           window.dispatchEvent(new Event('unauthorized'));
+          window.dispatchEvent(new Event('session-expired'));
         } else if (error.response.status === 403) {
           console.error('Forbidden access');
         } else if (error.response.status === 404) {

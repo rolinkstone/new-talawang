@@ -132,3 +132,12 @@ export default function TestCookies() {
     </div>
   );
 }
+
+// Halaman test hanya tersedia di environment development
+// (file ini menampilkan data cookie untuk troubleshooting)
+export async function getServerSideProps() {
+  if (process.env.NODE_ENV !== 'development') {
+    return { notFound: true };
+  }
+  return { props: {} };
+}

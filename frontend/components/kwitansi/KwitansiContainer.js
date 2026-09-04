@@ -842,14 +842,9 @@ export default function KwitansiContainer() {
                 <div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">KUITANSI PERJALANAN DINAS</h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        User: {session.user?.name || session.user?.email || 'Unknown User'} | Role: {userRole || 'User'}
-                        {userType.isAdmin && <span className="ml-2 text-blue-600 dark:text-blue-400">(Admin - Melihat Semua Data)</span>}
-                        {userType.isPPK && <span className="ml-2 text-purple-600 dark:text-purple-400">(PPK - Approval Level 2)</span>}
-                        {userType.isBendahara && <span className="ml-2 text-orange-600 dark:text-orange-400">(Bendahara - Approval Level 3)</span>}
-                        {userType.isRegularUser && <span className="ml-2 text-green-600 dark:text-green-400">(Pegawai - Approval Level 1)</span>}
-                        {userType.isCreator && <span className="ml-2 text-teal-600 dark:text-teal-400">(Creator - Dapat Input Kwitansi Pegawai Lain)</span>}
+                        Kelola kwitansi perjalanan dinas sesuai kewenangan Anda.
                     </p>
-                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">Alur Persetujuan: Pegawai → PPK → Bendahara</p>
+                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">Persetujuan dilakukan secara berjenjang sesuai kewenangan pengguna.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                     <button onClick={expandAll} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">

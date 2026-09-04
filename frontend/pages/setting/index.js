@@ -1,9 +1,10 @@
 // pages/setting/index.js
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, getSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { requireRole } from '../../utils/roleChecks';
 
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center min-h-screen">
@@ -196,4 +197,12 @@ export default function SettingsPage() {
             </div>
         </DashboardLayout>
     );
+}
+
+// Server-side protection (role-based): halaman pengaturan hanya untuk Admin
+export async function getServerSideProps(context) {
+  const session = await getSession(context);
+  const guard = requireRole(session, ['admin']);
+  if (guard) return guard;
+  return { props: {} };
 }

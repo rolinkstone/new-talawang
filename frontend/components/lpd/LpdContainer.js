@@ -736,13 +736,8 @@ export default function LpdContainer({ session, status }) {
                 <div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Laporan Perjalanan Dinas (LPD)</h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        User: {session.user?.name || session.user?.email || 'Unknown User'} | 
-                        Role: {userRole || 'User'} | 
-                        Type: {userType.isAdmin ? 'Admin' : userType.isPPK ? 'PPK' : userType.isKatim ? 'Katim/Kabag TU' : userType.isKabalai ? 'Kabalai' : 'Regular User'}
+                        Kelola &amp; setujui Laporan Perjalanan Dinas sesuai kewenangan Anda.
                     </p>
-                    {userNip && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">NIP: {userNip}</p>
-                    )}
                 </div>
                 <div className="flex space-x-2">
                     <button

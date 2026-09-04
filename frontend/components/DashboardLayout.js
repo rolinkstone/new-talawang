@@ -195,12 +195,6 @@ export default function DashboardLayout({ children }) {
     return name.charAt(0).toUpperCase();
   };
 
-  const getUserRoleDisplay = () => {
-        if (session?.user?.roles && Array.isArray(session.user.roles) && session.user.roles.length > 0) {
-            return session.user.roles.join(', ');
-        }
-        if (session?.user?.role) return session.user.role;
-  };
 
   // ============ MENU DENGAN NOTIFIKASI ============
   // Cek apakah user bisa mengakses laporan (Admin, Kabag TU, atau Kepala Balai)
@@ -298,29 +292,10 @@ export default function DashboardLayout({ children }) {
       title: 'Pengaturan',
       items: [
         { href: '/profile', label: 'Profile', icon: <FaCog /> },
-        { href: '/setting', label: 'Settings', icon: <FaCog /> }
+        ...(hasAdminRole() ? [{ href: '/setting', label: 'Settings', icon: <FaCog /> }] : [])
       ]
     }
   ];
-
-  // Role badge untuk user info
-  const getUserRoleBadgeClass = () => {
-    if (hasAdminRole()) return 'bg-red-50 text-red-700 border border-red-200';
-    if (hasPPKRole()) return 'bg-amber-50 text-amber-700 border border-amber-200';
-    if (hasBendaharaRole()) return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    if (hasKabagTuRole()) return 'bg-blue-50 text-blue-700 border border-blue-200';
-    if (hasKepalaBalaiRole()) return 'bg-purple-50 text-purple-700 border border-purple-200';
-    return 'bg-gray-50 text-gray-600 border border-gray-200';
-  };
-
-  const getUserRoleBadgeText = () => {
-    if (hasAdminRole()) return 'Admin';
-    if (hasPPKRole()) return 'PPK';
-    if (hasBendaharaRole()) return 'Bendahara';
-    if (hasKabagTuRole()) return 'Kabag TU';
-    if (hasKepalaBalaiRole()) return 'Ka. Balai';
-    return 'User';
-  };
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
@@ -424,11 +399,6 @@ export default function DashboardLayout({ children }) {
             <div className="mb-4 p-3 bg-gray-700 dark:bg-gray-900 rounded-lg">
               <p className="text-sm font-semibold truncate">{getUserName()}</p>
               <p className="text-xs text-gray-400 truncate">{getUserEmail()}</p>
-              <p className="text-xs text-gray-400 mt-1">
-                <span className={`inline-block px-2 py-0.5 rounded text-xs ${getUserRoleBadgeClass()}`}>
-                  {getUserRoleBadgeText()}
-                </span>
-              </p>
             </div>
           )}
           
@@ -516,13 +486,6 @@ export default function DashboardLayout({ children }) {
               <div className="flex items-center space-x-3">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{getUserName()}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    <span className={`px-2 py-1 rounded ${
-                      getUserRoleBadgeClass()
-                    }`}>
-                      {getUserRoleDisplay()}
-                    </span>
-                  </p>
                 </div>
                 <div className="relative">
                   <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold border-2 border-gray-300">

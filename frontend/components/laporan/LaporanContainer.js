@@ -467,7 +467,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
         return null;
     }
     
-    // ============ PERBAIKAN: Pesan akses ditolak dengan role Kabag TU ============
+    // ============ PERBAIKAN: Pesan akses ditolak (tanpa menyebut nama role) ============
     if (!hasAccess) {
         return (
             <div className="flex items-center justify-center h-96">
@@ -475,10 +475,8 @@ export default function LaporanContainer({ session: propSession, status: propSta
                     <div className="text-red-500 text-6xl mb-4">⚠️</div>
                     <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-2">Akses Ditolak</h2>
                     <p className="text-gray-600 dark:text-gray-400">
-                        Halaman ini hanya dapat diakses oleh <strong>Admin, Kabag TU, dan Kepala Balai</strong>.
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                        Role Anda: <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded dark:text-gray-200">{userRole || 'Tidak diketahui'}</span>
+                        Anda tidak memiliki kewenangan untuk mengakses halaman ini. Silakan hubungi administrator
+                        bila menurut Anda ini adalah sebuah kesalahan.
                     </p>
                 </div>
             </div>
@@ -491,12 +489,6 @@ export default function LaporanContainer({ session: propSession, status: propSta
             <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">LAPORAN PERJALANAN DINAS PEGAWAI</h2>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        User: {session.user?.name || session.user?.email || 'Unknown User'} | Role: {userRole || 'User'}
-                        {userType.isAdmin && <span className="ml-2 text-blue-600 dark:text-blue-400">(Admin - Melihat Semua Data)</span>}
-                        {userType.isKabagTu && <span className="ml-2 text-teal-600 dark:text-teal-400">(Kabag TU - Laporan Perjadin)</span>}
-                        {userType.isKabalai && <span className="ml-2 text-purple-600 dark:text-purple-400">(Kepala Balai - Laporan Perjadin)</span>}
-                    </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Rekapitulasi perjalanan dinas per pegawai (Uang Harian + Transport Lokal)
                     </p>

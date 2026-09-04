@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const KEYCLOAK_CONFIG = require('../config/keycloak');
+const { loginLimiter, authLimiter } = require('../utils/rateLimiter');
 
 // ========== AUTH ROUTES ==========
 
@@ -92,7 +93,8 @@ router.get('/me', (req, res) => {
 });
 
 // POST - Manual login dengan username/password (untuk testing)
-router.post('/login', async (req, res) => {
+// Dibatasi rate limiting untuk mencegah brute-force.
+router.post('/login', loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
@@ -153,7 +155,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST - Refresh token
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', authLimiter, async (req, res) => {
     const { refresh_token } = req.body;
     
     if (!refresh_token) {

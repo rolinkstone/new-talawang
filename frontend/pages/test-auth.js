@@ -64,6 +64,11 @@ export default function AuthTestPage() {
 }
 
 export async function getServerSideProps(context) {
+  // Halaman test hanya untuk environment development
+  if (process.env.NODE_ENV !== 'development') {
+    return { notFound: true };
+  }
+
   const session = await getSession(context);
   
   if (!session) {

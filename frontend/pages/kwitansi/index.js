@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { getSession } from 'next-auth/react';
 import DashboardLayout from '../../components/DashboardLayout';
 import KwitansiContainer from '../../components/kwitansi/KwitansiContainer';
+import { requireSession } from '../../utils/roleChecks';
 
 export default function KwitansiPage() {
   const { data: session, status } = useSession();
@@ -15,18 +16,13 @@ export default function KwitansiPage() {
   );
 }
 
-// Server-side protection
+// Server-side protection: cek login + session belum habis
+// (bila session sudah habis, redirect ke /login dengan pesan warning)
 export async function getServerSideProps(context) {
   const session = await getSession(context);
 
-  if (!session) {
-    return {
-      redirect: {
-        destination: '/login',
-        permanent: false,
-      },
-    };
-  }
+  const guard = requireSession(session);
+  if (guard) return guard;
 
   return {
     props: { session },

@@ -323,26 +323,36 @@ export default function DebugAuthPage({ serverSession }) {
 }
 
 export async function getServerSideProps(context) {
-  console.log('🔍 DebugAuth - getServerSideProps');
-  console.log('🔍 Request URL:', context.req?.url);
-  console.log('🔍 Cookies found:', Object.keys(context.req?.cookies || {}));
-  
-  const session = await getSession(context);
-  
-  if (session) {
-    console.log('✅ Found session for user:', session.user?.email);
-    console.log('Session details:', {
-      user: session.user,
-      hasAccessToken: !!session.accessToken,
-      expires: session.expires
-    });
-  } else {
-    console.log('❌ No session found');
+  // Halaman debug hanya untuk environment development
+  if (process.env.NODE_ENV !== 'development') {
+    return { notFound: true };
   }
-  
+
+  const session = await getSession(context);
+
+  // Halaman debug tetap butuh sesi login
+  if (!session) {
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      },
+    };
+  }
+
+  // Serialize sesi TANPA membocorkan token ke client
   return {
     props: {
-      serverSession: session || null,
+      serverSession: {
+        user: {
+          id: session.user?.id || '',
+          name: session.user?.name || '',
+          email: session.user?.email || '',
+          roles: session.user?.roles || [],
+        },
+        accessToken: !!session.accessToken,
+        expires: session.expires || null,
+      },
     },
   };
 }

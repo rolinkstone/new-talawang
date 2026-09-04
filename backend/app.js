@@ -15,7 +15,11 @@ const lpdRoutes = require('./routes/lpd');
 const laporanRoutes = require('./routes/laporan');
 const notifikasiRoutes = require('./routes/notifikasi');
 const paguRoutes = require('./routes/pagu');
+const { writeLimiter } = require('./utils/rateLimiter');
 const app = express();
+
+// Percayai reverse proxy (nginx) supaya req.ip = IP klien asli (utk rate limiting)
+app.set('trust proxy', 1);
 
 // ========== MIDDLEWARE SETUP ==========
 app.use(cors({
@@ -88,6 +92,14 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser((user, done) => {
     console.log('📖 Deserializing user:', user.username);
     done(null, user);
+});
+
+// ========== RATE LIMITING (anti brute-force & spam form transaksi) ==========
+app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+    return writeLimiter(req, res, next);
 });
 
 // ========== ROUTES SETUP ==========

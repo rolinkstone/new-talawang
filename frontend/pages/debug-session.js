@@ -207,31 +207,35 @@ export default function DebugSession({ serverSession }) {
 }
 
 export async function getServerSideProps(context) {
-  console.log('🔍 DEBUG PAGE - getServerSideProps called');
-  
-  const session = await getSession(context);
-  
-  console.log('🔍 Session from getSession():', {
-    exists: !!session,
-    user: session?.user?.email || 'No user',
-    token: session?.accessToken ? 'Exists' : 'Missing',
-  });
+  // Halaman debug hanya untuk environment development
+  if (process.env.NODE_ENV !== 'development') {
+    return { notFound: true };
+  }
 
-  // Serialize session dengan aman
+  const session = await getSession(context);
+
+  // Halaman debug tetap butuh sesi login
+  if (!session) {
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      },
+    };
+  }
+
+  // Serialize sesi TANPA membocorkan token ke client (hanya indikator ada/tidak)
   const safeSession = session ? {
     user: {
       id: session.user?.id || '',
       name: session.user?.name || '',
       email: session.user?.email || '',
-      preferred_username: session.user?.preferred_username || '',
-      user_id: session.user?.user_id || session.user?.id || '',
       roles: session.user?.roles || [],
       role: session.user?.role || session.user?.roles?.[0] || 'user',
     },
-    accessToken: session.accessToken || '',
-    refreshToken: session.refreshToken || '',
-    idToken: session.idToken || '',
-    expires: session.expires || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    accessToken: !!session.accessToken,
+    idToken: !!session.idToken,
+    expires: session.expires || null,
   } : null;
 
   return {
