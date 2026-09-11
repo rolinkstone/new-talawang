@@ -432,7 +432,12 @@ app.get('/api/userinfo', (req, res) => {
 
 // ========== PUBLIC ENDPOINTS ==========
 app.get('/api/health', (req, res) => {
-    db.query('SELECT 1 as status', (err) => {
+    // CATATAN: db.query berasal dari mysql2/promise sehingga TIDAK menerima
+    // callback -> memakai db.query(cb) akan melempar
+    // "Callback function is not available with promise clients" dan
+    // menghasilkan HTTP 500. Gunakan db.queryWithCallback (lihat db.js).
+    // Ini penting karena docker healthcheck menembak /api/health.
+    db.queryWithCallback('SELECT 1 as status', [], (err) => {
         const dbStatus = err ? 'DISCONNECTED' : 'CONNECTED';
         
         res.json({ 
