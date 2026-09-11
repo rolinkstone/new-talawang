@@ -121,6 +121,18 @@ if (env.KEYCLOAK_SERVER_URL && env.KEYCLOAK_REALM && env.KEYCLOAK_ISSUER) {
 }
 
 console.log('\n── Preflight .env ─────────────────────────────');
+
+// Ringkasan nilai NON-rahasia: untuk memastikan file .env yang terbaca
+// memang file yang benar (root .env, bukan backend/.env atau frontend/.env).
+const SHOW = [
+  'NEXTAUTH_URL', 'NEXT_PUBLIC_API_URL', 'KEYCLOAK_ISSUER',
+  'KEYCLOAK_SERVER_URL', 'KEYCLOAK_REALM', 'KEYCLOAK_CLIENT_ID',
+  'NEXT_PUBLIC_KEYCLOAK_CLIENT_ID', 'FRONTEND_URL',
+  'PORT_BACKEND', 'PORT_FRONTEND',
+];
+console.log('\nNilai yang terbaca dari ' + ENV_PATH + ':');
+for (const k of SHOW) console.log(`   ${k.padEnd(30)} = ${env[k] ?? '(tidak di-set)'}`);
+
 if (warnings.length) {
   console.log('\n⚠️  Peringatan (tidak fatal):');
   for (const w of warnings) console.log('   • ' + w);
