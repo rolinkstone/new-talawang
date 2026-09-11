@@ -39,17 +39,34 @@
 #   - Frontend hanya bind ke 127.0.0.1 → hanya nginx/traefik di host yang
 #     bisa meneruskan; port tidak terbuka ke jaringan luar.
 #   - Backend TETAP network_mode: host (MySQL ada di host 127.0.0.1:3306).
-#   - ⭐ public/uploads di-mount dari ./data/backend/uploads supaya dokumen
-#     (kwitansi, LPD, SPD, TTD, pagu, SPTJM) TIDAK HILANG saat container
-#     di-rebuild. Versi lama tidak butuh ini karena kode di-mount dari host.
-#   - ⭐ SEED UPLOADS: file upload lokal ikut ter-build ke dalam image
-#     (backend/public/uploads → /seed/uploads di image), lalu entrypoint.sh
-#     menyalinnya ke ./data/backend/uploads HANYA bila folder itu masih
-#     kosong. Jadi deploy pertama langsung membawa file lama, sementara file
-#     baru yang di-upload di server tetap persisten dan tidak pernah ditimpa.
-#     Alur kirim file dari laptop (file TIDAK di-commit ke Git karena bisa
-#     besar & sensitif) — jalankan SEBELUM `docker compose build`:
-#       .\scripts\send-uploads.ps1 -Server <ip-atau-domain> -RemoteProjectDir /opt/talawang
+#   - ⭐ UPLOADS (PENTING): file upload (kwitansi, LPD, SPD, TTD, pagu, SPTJM)
+#     di-mount LANGSUNG dari ./backend/public/uploads ke dalam container.
+#
+#     Artinya: folder yang Anda buka di file manager =
+#               folder yang disajikan aplikasi.
+#
+#       <project>/backend/public/uploads/<subfolder>/<namafile>
+#           ->  https://<domain>/uploads/<subfolder>/<namafile>
+#           ->  https://<domain>/api/uploads/<subfolder>/<namafile>
+#
+#     Konsekuensi yang disengaja:
+#       + File yang Anda upload via file manager LANGSUNG bisa diakses.
+#         Tidak perlu `docker compose build`, tidak perlu restart.
+#       + Hanya SATU folder uploads -> tidak ada lagi kebingungan
+#         "folder mana yang benar".
+#       + Image TIDAK lagi membawa file upload (backend/.dockerignore
+#         mengecualikan public/uploads) -> hemat ± 277 MB dan build lebih cepat.
+#       - File upload TIDAK di-commit ke Git (lihat .gitignore) karena berisi
+#         dokumen keuangan sensitif. Untuk memindahkannya ke server, upload
+#         via file manager atau pakai:
+#           .\scripts\send-uploads.ps1 -Server <ip> -RemoteProjectDir <path>
+#
+#     ⚠️ MIGRASI dari desain lama (volume ./data/backend/uploads):
+#         jalankan SEKALI sebelum `docker compose up -d`:
+#           sh scripts/migrate-uploads.sh
+#         Tanpa itu, file yang sudah ada di ./data/backend/uploads tidak akan
+#         tersaji (file-nya TIDAK hilang, hanya tidak dibaca).
+#
 #   - Ditambah batas ukuran log agar disk server tidak penuh.
 # ============================================================
 services:
@@ -103,21 +120,21 @@ services:
       - UPLOADS_PATH=/data/uploads
       # Isi "true" HANYA bila ingin mematikan rate limiter (mis. saat debug).
       - RATE_LIMIT_DISABLED=${RATE_LIMIT_DISABLED:-false}
-      # Seeding uploads otomatis saat container start (lihat backend/entrypoint.sh).
-      # Set "false" untuk melewati seeding, mis. saat mau restore dari backup.
-      - SEED_UPLOADS=${SEED_UPLOADS:-true}
     volumes:
       # Mount folder data untuk backend (opsional, saat ini belum dipakai)
       - ./data/backend:/data
-      # ⭐ WAJIB: backend menulis upload ke <app>/public/uploads
-      # (kwitansi, lpd-dokumentasi, spd, sptjm-transport, sptjm-penginapan,
-      #  ttd, pagu). Tanpa mount ini file upload HILANG tiap container di-recreate.
+      # ⭐ WAJIB — satu-satunya folder uploads.
+      # Backend menulis DAN membaca upload di <app>/public/uploads.
+      # Bind mount ini menjadikan folder di HOST sebagai sumber sekaligus
+      # tujuan: file yang Anda upload lewat file manager langsung tersaji,
+      # dan file yang di-upload lewat aplikasi langsung tersimpan di host.
       #
-      # ⚠️ Bind mount ini MENIMPA isi /usr/src/app/public/uploads di image.
-      #    Karena itu image menyimpan salinan uploads di /seed/uploads, dan
-      #    entrypoint.sh menyalinnya ke sini HANYA SAAT folder ini masih kosong.
-      #    File yang sudah ada di sini TIDAK PERNAH ditimpa.
-      - ./data/backend/uploads:/usr/src/app/public/uploads
+      #   host : ./backend/public/uploads
+      #   app  : /usr/src/app/public/uploads
+      #
+      # ⚠️ JANGAN ubah baris ini tanpa menjalankan scripts/migrate-uploads.sh,
+      #    karena file upload lama akan berhenti tersaji.
+      - ./backend/public/uploads:/usr/src/app/public/uploads
     healthcheck:
       # /api/health = route publik backend (lihat backend/server.js)
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${PORT_BACKEND}/api/health"]

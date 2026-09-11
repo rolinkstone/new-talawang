@@ -16,17 +16,23 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Data runtime (dipasang lewat volume, bukan dari image)
+# Data runtime & file upload user (dipasang lewat bind mount, bukan dari image)
+#
+# public/uploads di-mount oleh docker-compose dari ./backend/public/uploads,
+# jadi TIDAK perlu ikut ke image. Mengecualikannya di sini:
+#   - menghemat ± 277 MB per image
+#   - `docker compose build` jauh lebih cepat
+#   - file upload tetap bisa diakses (dari bind mount, bukan dari image)
+public/uploads
+
+# Arsip cadangan uploads (± 35 MB). Tidak dipakai kode dan tidak diserve
+# (server.js hanya melayani /uploads, bukan seluruh folder public).
+# Lihat juga .gitignore: backend/public/uploads.zip
+public/uploads.zip
+
 data
 logs
 *.log
-
-# ⚠️ public/uploads SENGAJA TIDAK di-ignore di sini.
-#    Folder ini ikut di-build ke image sebagai "seed" supaya file upload
-#    lokal bisa ikut terkirim ke server (lihat backend/entrypoint.sh).
-#    Agar data user di server tetap aman, Dockerfile menyalinnya ke
-#    /seed/uploads (di luar path yang di-mount) dan seed hanya dipakai
-#    saat volume ./data/backend/uploads masih kosong.
 
 # Tooling / VCS
 .git

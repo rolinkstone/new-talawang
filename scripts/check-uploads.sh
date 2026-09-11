@@ -2,19 +2,25 @@
 # ============================================================
 #  check-uploads.sh - diagnosa "file upload 404" pada TALAWANG KEUANGAN
 #
+#  MODEL YANG BERLAKU SEKARANG:
+#
+#      <project>/backend/public/uploads/<subfolder>/<namafile>
+#          |  bind mount
+#          v
+#      /usr/src/app/public/uploads/<subfolder>/<namafile>
+#          |
+#          v
+#      https://<domain>/uploads/<subfolder>/<namafile>
+#      https://<domain>/api/uploads/<subfolder>/<namafile>
+#
+#  Jadi: folder yang Anda buka di FILE MANAGER = folder yang DISERVE aplikasi.
+#  File yang ditaruh di sana langsung bisa diakses, tanpa build / restart.
+#
 #  Jalankan di SERVER, dari folder yang berisi docker-compose.yml:
 #      sh scripts/check-uploads.sh
-#      sh scripts/check-uploads.sh spd/sptjm-1784515886991-305389412.pdf
+#      sh scripts/check-uploads.sh sptjm-transport/sptjm-1784515886991-305389412.pdf
 #
 #  Script ini hanya MEMBACA. Tidak mengubah apa pun.
-#
-#  Latar belakang:
-#    Ada DUA folder yang mirip tapi berbeda peran:
-#      A. <project>/backend/public/uploads/   -> sumber build (tempat Anda upload)
-#      B. <project>/data/backend/uploads/     -> volume, INI yang diserve URL
-#    File di A baru sampai ke B lewat: build -> /seed/uploads di image
-#    -> container start -> entrypoint.sh menyalinnya ke B.
-#    Kalau salah satu mata rantai putus, hasilnya 404.
 # ============================================================
 
 set -u
@@ -28,7 +34,6 @@ num()   { tr -d '\r\n ' 2>/dev/null; }
 
 FILE_TO_CHECK="${1:-}"
 
-# ------------------------------------------------------------
 if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
     bad "docker-compose.yml tidak ditemukan di: $(pwd)"
     bad "Jalankan script ini dari folder project (tempat docker-compose.yml berada)."
@@ -36,9 +41,10 @@ if [ ! -f docker-compose.yml ] && [ ! -f compose.yml ]; then
 fi
 if [ -f docker-compose.yml ]; then COMPOSE_FILE=docker-compose.yml; else COMPOSE_FILE=compose.yml; fi
 
+# ------------------------------------------------------------
 head_ "0. Lokasi"
-info "pwd            = $(pwd)"
-info "compose file   = $COMPOSE_FILE"
+info "pwd          = $(pwd)"
+info "compose file = $COMPOSE_FILE"
 
 # ------------------------------------------------------------
 head_ "1. Folder yang DISERVE (hasil resolve docker compose)"
@@ -47,33 +53,51 @@ VOL_SRC="$(docker compose config 2>/dev/null \
     | sed -n 's/^[[:space:]]*source:[[:space:]]*//p' \
     | head -1)"
 
+EXPECTED="$PWD/backend/public/uploads"
 if [ -n "$VOL_SRC" ]; then
-    ok "yang diserve  = $VOL_SRC"
-    info "(bandingkan dengan folder tempat Anda upload file)"
+    ok "yang diserve = $VOL_SRC"
+    # Bandingkan AKHIRAN path, bukan path absolut penuh, supaya tidak salah
+    # alarm saat format path berbeda (mis. diuji di Windows/git-bash).
+    case "$VOL_SRC" in
+        */backend/public/uploads|*\\backend\\public\\uploads)
+            ok "sesuai desain (backend/public/uploads)"
+            ;;
+        *)
+            warn "BEDA dari yang diharapkan: $EXPECTED"
+            warn "Lakukan salah satu:"
+            warn "  a) taruh file Anda di $VOL_SRC, atau"
+            warn "  b) ubah mapping volume di $COMPOSE_FILE ke ./backend/public/uploads"
+            ;;
+    esac
 else
     warn "tidak bisa membaca mapping volume dari docker compose config"
 fi
 
 # ------------------------------------------------------------
-head_ "2. Folder TEMPAT ANDA UPLOAD (sumber build)"
-SRC_DIR="$PWD/backend/public/uploads"
-if [ -d "$SRC_DIR" ]; then
-    n=$(find "$SRC_DIR" -type f 2>/dev/null | wc -l | num)
-    ok "ada           = $SRC_DIR"
-    info "jumlah file   = $n"
-    if [ "$n" -eq 0 ]; then
+head_ "2. File di folder upload (HOST)"
+if [ -d "$EXPECTED" ]; then
+    HOST_N=$(find "$EXPECTED" -type f 2>/dev/null | wc -l | num)
+    ok "ada, berisi $HOST_N file"
+    info "lokasi: $EXPECTED"
+    if [ "$HOST_N" -eq 0 ]; then
         bad "KOSONG. File yang Anda lihat di file manager mungkin ada di folder lain."
     fi
+    printf '  -- rincian per subfolder --\n'
+    for d in "$EXPECTED"/*/; do
+        [ -d "$d" ] || continue
+        n=$(find "$d" -type f 2>/dev/null | wc -l | num)
+        printf '     %-22s %s file\n' "$(basename "$d")" "$n"
+    done
 else
-    bad "tidak ada: $SRC_DIR"
+    bad "BELUM ADA: $EXPECTED"
+    bad "Buat folder ini lalu taruh file upload di sini."
 fi
 
 # ------------------------------------------------------------
-head_ "3. Apakah container berjalan?"
+head_ "3. Status container backend"
 RUNNING="$(docker compose ps -q backend 2>/dev/null | head -1)"
 if [ -z "$RUNNING" ]; then
-    bad "container 'backend' TIDAK berjalan."
-    bad "Jalankan: docker compose up -d"
+    bad "container 'backend' TIDAK berjalan -> jalankan: docker compose up -d"
     RUNNING=""
 else
     ok "container berjalan"
@@ -81,88 +105,69 @@ else
 fi
 
 # ------------------------------------------------------------
-head_ "4. Versi entrypoint yang TERPASANG (yang benar = per-file merge)"
+head_ "4. File di folder yang diserve, DI DALAM container"
 if [ -n "$RUNNING" ]; then
-    if docker compose exec -T backend sh -c 'grep -q LIST_FILE /usr/src/app/entrypoint.sh' 2>/dev/null; then
-        ok "versi BARU (per-file merge) - sudah benar"
-        EP_NEW=1
-    else
-        bad "versi LAMA (syarat 'volume kosong') -> seeding selalu dilewati"
-        bad "Perbaiki: git pull && docker compose build && docker compose up -d"
-        EP_NEW=0
+    CONT_N=$(docker compose exec -T backend sh -c 'find /usr/src/app/public/uploads -type f 2>/dev/null | wc -l' 2>/dev/null | num)
+    CONT_N=${CONT_N:-0}
+    ok "$CONT_N file"
+    if [ -n "${HOST_N:-}" ] && [ "$CONT_N" = "$HOST_N" ]; then
+        ok "sama dengan host -> bind mount bekerja"
+    elif [ -n "${HOST_N:-}" ]; then
+        warn "BERBEDA dari host ($HOST_N) -> bind mount tidak sesuai"
+        warn "Cek baris 'volumes:' pada service backend di $COMPOSE_FILE,"
+        warn "lalu jalankan: docker compose up -d --force-recreate backend"
     fi
 else
-    warn "dilewati (container tidak berjalan)"
-    EP_NEW=""
-fi
-
-# ------------------------------------------------------------
-head_ "5. Seed di dalam IMAGE (hasil docker compose build)"
-if [ -n "$RUNNING" ]; then
-    SEED=$(docker compose exec -T backend sh -c 'find /seed/uploads -type f 2>/dev/null | wc -l' 2>/dev/null | num)
-    SEED=${SEED:-0}
-    if [ "$SEED" -gt 0 ]; then
-        ok "seed berisi $SEED file -> build SUDAH membawa uploads"
-    else
-        bad "seed KOSONG -> build TIDAK membawa uploads"
-        bad "Sebab tersering: backend/.dockerignore masih meng-ignore public/uploads,"
-        bad "atau build dijalankan dari folder project yang berbeda."
-        bad "Perbaiki: git pull && docker compose build"
-    fi
-else
-    SEED=""
     warn "dilewati (container tidak berjalan)"
 fi
 
 # ------------------------------------------------------------
-head_ "6. File di folder yang diserve, DI DALAM container"
-if [ -n "$RUNNING" ]; then
-    IN_CONT=$(docker compose exec -T backend sh -c 'find /usr/src/app/public/uploads -type f 2>/dev/null | wc -l' 2>/dev/null | num)
-    IN_CONT=${IN_CONT:-0}
-    if [ "$IN_CONT" -gt 0 ]; then
-        ok "$IN_CONT file -> URL seharusnya bisa diakses"
-    else
-        bad "0 file -> inilah penyebab 404"
-        if [ "$SEED" -gt 0 ] 2>/dev/null; then
-            bad "Seed ada ($SEED file) tapi volume kosong -> entrypoint tidak jalan."
-            bad "Jalankan: docker compose up -d   (build saja TIDAK recreate container)"
-        fi
-    fi
-    if [ -n "$FILE_TO_CHECK" ]; then
-        info "cek file: $FILE_TO_CHECK"
+if [ -n "$FILE_TO_CHECK" ]; then
+    head_ "5. Cek file spesifik"
+    info "host      : $EXPECTED/$FILE_TO_CHECK"
+    ls -la "$EXPECTED/$FILE_TO_CHECK" 2>&1 | sed 's/^/    /'
+    if [ -n "$RUNNING" ]; then
+        info "container : /usr/src/app/public/uploads/$FILE_TO_CHECK"
         docker compose exec -T backend sh -c "ls -la '/usr/src/app/public/uploads/$FILE_TO_CHECK'" 2>&1 | sed 's/^/    /'
     fi
-else
-    IN_CONT=""
-    warn "dilewati (container tidak berjalan)"
 fi
 
 # ------------------------------------------------------------
-head_ "7. Log entrypoint saat container start"
-if [ -n "$RUNNING" ]; then
-    docker compose logs backend 2>/dev/null | grep -i 'entrypoint' | tail -6 | sed 's/^/  /'
+head_ "6. Sisa folder desain LAMA (kalau ada isinya = belum dimigrasi)"
+OLD_DIR="$PWD/data/backend/uploads"
+if [ -d "$OLD_DIR" ]; then
+    OLD_N=$(find "$OLD_DIR" -type f 2>/dev/null | wc -l | num)
+    if [ "$OLD_N" -gt 0 ]; then
+        warn "data/backend/uploads masih berisi $OLD_N file"
+        warn "Folder ini TIDAK diserve lagi. Kalau ada dokumen penting di sana:"
+        warn "    sh scripts/migrate-uploads.sh --dry-run"
+        warn "    sh scripts/migrate-uploads.sh"
+    else
+        ok "data/backend/uploads kosong (aman)"
+    fi
 else
-    warn "dilewati (container tidak berjalan)"
+    ok "folder lama tidak ada (aman)"
 fi
 
 # ------------------------------------------------------------
 head_ "KESIMPULAN"
 if [ -z "$RUNNING" ]; then
     warn "Container tidak berjalan -> jalankan: docker compose up -d"
-elif [ "${EP_NEW:-1}" = "0" ]; then
-    bad "Server masih memakai kode LAMA."
-    bad "Jalankan: git pull && docker compose build && docker compose up -d"
-elif [ "${SEED:-0}" -eq 0 ]; then
-    bad "Build tidak membawa file upload."
-    bad "Pastikan Anda upload ke $SRC_DIR lalu: docker compose build && docker compose up -d"
-elif [ "${IN_CONT:-0}" -eq 0 ]; then
-    bad "File ada di image tapi tidak sampai ke volume."
-    bad "Jalankan: docker compose up -d   (wajib, build saja tidak cukup)"
+elif [ "${HOST_N:-0}" -eq 0 ] 2>/dev/null; then
+    bad "Folder upload Anda kosong. Taruh file di:"
+    bad "    $EXPECTED/<subfolder>/"
+elif [ -n "${CONT_N:-}" ] && [ "$CONT_N" -eq 0 ] 2>/dev/null; then
+    bad "Folder terisi di host tapi kosong di container -> bind mount bermasalah."
+    bad "Jalankan: docker compose up -d --force-recreate backend"
+elif [ -n "${CONT_N:-}" ] && [ -n "${HOST_N:-}" ] && [ "$CONT_N" != "$HOST_N" ]; then
+    warn "Jumlah file host ($HOST_N) != container ($CONT_N)."
+    warn "Jalankan: docker compose up -d --force-recreate backend"
 else
-    ok "Semua mata rantai utuh ($IN_CONT file tersedia)."
-    info "Kalau URL masih 404, cek EJAAN/nama file pada URL."
-    info "URL yang benar: /uploads/<subfolder>/<namafile>"
-    info "            atau /api/uploads/<subfolder>/<namafile>"
+    ok "Semua normal ($CONT_N file tersedia di container)."
+    info "Kalau URL masih 404, periksa EJAAN/nama file pada URL:"
+    info "  /uploads/<subfolder>/<namafile>"
+    info "  /api/uploads/<subfolder>/<namafile>"
+    info "Nama file bersifat case-sensitive (huruf besar/kecil berpengaruh)."
 fi
 
 printf '\n'

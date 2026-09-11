@@ -1,31 +1,29 @@
 <#
 .SYNOPSIS
-    Kirim folder uploads dari laptop ke server agar ikut ter-build ke image Docker.
+    Kirim folder uploads dari laptop ke server (langsung live, tanpa build).
 
 .DESCRIPTION
     Folder backend/public/uploads sengaja TIDAK di-commit ke Git karena:
       - ukurannya bisa besar (repository membengkak permanen), dan
       - isinya dokumen keuangan sensitif (kwitansi, SPD, SPTJM, TTD).
 
-    Script ini mengirimnya langsung ke server via scp, ke lokasi yang SAMA
-    dengan checkout repo hasil `git pull`. Setelah itu `docker compose build`
-    akan membawa file-file tersebut ke dalam image (sebagai seed di
-    /seed/uploads), dan entrypoint.sh menyalinnya ke volume saat container
-    pertama kali start.
+    Folder itu di-mount LANGSUNG oleh docker-compose, jadi file yang dikirim
+    script ini LANGSUNG bisa diakses -- TIDAK perlu `docker compose build`
+    dan TIDAK perlu restart container:
+
+        https://<domain>/uploads/<subfolder>/<namafile>
+        https://<domain>/api/uploads/<subfolder>/<namafile>
 
     SEBELUM menjalankan script ini, pastikan SSH key sudah terpasang
     (ssh-copy-id) atau Anda siap mengetik password beberapa kali.
 
-    Urutan deploy di server setelah script ini:
+    PERINGATAN: scp MENGGANTI file yang namanya sama di server dengan versi
+    lokal. Nama file upload aplikasi ini memuat timestamp sehingga praktis
+    tidak pernah bentrok.
 
-        cd <RemoteProjectDir>
-        git pull
-        docker compose build     # uploads ikut masuk image
-        docker compose up -d     # entrypoint menyalin seed ke volume
-        docker compose logs backend | Select-String entrypoint
-
-    KEAMANAN DATA: seeding hanya dijalankan bila ./data/backend/uploads masih
-    kosong. File yang sudah ada di server TIDAK PERNAH ditimpa atau dihapus.
+    Kalau di server masih ada dokumen lama di ./data/backend/uploads
+    (desain lama), migrasikan di server dengan:
+        sh scripts/migrate-uploads.sh
 
 .PARAMETER Server
     IP atau domain server. Contoh: 10.0.0.5 atau keuangan.contoh.id
@@ -173,13 +171,14 @@ if ($remoteCount -ne "$($files.Count)") {
     Write-Host ""
 }
 
-Write-Host "Langkah berikutnya di SERVER:" -ForegroundColor Yellow
-Write-Host "  cd $RemoteProjectDir"
-Write-Host "  docker compose build"
-Write-Host "  docker compose up -d"
-Write-Host "  docker compose logs backend | grep entrypoint"
+Write-Host "File sudah LIVE - tidak perlu build, tidak perlu restart." -ForegroundColor Green
 Write-Host ""
-Write-Host "Log harus memuat salah satu dari:" -ForegroundColor DarkGray
-Write-Host "  [entrypoint] Volume uploads kosong -> menyalin N file dari image..." -ForegroundColor DarkGray
-Write-Host "  [entrypoint] Volume uploads sudah berisi data -> seed TIDAK disalin" -ForegroundColor DarkGray
+Write-Host "Uji akses (ganti <domain> dan <namafile>):" -ForegroundColor Yellow
+Write-Host "  https://<domain>/uploads/<subfolder>/<namafile>"
+Write-Host "  https://<domain>/api/uploads/<subfolder>/<namafile>"
+Write-Host ""
+Write-Host "Kalau ada dokumen lama yang belum tampil, jalankan di SERVER:" -ForegroundColor Yellow
+Write-Host "  cd $RemoteProjectDir"
+Write-Host "  sh scripts/check-uploads.sh"
+Write-Host "  sh scripts/migrate-uploads.sh     # bila masih ada dokumen di data/backend/uploads"
 Write-Host ""
