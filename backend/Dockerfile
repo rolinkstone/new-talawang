@@ -7,8 +7,9 @@ RUN npm install --omit=dev
 
 COPY . .
 
-# Copy production env file
-COPY .env.production .env
+# ⚠️ JANGAN COPY file .env ke dalam image — rahasia akan ikut ter-bake dan
+# bisa terbaca dari layer image. Semua env dikirim saat runtime oleh
+# docker-compose (lihat `environment:` di docker-compose.yml).
 
 EXPOSE 5000
 

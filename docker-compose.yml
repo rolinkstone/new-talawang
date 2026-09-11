@@ -1,57 +1,169 @@
-version: '3.8'
-
+# ============================================================
+# docker-compose.yml — PRODUCTION (TALAWANG KEUANGAN)
+#
+# Semua nilai rahasia TIDAK ditulis di file ini. Docker Compose membacanya
+# dari file `.env` di folder yang sama (lihat `.env.example`).
+#
+# Cara pakai di server (URUTAN PENTING):
+#   1) git pull
+#   2) cp .env.example .env   → isi semua nilainya. Wajib benar:
+#        NEXTAUTH_URL        = https://<domain>        (BUKAN localhost!)
+#        NEXT_PUBLIC_API_URL = https://<domain>/api    (ter-bake saat build)
+#        FRONTEND_URL        = https://<domain>
+#      JANGAN menyalin `.env` dari laptop (isinya localhost).
+#      Verifikasi:  docker compose config | grep -E 'NEXTAUTH_URL|NEXT_PUBLIC_API_URL'
+#   3) docker compose build      (NEXT_PUBLIC_* di-bake di langkah INI)
+#   4) docker compose up -d
+#      Cek: docker compose ps   (kolom STATUS harus "healthy" setelah ± 1 menit)
+#
+# Prasyarat di server:
+#   - Docker + plugin docker compose.
+#   - MySQL jalan di host (127.0.0.1:3306) dan database sudah dimigrasi.
+#   - Port host berikut belum dipakai proses lain: PORT_BACKEND (5000),
+#     PORT_FRONTEND (3001).
+#   - nginx/traefik meneruskan domain publik ke:
+#       https://<domain>/            → http://127.0.0.1:3001  (frontend)
+#       https://<domain>/api/auth/   → http://127.0.0.1:3001  (NextAuth — DI FRONTEND!)
+#       https://<domain>/api/        → http://127.0.0.1:5000  (backend Express)
+#     Backend memakai network_mode: host → kalau nginx dijalankan sebagai
+#     CONTAINER, jangan pakai 127.0.0.1; pakai IP host / host.docker.internal.
+#
+# PERBEDAAN dari versi development yang lama:
+#   - TIDAK ADA bind-mount kode sumber (./backend:/usr/src/app dan
+#     ./frontend:/usr/src/app). Dulu mount itu MENIMPA hasil build di dalam
+#     image, sehingga image production tidak pernah benar-benar terpakai.
+#   - TIDAK ADA lagi `env_file: ./backend/.env` — semua env masuk lewat
+#     `environment:` di bawah (sumber tunggal: ./.env di folder ini).
+#   - Frontend hanya bind ke 127.0.0.1 → hanya nginx/traefik di host yang
+#     bisa meneruskan; port tidak terbuka ke jaringan luar.
+#   - Backend TETAP network_mode: host (MySQL ada di host 127.0.0.1:3306).
+#   - ⭐ public/uploads di-mount dari ./data/backend/uploads supaya dokumen
+#     (kwitansi, LPD, SPD, TTD, pagu, SPTJM) TIDAK HILANG saat container
+#     di-rebuild. Versi lama tidak butuh ini karena kode di-mount dari host.
+#   - Ditambah batas ukuran log agar disk server tidak penuh.
+# ============================================================
 services:
   backend:
-    build: ./backend
-    container_name: talawang-backend
+    build:
+      context: ./backend
+    container_name: talawang-keuangan-backend
     restart: unless-stopped
+    # ⚠️ network_mode: host hanya bekerja di Linux (server).
+    #    Alasannya: MySQL ada di host pada 127.0.0.1:3306 — dengan mode host,
+    #    "127.0.0.1" di dalam backend = host, jadi DB_HOST tetap benar.
+    #    Konsekuensi: backend TIDAK memakai `ports:` (memakai port host).
+    #    Ingin mode bridge? Hapus network_mode di bawah, tambahkan
+    #      extra_hosts: ["host.docker.internal:host-gateway"]
+    #    lalu ubah DB_HOST=host.docker.internal di .env
     network_mode: "host"
-    env_file:
-      - ./backend/.env
     environment:
-      # ⚠️ DB_* dan KEYCLOAK_* TIDAK ditulis di sini — diambil dari ./backend/.env
-      # agar credential tidak ikut ter-commit ke repository.
+      # ---------- Database ----------
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      # ---------- Keycloak ----------
+      - KEYCLOAK_SERVER_URL=${KEYCLOAK_SERVER_URL}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM}
+      - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USERNAME}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      # ⭐ Client Keycloak aplikasi keuangan
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - KEYCLOAK_AUDIENCES=${KEYCLOAK_AUDIENCES}
+      # ---------- Rahasia aplikasi ----------
+      - SESSION_SECRET=${SESSION_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - SIGNED_URL_SECRET=${SIGNED_URL_SECRET}
+      # ---------- URL & CORS ----------
+      # FRONTEND_URL dipakai backend/server.js untuk redirect setelah logout.
+      - FRONTEND_URL=${FRONTEND_URL}
+      # Catatan: backend/server.js saat ini masih memakai `origin: '*'`.
+      # Sebaiknya diubah ke CORS_ORIGIN agar browser hanya dari domain sendiri.
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      # ---------- Runtime ----------
       - NODE_ENV=production
-      - PORT=5000
-      # Tambahkan environment variable untuk path data
+      - PORT=${PORT_BACKEND}
+      # Zona waktu container supaya jam pada log & tanggal ikut WIB.
+      - TZ=${TZ:-Asia/Jakarta}
+      # (path data lama — belum ada fitur yang menulis ke sini, aman dibiarkan)
       - DATA_PATH=/data
       - LOGS_PATH=/data/logs
       - UPLOADS_PATH=/data/uploads
+      # Isi "true" HANYA bila ingin mematikan rate limiter (mis. saat debug).
+      - RATE_LIMIT_DISABLED=${RATE_LIMIT_DISABLED:-false}
     volumes:
-      # Mount folder data untuk backend
+      # Mount folder data untuk backend (opsional, saat ini belum dipakai)
       - ./data/backend:/data
-      # Untuk development - kode sumber
-      - ./backend:/usr/src/app
-      - /usr/src/app/node_modules
+      # ⭐ WAJIB: backend menulis upload ke <app>/public/uploads
+      # (kwitansi, lpd-dokumentasi, spd, sptjm-transport, sptjm-penginapan,
+      #  ttd, pagu). Tanpa mount ini file upload HILANG tiap container di-recreate.
+      - ./data/backend/uploads:/usr/src/app/public/uploads
+    healthcheck:
+      # /api/health = route publik backend (lihat backend/server.js)
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${PORT_BACKEND}/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: talawang-frontend
+      args:
+        # ⚠️ NEXT_PUBLIC_* di-bake saat build, jadi wajib diisi dari .env
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_KEYCLOAK_ISSUER: ${NEXT_PUBLIC_KEYCLOAK_ISSUER}
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID}
+    container_name: talawang-keuangan-frontend
     restart: unless-stopped
     ports:
-      - "3001:3001"  # ⭐ Host:3001 → Container:3001
-    env_file:
-      - ./frontend/.env
+      # Hanya dari localhost → yang meneruskan ke publik adalah nginx/traefik
+      # di server (port tidak terbuka ke jaringan luar).
+      # ⚠️ Port DI DALAM container selalu 3001: frontend/package.json memakai
+      #    "start": "next start -p 3001". Jadi host:container = PORT_FRONTEND:3001.
+      - "127.0.0.1:${PORT_FRONTEND}:3001"
     environment:
       - NODE_ENV=production
-      # ⭐ Gunakan domain tunnel untuk NextAuth
-      - NEXT_PUBLIC_API_URL=http://api-talawang.bbpompky.id/api
-      - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=talawang
-      - NEXT_PUBLIC_KEYCLOAK_ISSUER=https://auth.bbpompky.id/realms/master
-      - KEYCLOAK_ISSUER=https://auth.bbpompky.id/realms/master
-      - KEYCLOAK_CLIENT_ID=talawang
-      # Tambahkan environment variable untuk path data frontend
+      # Zona waktu container (log & tanggal ikut WIB).
+      - TZ=${TZ:-Asia/Jakarta}
+      # NEXT_PUBLIC_* juga di-set saat runtime (nilai utama sudah ter-bake saat build).
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_KEYCLOAK_ISSUER=${NEXT_PUBLIC_KEYCLOAK_ISSUER}
+      - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID}
+      # ---------- NextAuth / Keycloak (server-side) ----------
+      - KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # Catatan: KEYCLOAK_ADMIN_* TIDAK diberikan ke frontend — kode frontend
+      # tidak memakainya, jadi password admin tidak perlu ada di container ini.
+      # (path data lama — belum ada fitur yang menulis ke sini, aman dibiarkan)
       - DATA_PATH=/data
       - CACHE_PATH=/data/.next/cache
       - PUBLIC_UPLOADS_PATH=/data/public/uploads
     volumes:
-      # Mount folder data untuk frontend
+      # Mount folder data untuk frontend (opsional, saat ini belum dipakai)
       - ./data/frontend:/data
-      # Untuk development - kode sumber
-      - ./frontend:/usr/src/app
-      - /usr/src/app/node_modules
-      - /usr/src/app/.next
     depends_on:
       - backend
+    healthcheck:
+      # Port di dalam container selalu 3001 (dikunci script "next start -p 3001").
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

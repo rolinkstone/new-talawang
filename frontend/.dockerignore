@@ -1,0 +1,33 @@
+# ============================================================
+#  Build context TIDAK boleh memuat rahasia / data lokal.
+#  NEXT_PUBLIC_* dikirim lewat build-arg (docker-compose build.args),
+#  bukan dari file .env — supaya tidak ada rahasia di dalam image.
+# ============================================================
+
+# Environment / secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Dependency & hasil build (di-build ulang di dalam image)
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+
+# Data runtime & log
+data
+logs
+*.log
+
+# Tooling / VCS
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+.continue
+.vscode

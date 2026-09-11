@@ -1,0 +1,32 @@
+# ============================================================
+#  Build context TIDAK boleh memuat rahasia / data lokal.
+#  (Kalau tidak ada file ini, `COPY . .` akan membawa .env ke
+#   dalam image dan nilainya bisa dibaca lewat layer image.)
+# ============================================================
+
+# Environment / secrets — dikirim saat runtime oleh docker-compose
+.env
+.env.*
+*.env
+!.env.example
+
+# Dependency & log (di-install ulang di dalam image)
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Data runtime & upload user (dipasang lewat volume, bukan dari image)
+public/uploads
+data
+logs
+*.log
+
+# Tooling / VCS
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+.continue
+.vscode
