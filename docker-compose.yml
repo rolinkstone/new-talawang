@@ -12,6 +12,8 @@
 #        FRONTEND_URL        = https://<domain>
 #      JANGAN menyalin `.env` dari laptop (isinya localhost).
 #      Verifikasi:  docker compose config | grep -E 'NEXTAUTH_URL|NEXT_PUBLIC_API_URL'
+#   2b) node scripts/check-env.mjs
+#      → menolak `contoh.id`, `ganti_...`, localhost, atau rahasia < 32 karakter.
 #   3) docker compose build      (NEXT_PUBLIC_* di-bake di langkah INI)
 #   4) docker compose up -d
 #      Cek: docker compose ps   (kolom STATUS harus "healthy" setelah ± 1 menit)
@@ -46,7 +48,7 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: talawang-keuangan-backend
+    container_name: talawang-backend
     restart: unless-stopped
     # ⚠️ network_mode: host hanya bekerja di Linux (server).
     #    Alasannya: MySQL ada di host pada 127.0.0.1:3306 — dengan mode host,
