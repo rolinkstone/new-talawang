@@ -1,0 +1,82 @@
+# ============================================
+#  TALAWANG KEUANGAN — .gitignore
+#  JANGAN hapus file ini. Pastikan tidak ada
+#  credential/secret yang ikut ter-commit.
+# ============================================
+
+# ---------- Environment / Secrets ----------
+.env
+.env.*
+*.env
+!.env.example
+# Kecualikan contoh env di subfolder (jika ada)
+!**/.env.example
+
+# Key / certificate files
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.ppk
+*.crt
+*.cert
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# ---------- Dependencies ----------
+node_modules/
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+jspm_packages/
+
+# ---------- Build / Cache ----------
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.turbo/
+.cache/
+coverage/
+
+# ---------- Runtime data & user uploads ----------
+# Data hasil upload user (kwitansi, LPD, SPD, TTD, dll) — JANGAN di-commit
+data/
+!data/.gitkeep
+backend/public/uploads/
+backend/public/uploads.zip
+!backend/public/uploads/.gitkeep
+*.sql
+*.dump
+*.bak
+*.backup
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- OS / Editor / Tooling ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+.continue/
+*.swp
+*.swo
+*~
+
+# ---------- Misc ----------
+.vercel
+.eslintcache
+

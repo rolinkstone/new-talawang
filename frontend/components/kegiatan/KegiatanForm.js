@@ -1,0 +1,1248 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import axios from 'axios';
+import PegawaiForm from './PegawaiForm';
+import { formatRupiah, formatMak } from '../../utils/formatters';
+import { validateMakFormat, getMakPlaceholder, formatMakInput } from '../../utils/validators';
+
+const KegiatanForm = ({
+    editId,
+    isEditMode,
+    formData,
+    setFormData,
+    pegawaiList,
+    setPegawaiList,
+    session,
+    onCancel,
+    onSubmit,
+    formError,
+    setFormError,
+    formLoading,
+    setFormLoading
+}) => {
+    // State untuk data daerah
+    const [provinsiList, setProvinsiList] = useState([]);
+    const [kabupatenList, setKabupatenList] = useState([]);
+    const [kecamatanList, setKecamatanList] = useState([]);
+    const [selectedProvinsi, setSelectedProvinsi] = useState('');
+    const [selectedKabupaten, setSelectedKabupaten] = useState('');
+    const [selectedKecamatan, setSelectedKecamatan] = useState('');
+    const [loadingDaerah, setLoadingDaerah] = useState(false);
+    
+    // State untuk autocomplete pegawai
+    const [pegawaiSuggestions, setPegawaiSuggestions] = useState([]);
+    const [loadingPegawai, setLoadingPegawai] = useState(false);
+    const [fetchError, setFetchError] = useState('');
+
+    // State untuk Jenis SPM
+    const [jenisSPM, setJenisSPM] = useState(formData.jenis_spm || '');
+    
+    // State untuk Bendahara
+    const [bendaharaList, setBendaharaList] = useState([]);
+    const [selectedBendaharaId, setSelectedBendaharaId] = useState(formData.bendahara_id || '');
+    
+    // State untuk Pagu search
+    const [paguList, setPaguList] = useState([]);
+    const [showMakDropdown, setShowMakDropdown] = useState(false);
+    const [selectedPaguInfo, setSelectedPaguInfo] = useState(null);
+    const [makDisplay, setMakDisplay] = useState(formData.mak || '');
+    const makSelectingRef = useRef(false);
+    const [selectedBendaharaNama, setSelectedBendaharaNama] = useState(formData.bendahara_nama || '');
+    const [selectedBendaharaNip, setSelectedBendaharaNip] = useState(formData.bendahara_nip || '');
+    const [loadingBendahara, setLoadingBendahara] = useState(false);
+    const [bendaharaError, setBendaharaError] = useState('');
+
+    // Set user_id dari session user saat komponen mount
+    useEffect(() => {
+        if (session?.user?.id && !isEditMode) {
+            setFormData(prev => ({
+                ...prev,
+                user_id: session.user.id
+            }));
+        }
+    }, [session, isEditMode, setFormData]);
+
+    // Load data provinsi saat komponen mount
+    useEffect(() => {
+        fetchProvinsi();
+        
+        if (isEditMode && formData.user_id) {
+            // Biarkan user_id yang sudah ada
+        } else if (session?.user?.id) {
+            setFormData(prev => ({
+                ...prev,
+                user_id: session.user.id
+            }));
+        }
+    }, [session, isEditMode]);
+
+    // Fetch pegawai suggestions dan bendahara list saat komponen mount
+    useEffect(() => {
+        fetchPegawaiSuggestions();
+        fetchBendaharaList();
+    }, []);
+
+    // Load bendahara yang sudah tersimpan saat edit mode
+    useEffect(() => {
+        if (isEditMode && formData.bendahara_nama && bendaharaList.length > 0) {
+            const found = bendaharaList.find(b => b.nama === formData.bendahara_nama || b.user_id === formData.bendahara_id);
+            if (found) {
+                setSelectedBendaharaId(found.user_id || found.id);
+                setSelectedBendaharaNama(found.nama);
+                setSelectedBendaharaNip(found.nip || '');
+            }
+        }
+    }, [isEditMode, formData.bendahara_nama, formData.bendahara_id, bendaharaList]);
+
+    // Handle perubahan jenis SPM
+    const handleJenisSPMChange = (value) => {
+        setJenisSPM(value);
+        setFormData(prev => ({
+            ...prev,
+            jenis_spm: value
+        }));
+    };
+
+    const fetchProvinsi = async () => {
+        try {
+            setLoadingDaerah(true);
+            const response = await fetch('https://www.emsifa.com/api-wilayah-indonesia/api/provinces.json');
+            const data = await response.json();
+            setProvinsiList(data);
+        } catch (error) {
+            console.error('Error fetching provinsi:', error);
+            setProvinsiList([
+                { id: '62', name: 'KALIMANTAN TENGAH' },
+                { id: '63', name: 'KALIMANTAN SELATAN' },
+                { id: '64', name: 'KALIMANTAN TIMUR' },
+                { id: '65', name: 'KALIMANTAN UTARA' },
+                { id: '66', name: 'KALIMANTAN BARAT' }
+            ]);
+        } finally {
+            setLoadingDaerah(false);
+        }
+    };
+
+    const fetchKabupaten = async (provinsiId) => {
+        try {
+            setLoadingDaerah(true);
+            setKabupatenList([]);
+            setKecamatanList([]);
+            setSelectedKabupaten('');
+            setSelectedKecamatan('');
+            
+            const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${provinsiId}.json`);
+            const data = await response.json();
+            setKabupatenList(data);
+        } catch (error) {
+            console.error('Error fetching kabupaten:', error);
+        } finally {
+            setLoadingDaerah(false);
+        }
+    };
+
+    const fetchKecamatan = async (kabupatenId) => {
+        try {
+            setLoadingDaerah(true);
+            setKecamatanList([]);
+            setSelectedKecamatan('');
+            
+            const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${kabupatenId}.json`);
+            const data = await response.json();
+            setKecamatanList(data);
+        } catch (error) {
+            console.error('Error fetching kecamatan:', error);
+        } finally {
+            setLoadingDaerah(false);
+        }
+    };
+
+    // Fungsi untuk mengambil data pegawai dari API
+    const fetchPegawaiSuggestions = async () => {
+        try {
+            console.log('🔍 Starting fetchPegawaiSuggestions...');
+            setLoadingPegawai(true);
+            setFetchError('');
+            
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+            const response = await fetch(`${API_BASE_URL}/keycloak/users/all-simple`, {
+                headers: {
+                    'Authorization': `Bearer ${session?.accessToken || ''}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('✅ API Response success:', data.success);
+            console.log('📊 Data count:', data.data?.length || 0);
+            
+            if (data.success) {
+                setPegawaiSuggestions(data.data || []);
+                if (data.data && data.data.length > 0) {
+                    console.log('📋 Sample data (first 3):');
+                    data.data.slice(0, 3).forEach((item, idx) => {
+                        console.log(`${idx + 1}. Nama: ${item.nama}, NIP: ${item.nip}, Pangkat: ${item.pangkat || '-'}`);
+                    });
+                }
+            } else {
+                console.warn('⚠️ API returned success: false', data);
+                setFetchError(data.message || 'Gagal mengambil data pegawai');
+                setPegawaiSuggestions([]);
+            }
+        } catch (error) {
+            console.error('❌ Error fetching pegawai suggestions:', error);
+            setFetchError(`Gagal memuat data pegawai: ${error.message}`);
+            setPegawaiSuggestions([]);
+        } finally {
+            setLoadingPegawai(false);
+        }
+    };
+
+    // Fungsi untuk mengambil daftar bendahara dari Keycloak
+    const fetchBendaharaList = async () => {
+        try {
+            console.log('🔍 Fetching bendahara list from Keycloak...');
+            setLoadingBendahara(true);
+            setBendaharaError('');
+            
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+            
+            const response = await fetch(`${API_BASE_URL}/keycloak/bendahara/list`, {
+                headers: {
+                    'Authorization': `Bearer ${session?.accessToken || ''}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (response.status === 403) {
+                console.warn('⚠️ User tidak memiliki akses ke daftar bendahara');
+                setBendaharaError('Hanya admin yang dapat memilih bendahara. Silakan hubungi administrator.');
+                setBendaharaList([]);
+                return;
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('📊 Bendahara list response:', data);
+            
+            if (data.success && data.data) {
+                // Normalisasi data bendahara
+                const normalizedData = data.data.map(item => ({
+                    id: item.user_id || item.id,
+                    user_id: item.user_id || item.id,
+                    nama: item.nama || item.name || '',
+                    nip: item.nip || '',
+                    pangkat: item.pangkat || '',
+                    jabatan: item.jabatan || 'Bendahara',
+                    email: item.email || ''
+                }));
+                setBendaharaList(normalizedData);
+                console.log(`✅ Successfully fetched ${normalizedData.length} bendahara users`);
+                console.log('Normalized bendahara data:', normalizedData);
+            } else {
+                throw new Error(data.message || 'Gagal mengambil daftar bendahara');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching bendahara list:', error);
+            setBendaharaError(`Gagal memuat daftar bendahara: ${error.message}`);
+            setBendaharaList([]);
+        } finally {
+            setLoadingBendahara(false);
+        }
+    };
+
+    const handleProvinsiChange = (e) => {
+        const provinsiId = e.target.value;
+        const provinsiName = e.target.options[e.target.selectedIndex].text;
+        
+        setSelectedProvinsi(provinsiId);
+        
+        setFormData(prev => ({
+            ...prev,
+            provinsi: provinsiName
+        }));
+        
+        setKabupatenList([]);
+        setKecamatanList([]);
+        setSelectedKabupaten('');
+        setSelectedKecamatan('');
+        
+        if (provinsiId) {
+            fetchKabupaten(provinsiId);
+        }
+    };
+
+    const handleKabupatenChange = (e) => {
+        const kabupatenId = e.target.value;
+        const kabupatenName = e.target.options[e.target.selectedIndex].text;
+        
+        setSelectedKabupaten(kabupatenId);
+        
+        setFormData(prev => ({
+            ...prev,
+            kabupaten_tujuan: kabupatenName,
+            kota_kab_kecamatan: kabupatenName
+        }));
+        
+        setKecamatanList([]);
+        setSelectedKecamatan('');
+        
+        if (kabupatenId) {
+            fetchKecamatan(kabupatenId);
+        }
+    };
+
+    const handleKecamatanChange = (e) => {
+        const kecamatanName = e.target.options[e.target.selectedIndex].text;
+        
+        setSelectedKecamatan(e.target.value);
+        
+        setFormData(prev => ({
+            ...prev,
+            kota_kab_kecamatan: `${kecamatanName}, ${prev.kabupaten_tujuan}`
+        }));
+    };
+
+    // Handler untuk memilih bendahara
+    const handleBendaharaChange = (e) => {
+        const selectedValue = e.target.value;
+        console.log('Selected value from dropdown:', selectedValue);
+        
+        if (!selectedValue) {
+            setSelectedBendaharaId('');
+            setSelectedBendaharaNama('');
+            setSelectedBendaharaNip('');
+            setFormData(prev => ({
+                ...prev,
+                bendahara_id: '',
+                bendahara_nama: '',
+                bendahara_nip: ''
+            }));
+            return;
+        }
+        
+        // Cari bendahara berdasarkan id yang dipilih
+        const selected = bendaharaList.find(b => b.id === selectedValue || b.user_id === selectedValue);
+        
+        console.log('Found bendahara:', selected);
+        console.log('Available bendahara list:', bendaharaList);
+        
+        if (selected) {
+            setSelectedBendaharaId(selected.id);
+            setSelectedBendaharaNama(selected.nama);
+            setSelectedBendaharaNip(selected.nip || '');
+            
+            setFormData(prev => ({
+                ...prev,
+                bendahara_id: selected.id,
+                bendahara_nama: selected.nama,
+                bendahara_nip: selected.nip || ''
+            }));
+            
+            console.log('Selected Bendahara saved:', {
+                id: selected.id,
+                nama: selected.nama,
+                nip: selected.nip
+            });
+        } else {
+            console.warn('Bendahara not found with id:', selectedValue);
+        }
+    };
+
+    const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        
+        if (name === 'user_id') {
+            setFormData(prev => ({
+                ...prev,
+                [name]: value
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [name]: value
+            }));
+        }
+        setFormError('');
+    };
+
+    const handleMakChange = (e) => {
+        const value = formatMakInput(e.target.value);
+        setMakDisplay(value);
+        setFormData(prev => ({ ...prev, mak: value }));
+    };
+
+    // Fetch data pagu untuk search MAK
+    useEffect(() => {
+        if (!session?.accessToken) return;
+        
+        const fetchPagu = async () => {
+            try {
+                const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pagu`, {
+                    headers: { Authorization: `Bearer ${session.accessToken}` }
+                });
+                if (res.data.success) {
+                    setPaguList(res.data.data);
+                }
+            } catch (err) {
+                console.error('Gagal fetch pagu:', err);
+            }
+        };
+        fetchPagu();
+    }, [session]);
+
+    // Group pagu by formatted MAK & cari sisa
+    const groupedPagu = useMemo(() => {
+        const map = new Map();
+        paguList.forEach(item => {
+            const key = formatMak(item.mak);
+            if (map.has(key)) {
+                const g = map.get(key);
+                g.pagu += parseFloat(item.pagu) || 0;
+                g.realisasi += parseFloat(item.realisasi) || 0;
+            } else {
+                map.set(key, {
+                    mak: item.mak,
+                    formattedMak: key,
+                    pagu: parseFloat(item.pagu) || 0,
+                    realisasi: parseFloat(item.realisasi) || 0
+                });
+            }
+        });
+        return Array.from(map.values());
+    }, [paguList]);
+
+    // Filter pagu berdasarkan input MAK (pakai makDisplay)
+    const filteredPagu = useMemo(() => {
+        if (!makDisplay) return [];
+        const q = makDisplay.toLowerCase();
+        return groupedPagu.filter(item =>
+            item.formattedMak.toLowerCase().includes(q) ||
+            item.mak.toLowerCase().includes(q)
+        ).slice(0, 10);
+    }, [makDisplay, groupedPagu]);
+
+    // Update info sisa saat MAK dipilih dari dropdown
+    const handleSelectMak = useCallback((item) => {
+        makSelectingRef.current = true;
+        setFormData(prev => ({ ...prev, mak: item.formattedMak, realisasi_anggaran_sebelumnya: item.realisasi }));
+        setMakDisplay(item.formattedMak);
+        setSelectedPaguInfo(item);
+        setShowMakDropdown(false);
+    }, [setFormData]);
+
+    // Reset selected info & display saat MAK diketik manual
+    useEffect(() => {
+        if (formData.mak && selectedPaguInfo && formData.mak !== selectedPaguInfo.formattedMak) {
+            setSelectedPaguInfo(null);
+        }
+    }, [formData.mak, selectedPaguInfo]);
+
+    // Sinkron makDisplay saat formData.mak berubah dari luar (edit mode) — skip jika dari dropdown
+    useEffect(() => {
+        if (!makSelectingRef.current) {
+            setMakDisplay(formData.mak || '');
+        }
+        makSelectingRef.current = false;
+    }, [formData.mak]);
+
+    // Posisi dropdown fix di window agar ikut saat scroll
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+    const makInputRef = useRef(null);
+
+    useEffect(() => {
+        if (showMakDropdown && makInputRef.current) {
+            const rect = makInputRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+        }
+    }, [showMakDropdown, filteredPagu]);
+
+    // ========== PERBAIKAN UTAMA: TAMBAHKAN PANGKAT KE DATA YANG DIKIRIM ==========
+    const handleSubmitForm = async (e) => {
+        e.preventDefault();
+        
+        if (!formData.jenis_spm) {
+            setFormError('Jenis SPM harus dipilih');
+            return;
+        }
+        
+        if (!formData.user_id) {
+            setFormError('User ID harus diisi');
+            return;
+        }
+        
+        if (pegawaiList.length === 0) {
+            setFormError('Minimal harus ada satu pegawai');
+            return;
+        }
+        
+        const invalidPegawai = pegawaiList.find(p => !p.nama || p.nama.trim() === '');
+        if (invalidPegawai) {
+            setFormError('Nama pegawai harus diisi untuk semua pegawai');
+            return;
+        }
+        
+        // 🔥 PERBAIKAN: Buat data baru dengan menambahkan field pangkat untuk setiap pegawai
+        const dataToSend = {
+            ...formData,
+            pegawai: pegawaiList.map(p => ({
+                nama: p.nama,
+                nip: p.nip,
+                pangkat: p.pangkat || '',  // ← TAMBAHKAN FIELD PANGKAT
+                jabatan: p.jabatan || '',
+                total_biaya: p.total_biaya || 0,
+                biaya: p.biaya || []
+            }))
+        };
+        
+        // Log untuk debugging
+        console.log('📤 Data yang akan dikirim ke backend:', JSON.stringify(dataToSend, null, 2));
+        
+        // Panggil onSubmit dengan data yang sudah lengkap
+        onSubmit(e);
+    };
+
+    const [isOtherActivity, setIsOtherActivity] = useState(false);
+
+    const getDropdownValue = (value, isOther = false) => {
+        if (isOther) return "lainnya";
+        if (!value) return "";
+        
+        const lowerValue = value.toLowerCase();
+        
+        if (lowerValue.includes("sampling")) return "sampling";
+        if (lowerValue.includes("pemeriksaan sarana produksi")) return "sarana_produksi";
+        if (lowerValue.includes("pemeriksaan sarana distribusi")) return "sarana_distribusi";
+        if (lowerValue.includes("pengawasan iklan")) return "iklan";
+        if (lowerValue.includes("pjas") || lowerValue.includes("umkm")) return "pjas";
+        if (lowerValue.includes("penyelesaian perkara")) return "perkara";
+        if (lowerValue.includes("fasilitasi sarana")) return "sertifikasi";
+        if (lowerValue.includes("pemberian kie")) return "kie";
+        
+        return "";
+    };
+
+    const extractNumber = (value) => {
+        if (!value) return "";
+        const match = value.match(/(\d+)\s*(sampel|sarana|iklan)/);
+        return match ? match[1] : "";
+    };
+
+    const grandTotal = pegawaiList.reduce((sum, pegawai) => sum + (pegawai.total_biaya || 0), 0);
+
+    return (
+        <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">
+                {isEditMode ? `Edit Kegiatan (ID: ${editId})` : 'Form Tambah Kegiatan + Pegawai'}
+            </h3>
+            
+            {/* Error Messages */}
+            {formError && (
+                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md border border-red-200 dark:border-red-800">
+                    <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        {formError}
+                    </div>
+                </div>
+            )}
+            
+            {fetchError && (
+                <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-md border border-yellow-200 dark:border-yellow-800">
+                    <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        {fetchError}
+                        <button 
+                            onClick={fetchPegawaiSuggestions}
+                            className="ml-3 text-sm underline hover:text-yellow-800"
+                        >
+                            Coba lagi
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Jenis SPM Section */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="mb-2">
+                    <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 7a1 1 0 100-2 1 1 0 000 2zm3 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        </svg>
+                        Jenis SPM *
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Pilih jenis Surat Permintaan Pembayaran untuk kegiatan ini</p>
+                </div>
+                
+                <div className="flex flex-wrap gap-4">
+                    <div 
+                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'LS' ? 'bg-white dark:bg-gray-800 border-2 border-blue-500 shadow-md' : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                        onClick={() => handleJenisSPMChange('LS')}
+                    >
+                        <div className="flex items-center justify-center w-6 h-6 mr-3">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'LS' ? 'border-blue-500 bg-blue-500' : 'border-gray-400 dark:border-gray-500'}`}>
+                                {jenisSPM === 'LS' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">LS (Langsung)</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Digunakan untuk pembayaran Transport, Uang Harian dan Penginapan</div>
+                        </div>
+                    </div>
+                    
+                    <div 
+                        className={`flex items-center p-4 rounded-lg cursor-pointer transition-all duration-200 ${jenisSPM === 'KKP' ? 'bg-white dark:bg-gray-800 border-2 border-blue-500 shadow-md' : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                        onClick={() => handleJenisSPMChange('KKP')}
+                    >
+                        <div className="flex items-center justify-center w-6 h-6 mr-3">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${jenisSPM === 'KKP' ? 'border-blue-500 bg-blue-500' : 'border-gray-400 dark:border-gray-500'}`}>
+                                {jenisSPM === 'KKP' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">KKP (Kartu Kredit Pemerintah)</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">Digunakan untuk pembayaran Transport saja</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-md">
+                    <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium text-blue-800">Jenis SPM yang dipilih:</span>
+                        <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${jenisSPM === 'LS' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'}`}>
+                            {jenisSPM === 'LS' ? 'LS (Langsung)' : 'KKP (Kartu Kredit Pemerintah)'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Total Biaya Keseluruhan */}
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <div className="text-sm text-green-700 dark:text-green-300">Total Biaya Keseluruhan</div>
+                        <div className="text-2xl font-bold text-green-800 dark:text-green-400">Rp {formatRupiah(grandTotal)}</div>
+                    </div>
+                    <div className="text-sm text-green-700 dark:text-green-300">
+                        {pegawaiList.length} Pegawai
+                    </div>
+                </div>
+                {jenisSPM === 'KKP' && (
+                    <div className="mt-2 text-sm text-purple-700 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Mode KKP: Hanya menghitung Transport
+                    </div>
+                )}
+            </div>
+            
+            <form onSubmit={handleSubmitForm} className="space-y-6">
+                {/* Data Kegiatan */}
+                <div className="space-y-4">
+                    <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2">Data Kegiatan</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Nama Kegiatan *
+                            </label>
+                            <input
+                                type="text"
+                                name="kegiatan"
+                                value={formData.kegiatan}
+                                onChange={handleFormChange}
+                                required
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="Contoh: Pengambilan sampling pangan segar"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                MAK *
+                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                    Format: XXXX.XXX.XXX.XXX.XXXXXX.X
+                                </span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    name="mak"
+                                    ref={makInputRef}
+                                    value={makDisplay}
+                                    onChange={handleMakChange}
+                                    onFocus={() => setShowMakDropdown(true)}
+                                    onBlur={() => setTimeout(() => setShowMakDropdown(false), 200)}
+                                    placeholder={getMakPlaceholder()}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
+                                    required
+                                    maxLength={29}
+                                    autoComplete="off"
+                                />
+                                {formData.mak && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setFormData(prev => ({ ...prev, mak: '' })); setMakDisplay(''); }}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                )}
+                                {/* Dropdown pencarian MAK dari Pagu */}
+                                {makDisplay && showMakDropdown && filteredPagu.length > 0 && (
+                                    <div
+                                        className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                        style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                                    >
+                                    {filteredPagu.map((item, i) => {
+                                        const sisa = item.pagu - item.realisasi;
+                                        return (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => handleSelectMak(item)}
+                                                className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 border-b border-gray-100 dark:border-gray-700 last:border-0 transition"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">{item.formattedMak}</span>
+                                                    <span className={`text-xs font-medium ${sisa < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                        Sisa: Rp {formatRupiah(sisa)}
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                                    Pagu: Rp {formatRupiah(item.pagu)} | Realisasi: Rp {formatRupiah(item.realisasi)}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <div className="mt-2">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="text-xs text-gray-500">
+                                        Panjang: <span className="font-medium">{formData.mak.replace(/\./g, '').length}</span>/20 karakter
+                                    </div>
+                                    <div className="text-xs font-mono text-gray-600">
+                                        {makDisplay ? makDisplay : 'XXXX.XXX.XXX.XXX.XXXXXX.X'}
+                                    </div>
+                                </div>
+                                {makDisplay && !validateMakFormat(makDisplay) && (
+                                    <div className="mt-2 text-xs text-red-600">
+                                        Format tidak valid. Pastikan sesuai pola: <span className="font-mono">XXXX.XXX.XXX.XXX.XXXXXX.X</span>
+                                    </div>
+                                )}
+                                {/* Info sisa pagu jika MAK cocok dengan data pagu */}
+                                {selectedPaguInfo && (
+                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-md">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-medium text-blue-700">
+                                                {selectedPaguInfo.formattedMak}
+                                            </span>
+                                            <span className={`text-sm font-bold ${(selectedPaguInfo.pagu - selectedPaguInfo.realisasi) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                Sisa: Rp {formatRupiah(selectedPaguInfo.pagu - selectedPaguInfo.realisasi)}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-blue-500 mt-1">
+                                            Pagu: Rp {formatRupiah(selectedPaguInfo.pagu)} | Realisasi: Rp {formatRupiah(selectedPaguInfo.realisasi)}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Realisasi Anggaran Sebelumnya
+                            </label>
+                            <input
+                                type="number"
+                                name="realisasi_anggaran_sebelumnya"
+                                value={formData.realisasi_anggaran_sebelumnya}
+                                onChange={handleFormChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="0"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Target Output Tahun
+                            </label>
+                            <input
+                                type="number"
+                                name="target_output_tahun"
+                                value={formData.target_output_tahun}
+                                onChange={handleFormChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="0"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Realisasi Output Sebelumnya
+                            </label>
+                            <input
+                                type="number"
+                                name="realisasi_output_sebelumnya"
+                                value={formData.realisasi_output_sebelumnya}
+                                onChange={handleFormChange}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="0"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Target Output Dicapai
+                            </label>
+                            
+                            <select
+                                name="target_output_yg_akan_dicapai"
+                                value={getDropdownValue(formData.target_output_yg_akan_dicapai, isOtherActivity)}
+                                onChange={(e) => {
+                                    const selectedValue = e.target.value;
+                                    
+                                    if (selectedValue === "lainnya") {
+                                        setIsOtherActivity(true);
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            target_output_yg_akan_dicapai: ""
+                                        }));
+                                    } else {
+                                        setIsOtherActivity(false);
+                                        
+                                        let newValue = "";
+                                        switch(selectedValue) {
+                                            case "sampling": newValue = "Sampling"; break;
+                                            case "sarana_produksi": newValue = "Pemeriksaan Sarana Produksi"; break;
+                                            case "sarana_distribusi": newValue = "Pemeriksaan Sarana Distribusi"; break;
+                                            case "iklan": newValue = "Pengawasan Iklan"; break;
+                                            case "pjas": newValue = "Pemenuhan Tahapan Kegiatan PJAS/Desa/Pasar/UMKM"; break;
+                                            case "perkara": newValue = "Pemenuhan Tahapan Penyelesaian Perkara"; break;
+                                            case "sertifikasi": newValue = "Fasilitasi Sarana Dalam Rangka Sertifikasi"; break;
+                                            case "kie": newValue = "Pemberian KIE"; break;
+                                            default: newValue = "";
+                                        }
+                                        
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            target_output_yg_akan_dicapai: newValue
+                                        }));
+                                    }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                            >
+                                <option value="">Pilih target output</option>
+                                <option value="sampling">Sampling</option>
+                                <option value="sarana_produksi">Pemeriksaan sarana produksi</option>
+                                <option value="sarana_distribusi">Pemeriksaan sarana distribusi</option>
+                                <option value="iklan">Pengawasan iklan</option>
+                                <option value="pjas">Pemenuhan tahapan kegiatan PJAS/desa/pasar/UMKM</option>
+                                <option value="perkara">Pemenuhan tahapan penyelesaian perkara</option>
+                                <option value="sertifikasi">Fasilitasi sarana dalam rangka sertifikasi</option>
+                                <option value="kie">Pemberian KIE</option>
+                                <option value="lainnya">Kegiatan lainnya</option>
+                            </select>
+                            
+                            {isOtherActivity && (
+                                <input
+                                    type="text"
+                                    value={formData.target_output_yg_akan_dicapai || ""}
+                                    onChange={(e) => {
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            target_output_yg_akan_dicapai: e.target.value
+                                        }));
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-2"
+                                    placeholder="Ketik kegiatan lainnya..."
+                                    autoFocus
+                                />
+                            )}
+                            
+                            {formData.target_output_yg_akan_dicapai?.toLowerCase().includes("sampling") && !isOtherActivity && (
+                                <div className="flex items-center gap-2 mt-2">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={extractNumber(formData.target_output_yg_akan_dicapai) || ""}
+                                        onChange={(e) => {
+                                            const inputValue = e.target.value.replace(/[^0-9]/g, '');
+                                            const count = inputValue === "" ? "" : parseInt(inputValue) || "";
+                                            
+                                            let newValue;
+                                            if (!count || count <= 0) {
+                                                newValue = "Sampling";
+                                            } else {
+                                                newValue = `Sampling ${count} sampel`;
+                                            }
+                                            
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                target_output_yg_akan_dicapai: newValue
+                                            }));
+                                        }}
+                                        className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Jumlah"
+                                    />
+                                    <span className="text-gray-600 dark:text-gray-400">sampel</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Form Lokasi Bertingkat */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Lokasi Kegiatan
+                            </label>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Provinsi
+                                        </label>
+                                        <select
+                                            value={selectedProvinsi}
+                                            onChange={handleProvinsiChange}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            disabled={loadingDaerah}
+                                        >
+                                            <option value="">Pilih Provinsi</option>
+                                            {provinsiList.map(provinsi => (
+                                                <option key={provinsi.id} value={provinsi.id}>
+                                                    {provinsi.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Kabupaten/Kota *
+                                        </label>
+                                        <select
+                                            value={selectedKabupaten}
+                                            onChange={handleKabupatenChange}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            disabled={!selectedProvinsi || loadingDaerah}
+                                            required
+                                        >
+                                            <option value="">Pilih Kabupaten/Kota</option>
+                                            {kabupatenList.map(kabupaten => (
+                                                <option key={kabupaten.id} value={kabupaten.id}>
+                                                    {kabupaten.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Kecamatan (Opsional)
+                                        </label>
+                                        <select
+                                            value={selectedKecamatan}
+                                            onChange={handleKecamatanChange}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            disabled={!selectedKabupaten || loadingDaerah}
+                                        >
+                                            <option value="">Pilih Kecamatan</option>
+                                            {kecamatanList.map(kecamatan => (
+                                                <option key={kecamatan.id} value={kecamatan.id}>
+                                                    {kecamatan.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="h-full flex flex-col">
+                                        <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+                                            <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Preview Lokasi:</div>
+                                            <div className="text-gray-900 dark:text-gray-100 mb-3 min-h-[60px] flex items-center">
+                                                {formData.kota_kab_kecamatan ? (
+                                                    <div className="font-medium text-gray-800 dark:text-gray-200">
+                                                        {formData.kota_kab_kecamatan}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-gray-500 dark:text-gray-400 italic">Belum memilih lokasi</div>
+                                                )}
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Custom Lokasi / Lokasi yang disimpan ke database: <span className="font-medium">{formData.kota_kab_kecamatan || '-'}</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="kota_kab_kecamatan"
+                                                    value={formData.kota_kab_kecamatan}
+                                                    onChange={handleFormChange}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                                    placeholder="Ketik manual jika perlu"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Rencana Tanggal Pelaksanaan
+                            </label>
+                            <div className="relative flex items-center">
+                                <input
+                                    type="date"
+                                    name="rencana_tanggal_pelaksanaan"
+                                    value={formData.rencana_tanggal_pelaksanaan}
+                                    onChange={handleFormChange}
+                                    className="w-5/12 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    title="Tanggal Awal"
+                                />
+                                <div className="mx-2 text-gray-500 dark:text-gray-400 font-medium text-sm">s/d</div>
+                                <input
+                                    type="date"
+                                    name="rencana_tanggal_pelaksanaan_akhir"
+                                    value={formData.rencana_tanggal_pelaksanaan_akhir}
+                                    onChange={handleFormChange}
+                                    min={formData.rencana_tanggal_pelaksanaan}
+                                    className="w-5/12 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    title="Tanggal Akhir"
+                                />
+                            </div>
+                        </div>
+                        
+                        {/* User ID Field */}
+                        <div className="md:col-span-2">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">User ID (Pembuat Data)</div>
+                                        <div className="flex items-center space-x-2">
+                                            <div className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm dark:text-gray-200">
+                                                {formData.user_id || 'Belum ditetapkan'}
+                                            </div>
+                                            {session?.user?.id && (
+                                                <div className="text-sm text-green-600 dark:text-green-400 flex items-center">
+                                                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                    </svg>
+                                                    User yang login: {session.user.id}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {!isEditMode && (
+                                        <div className="text-xs text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+                                            <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                            </svg>
+                                            Diisi otomatis
+                                        </div>
+                                    )}
+                                </div>
+                                {isEditMode && (
+                                    <div className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
+                                        <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        User ID tidak dapat diubah saat edit.
+                                    </div>
+                                )}
+                            </div>
+                            <input type="hidden" name="user_id" value={formData.user_id || ''} onChange={handleFormChange} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Data Pegawai */}
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {loadingPegawai ? (
+                                <span className="flex items-center dark:text-gray-300">
+                                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.235 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Memuat data pegawai...
+                                </span>
+                            ) : (
+                                <span className="text-green-600 dark:text-green-400">
+                                    ✓ {pegawaiSuggestions.length} pegawai tersedia
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <PegawaiForm 
+                        pegawaiList={pegawaiList}
+                        setPegawaiList={setPegawaiList}
+                        formLoading={formLoading}
+                        pegawaiSuggestions={pegawaiSuggestions}
+                        loadingPegawai={loadingPegawai}
+                        jenisSPM={jenisSPM} 
+                    />
+                </div>
+
+                {/* SECTION: DATA BENDAHARA - DARI KEYCLOAK */}
+                <div className="space-y-4">
+                    <div className="border-t pt-4">
+                        <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2 mb-4 flex items-center">
+                            <svg className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm10 7a1 1 0 100-2 1 1 0 000 2zm3 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            Data Bendahara
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Pilih bendahara yang akan menandatangani kwitansi (data diambil dari Keycloak dengan role bendahara)
+                        </p>
+                        
+                        {bendaharaError && (
+                            <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md border border-yellow-200">
+                                <div className="flex items-center">
+                                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    {bendaharaError}
+                                    <button 
+                                        onClick={fetchBendaharaList}
+                                        className="ml-3 text-sm underline hover:text-yellow-800"
+                                    >
+                                        Coba lagi
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Pilih Bendahara *
+                                </label>
+                                {loadingBendahara ? (
+                                    <div className="flex items-center py-2">
+                                        <svg className="animate-spin h-5 w-5 mr-2 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span className="text-gray-600 dark:text-gray-300">Memuat daftar bendahara...</span>
+                                    </div>
+                                ) : bendaharaList.length === 0 ? (
+                                    <div className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-center text-gray-500 dark:text-gray-400">
+                                        Tidak ada data bendahara. Pastikan ada user dengan role "bendahara" di Keycloak.
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedBendaharaId}
+                                        onChange={handleBendaharaChange}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        required
+                                    >
+                                        <option value="">-- Pilih Bendahara --</option>
+                                        {bendaharaList.map(bendahara => {
+                                            const optionValue = bendahara.id || bendahara.user_id;
+                                            const optionLabel = `${bendahara.nama}${bendahara.nip ? ` - NIP: ${bendahara.nip}` : ''}${bendahara.pangkat ? ` - ${bendahara.pangkat}` : ''}${bendahara.jabatan ? ` (${bendahara.jabatan})` : ''}`;
+                                            return (
+                                                <option key={optionValue} value={optionValue}>
+                                                    {optionLabel}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Data bendahara diambil dari Keycloak dengan role "bendahara"
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Bendahara yang Dipilih
+                                </label>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md min-h-[80px]">
+                                    {selectedBendaharaNama ? (
+                                        <div>
+                                            <div className="font-medium text-gray-900 dark:text-gray-100">{selectedBendaharaNama}</div>
+                                            {selectedBendaharaNip && (
+                                                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                                    <span className="font-medium">NIP:</span> {selectedBendaharaNip}
+                                                </div>
+                                            )}
+                                            <div className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center">
+                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                                Bendahara akan ditampilkan di kwitansi
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-gray-500 dark:text-gray-400 italic">Belum memilih bendahara</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Hidden inputs untuk bendahara */}
+                        <input type="hidden" name="bendahara_id" value={selectedBendaharaId} />
+                        <input type="hidden" name="bendahara_nama" value={selectedBendaharaNama} />
+                        <input type="hidden" name="bendahara_nip" value={selectedBendaharaNip} />
+                    </div>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition"
+                        disabled={formLoading}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        disabled={formLoading || !formData.user_id}
+                    >
+                        {formLoading ? (
+                            <>
+                                <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                {isEditMode ? 'Memperbarui...' : 'Menyimpan...'}
+                            </>
+                        ) : isEditMode ? 'Perbarui Data' : 'Simpan Kegiatan & Pegawai'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+export default KegiatanForm;
