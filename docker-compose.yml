@@ -42,6 +42,14 @@
 #   - ⭐ public/uploads di-mount dari ./data/backend/uploads supaya dokumen
 #     (kwitansi, LPD, SPD, TTD, pagu, SPTJM) TIDAK HILANG saat container
 #     di-rebuild. Versi lama tidak butuh ini karena kode di-mount dari host.
+#   - ⭐ SEED UPLOADS: file upload lokal ikut ter-build ke dalam image
+#     (backend/public/uploads → /seed/uploads di image), lalu entrypoint.sh
+#     menyalinnya ke ./data/backend/uploads HANYA bila folder itu masih
+#     kosong. Jadi deploy pertama langsung membawa file lama, sementara file
+#     baru yang di-upload di server tetap persisten dan tidak pernah ditimpa.
+#     Alur kirim file dari laptop (file TIDAK di-commit ke Git karena bisa
+#     besar & sensitif) — jalankan SEBELUM `docker compose build`:
+#       .\scripts\send-uploads.ps1 -Server <ip-atau-domain> -RemoteProjectDir /opt/talawang
 #   - Ditambah batas ukuran log agar disk server tidak penuh.
 # ============================================================
 services:
@@ -95,12 +103,20 @@ services:
       - UPLOADS_PATH=/data/uploads
       # Isi "true" HANYA bila ingin mematikan rate limiter (mis. saat debug).
       - RATE_LIMIT_DISABLED=${RATE_LIMIT_DISABLED:-false}
+      # Seeding uploads otomatis saat container start (lihat backend/entrypoint.sh).
+      # Set "false" untuk melewati seeding, mis. saat mau restore dari backup.
+      - SEED_UPLOADS=${SEED_UPLOADS:-true}
     volumes:
       # Mount folder data untuk backend (opsional, saat ini belum dipakai)
       - ./data/backend:/data
       # ⭐ WAJIB: backend menulis upload ke <app>/public/uploads
       # (kwitansi, lpd-dokumentasi, spd, sptjm-transport, sptjm-penginapan,
       #  ttd, pagu). Tanpa mount ini file upload HILANG tiap container di-recreate.
+      #
+      # ⚠️ Bind mount ini MENIMPA isi /usr/src/app/public/uploads di image.
+      #    Karena itu image menyimpan salinan uploads di /seed/uploads, dan
+      #    entrypoint.sh menyalinnya ke sini HANYA SAAT folder ini masih kosong.
+      #    File yang sudah ada di sini TIDAK PERNAH ditimpa.
       - ./data/backend/uploads:/usr/src/app/public/uploads
     healthcheck:
       # /api/health = route publik backend (lihat backend/server.js)

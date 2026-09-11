@@ -16,11 +16,17 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Data runtime & upload user (dipasang lewat volume, bukan dari image)
-public/uploads
+# Data runtime (dipasang lewat volume, bukan dari image)
 data
 logs
 *.log
+
+# ⚠️ public/uploads SENGAJA TIDAK di-ignore di sini.
+#    Folder ini ikut di-build ke image sebagai "seed" supaya file upload
+#    lokal bisa ikut terkirim ke server (lihat backend/entrypoint.sh).
+#    Agar data user di server tetap aman, Dockerfile menyalinnya ke
+#    /seed/uploads (di luar path yang di-mount) dan seed hanya dipakai
+#    saat volume ./data/backend/uploads masih kosong.
 
 # Tooling / VCS
 .git
