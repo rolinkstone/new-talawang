@@ -425,7 +425,9 @@ export default function KwitansiContainer() {
                     setActiveTab(nextTab);
                 }
                 filterDataByTab(processedData, nextTab);
-                setCurrentPage(1);
+                // Catatan: JANGAN reset currentPage di sini. Fungsi ini dipanggil ulang setiap
+                // kali window kembali fokus (NextAuth refetch session + refetch data), sehingga
+                // user yang sedang membuka halaman terakhir akan terlempar ke halaman 1.
             } else {
                 console.error('API returned success=false:', res.data);
             }
@@ -532,11 +534,25 @@ export default function KwitansiContainer() {
             });
             setExpandedKegiatan(expanded);
         }
-        setCurrentPage(1);
     }, [searchTerm, kegiatanList, activeTab]);
+
+    // Reset ke halaman 1 HANYA saat kata kunci pencarian atau tab berubah.
+    // `kegiatanList` sengaja tidak dijadikan pemicu: saat tab browser kembali aktif,
+    // NextAuth me-refetch session (refetchOnWindowFocus) sehingga data ikut diambil
+    // ulang -> halaman tidak boleh terlempar ke awal.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, activeTab]);
     
     useEffect(() => {
         setTotalPages(Math.ceil(filteredKegiatan.length / ITEMS_PER_PAGE));
+    }, [filteredKegiatan]);
+
+    // Jaga agar halaman aktif tidak melebihi jumlah halaman yang ada
+    // (mis. setelah approve/delete sehingga item keluar dari tab ini).
+    useEffect(() => {
+        const maxPage = Math.max(1, Math.ceil(filteredKegiatan.length / ITEMS_PER_PAGE));
+        setCurrentPage(prev => (prev > maxPage ? maxPage : prev));
     }, [filteredKegiatan]);
     
     const getCurrentPageItems = () => {
