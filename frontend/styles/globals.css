@@ -21,6 +21,16 @@
   --border-color: #3f3f46;
 }
 
+/* ========== SKALA UI ========== */
+/* 1rem = 14px (default browser 16px).
+ * Tailwind memakai satuan rem untuk font-size, padding, margin, tinggi, dan
+ * lebar, sehingga mengecilkan root font-size mengecilkan seluruh tampilan
+ * secara proporsional (efek serupa zoom ~87,5%) tanpa mengubah tiap class.
+ * Kalau nanti terasa terlalu kecil/besar, cukup ubah angka ini (14px-16px). */
+html {
+  font-size: 14px;
+}
+
 /* Smooth transition for theme changes */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;
