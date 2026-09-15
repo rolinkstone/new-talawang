@@ -4,6 +4,105 @@ import PegawaiForm from './PegawaiForm';
 import { formatRupiah, formatMak } from '../../utils/formatters';
 import { validateMakFormat, getMakPlaceholder, formatMakInput } from '../../utils/validators';
 
+// ============ Referensi wilayah (emsifa) ============
+const WILAYAH_API_BASE = 'https://www.emsifa.com/api-wilayah-indonesia/api';
+
+// Penanda untuk opsi bendahara hasil pemulihan (tidak ada di daftar Keycloak)
+const SAVED_BENDAHARA_PREFIX = '__bendahara_tersimpan__:';
+
+// Seluruh kabupaten/kota (± 514 entri) diambil sekali per sesi browser, lalu di-cache.
+// Dipakai untuk memulihkan pilihan Provinsi & Kabupaten/Kota saat mode edit, karena
+// database hanya menyimpan teks `kota_kab_kecamatan`.
+let wilayahRegencyCache = null;
+let wilayahRegencyPromise = null;
+
+// Token nama wilayah (huruf besar, tanpa tanda baca)
+const wilayahTokens = (name) => String(name || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+// Kunci pembanding yang MEMBEDAKAN kabupaten vs kota:
+// "KAB. BANJAR" & "KABUPATEN BANJAR" -> "KABBANJAR" (berbeda dari "KOTA BANJAR" -> "KOTABANJAR")
+const canonicalWilayahName = (name) => wilayahTokens(name)
+    .map(t => (t === 'KABUPATEN' ? 'KAB' : t === 'KOTAMADYA' ? 'KOTA' : t === 'KECAMATAN' ? 'KEC' : t))
+    .join('');
+
+// Kunci tanpa awalan wilayah: "KABUPATEN BANJAR", "KAB. BANJAR", "Kota Banjar" -> "BANJAR"
+const coreWilayahName = (name) => wilayahTokens(name)
+    .filter(t => !['KABUPATEN', 'KAB', 'KOTA', 'KOTAMADYA', 'KECAMATAN', 'KEC', 'ADM'].includes(t))
+    .join('');
+
+// Cari item wilayah (kabupaten/kota atau kecamatan) yang cocok dengan teks tersimpan.
+// Pencocokan bertingkat: kunci lengkap dulu (agar "Kab. Banjar" tidak tertukar dengan "Kota Banjar"),
+// baru kemudian tanpa awalan wilayah.
+const findWilayahBySavedName = (list, savedName) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    const targetCanonical = canonicalWilayahName(savedName);
+    const targetCore = coreWilayahName(savedName);
+    if (!targetCanonical) return null;
+
+    const entries = list.map(item => ({
+        item,
+        canonical: canonicalWilayahName(item.name),
+        core: coreWilayahName(item.name)
+    }));
+
+    const find = (predicate) => entries.find(predicate)?.item || null;
+
+    return find(e => e.canonical === targetCanonical)
+        || (targetCore ? find(e => e.core && e.core === targetCore) : null)
+        || find(e => e.canonical && (e.canonical.endsWith(targetCanonical) || e.canonical.startsWith(targetCanonical)))
+        || (targetCore ? find(e => e.core && (e.core.endsWith(targetCore) || e.core.startsWith(targetCore))) : null)
+        || find(e => e.canonical && e.canonical.includes(targetCanonical))
+        || (targetCore && targetCore.length > 4 ? find(e => e.core && e.core.includes(targetCore)) : null)
+        || null;
+};
+
+// Ambil indeks seluruh kabupaten/kota (di-cache pada level modul)
+const buildWilayahRegencyIndex = () => {
+    if (wilayahRegencyCache) return Promise.resolve(wilayahRegencyCache);
+    if (wilayahRegencyPromise) return wilayahRegencyPromise;
+
+    wilayahRegencyPromise = (async () => {
+        try {
+            const provRes = await fetch(`${WILAYAH_API_BASE}/provinces.json`);
+            const provinsiApi = await provRes.json();
+
+            const grouped = await Promise.all(provinsiApi.map(async (prov) => {
+                try {
+                    const res = await fetch(`${WILAYAH_API_BASE}/regencies/${prov.id}.json`);
+                    const data = await res.json();
+                    return data.map(item => ({
+                        id: String(item.id),
+                        name: item.name,
+                        provinceId: String(item.province_id || prov.id),
+                        provinceName: prov.name
+                    }));
+                } catch (err) {
+                    return [];
+                }
+            }));
+
+            const flat = grouped.flat();
+            if (flat.length > 0) {
+                wilayahRegencyCache = flat;
+                return flat;
+            }
+        } catch (error) {
+            console.error('Gagal mengambil indeks wilayah:', error);
+        }
+
+        wilayahRegencyPromise = null; // gagal -> boleh dicoba lagi
+        return [];
+    })();
+
+    return wilayahRegencyPromise;
+};
+
 const KegiatanForm = ({
     editId,
     isEditMode,
@@ -27,6 +126,9 @@ const KegiatanForm = ({
     const [selectedKabupaten, setSelectedKabupaten] = useState('');
     const [selectedKecamatan, setSelectedKecamatan] = useState('');
     const [loadingDaerah, setLoadingDaerah] = useState(false);
+    // Status pemulihan pilihan lokasi dari `kota_kab_kecamatan` saat mode edit
+    const [lokasiStatus, setLokasiStatus] = useState('idle');
+    const lokasiRecoveryKeyRef = useRef(null);
     
     // State untuk autocomplete pegawai
     const [pegawaiSuggestions, setPegawaiSuggestions] = useState([]);
@@ -50,6 +152,33 @@ const KegiatanForm = ({
     const [selectedBendaharaNip, setSelectedBendaharaNip] = useState(formData.bendahara_nip || '');
     const [loadingBendahara, setLoadingBendahara] = useState(false);
     const [bendaharaError, setBendaharaError] = useState('');
+
+    // Opsi bendahara: gabungan daftar dari Keycloak + bendahara yang sudah tersimpan pada data
+    // (agar nilai sebelumnya tetap tampil walau daftar bendahara tidak dapat diambil).
+    const bendaharaOptions = useMemo(() => {
+        const list = Array.isArray(bendaharaList) ? [...bendaharaList] : [];
+        const savedNama = String(formData.bendahara_nama || '').trim();
+        const savedId = formData.bendahara_id ? String(formData.bendahara_id) : '';
+
+        if (!savedNama && !savedId) return list;
+
+        const exists = list.some(b =>
+            (savedId && String(b.user_id || b.id) === savedId) ||
+            (savedNama && b.nama && b.nama.trim().toLowerCase() === savedNama.toLowerCase())
+        );
+        if (exists) return list;
+
+        list.unshift({
+            id: savedId || `${SAVED_BENDAHARA_PREFIX}${savedNama}`,
+            user_id: savedId || `${SAVED_BENDAHARA_PREFIX}${savedNama}`,
+            nama: savedNama || '(bendahara tersimpan)',
+            nip: formData.bendahara_nip || '',
+            pangkat: '',
+            jabatan: 'tersimpan',
+            isSavedValue: true
+        });
+        return list;
+    }, [bendaharaList, formData.bendahara_id, formData.bendahara_nama, formData.bendahara_nip]);
 
     // Set user_id dari session user saat komponen mount
     useEffect(() => {
@@ -83,15 +212,32 @@ const KegiatanForm = ({
 
     // Load bendahara yang sudah tersimpan saat edit mode
     useEffect(() => {
-        if (isEditMode && formData.bendahara_nama && bendaharaList.length > 0) {
-            const found = bendaharaList.find(b => b.nama === formData.bendahara_nama || b.user_id === formData.bendahara_id);
-            if (found) {
-                setSelectedBendaharaId(found.user_id || found.id);
-                setSelectedBendaharaNama(found.nama);
-                setSelectedBendaharaNip(found.nip || '');
-            }
+        if (!isEditMode) return;
+
+        const savedId = formData.bendahara_id ? String(formData.bendahara_id) : '';
+        const savedNama = String(formData.bendahara_nama || '').trim();
+        if (!savedId && !savedNama) return;
+
+        const found = bendaharaList.find(b =>
+            (savedId && String(b.user_id || b.id) === savedId) ||
+            (savedNama && b.nama && b.nama.trim().toLowerCase() === savedNama.toLowerCase())
+        );
+
+        if (found) {
+            const foundId = String(found.user_id || found.id);
+            setSelectedBendaharaId(foundId);
+            setSelectedBendaharaNama(found.nama);
+            setSelectedBendaharaNip(found.nip || '');
+            // Lengkapi bendahara_id agar ikut tersimpan kembali saat data diperbarui
+            setFormData(prev => (prev.bendahara_id ? prev : { ...prev, bendahara_id: foundId }));
+        } else {
+            // Bendahara tersimpan tidak ditemukan di daftar (mis. sudah dihapus dari Keycloak)
+            // -> tetap tampilkan nilainya supaya tidak hilang saat edit
+            setSelectedBendaharaId(savedId || `${SAVED_BENDAHARA_PREFIX}${savedNama}`);
+            setSelectedBendaharaNama(savedNama);
+            setSelectedBendaharaNip(formData.bendahara_nip || '');
         }
-    }, [isEditMode, formData.bendahara_nama, formData.bendahara_id, bendaharaList]);
+    }, [isEditMode, formData.bendahara_nama, formData.bendahara_id, formData.bendahara_nip, bendaharaList, setFormData]);
 
     // Handle perubahan jenis SPM
     const handleJenisSPMChange = (value) => {
@@ -101,6 +247,12 @@ const KegiatanForm = ({
             jenis_spm: value
         }));
     };
+
+    // Sinkronkan pilihan jenis SPM dengan data yang dimuat (mode edit)
+    useEffect(() => {
+        const value = String(formData.jenis_spm || '').trim().toUpperCase();
+        setJenisSPM(value === 'LS' || value === 'KKP' ? value : '');
+    }, [formData.jenis_spm]);
 
     const fetchProvinsi = async () => {
         try {
@@ -122,7 +274,7 @@ const KegiatanForm = ({
         }
     };
 
-    const fetchKabupaten = async (provinsiId) => {
+    const fetchKabupaten = async (provinsiId, preselectName = '') => {
         try {
             setLoadingDaerah(true);
             setKabupatenList([]);
@@ -130,27 +282,52 @@ const KegiatanForm = ({
             setSelectedKabupaten('');
             setSelectedKecamatan('');
             
-            const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${provinsiId}.json`);
+            const response = await fetch(`${WILAYAH_API_BASE}/regencies/${provinsiId}.json`);
             const data = await response.json();
             setKabupatenList(data);
+
+            // Pilih kembali kabupaten/kota yang tersimpan pada data
+            let matched = null;
+            if (preselectName) {
+                matched = findWilayahBySavedName(data, preselectName);
+                if (matched) {
+                    setSelectedKabupaten(String(matched.id));
+                    setFormData(prev => ({ ...prev, kabupaten_tujuan: matched.name }));
+                }
+            }
+
+            return { list: data, matched };
         } catch (error) {
             console.error('Error fetching kabupaten:', error);
+            return { list: [], matched: null };
         } finally {
             setLoadingDaerah(false);
         }
     };
 
-    const fetchKecamatan = async (kabupatenId) => {
+    const fetchKecamatan = async (kabupatenId, preselectName = '') => {
         try {
             setLoadingDaerah(true);
             setKecamatanList([]);
             setSelectedKecamatan('');
             
-            const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${kabupatenId}.json`);
+            const response = await fetch(`${WILAYAH_API_BASE}/districts/${kabupatenId}.json`);
             const data = await response.json();
             setKecamatanList(data);
+
+            // Pilih kembali kecamatan yang tersimpan pada data (jika ada)
+            let matched = null;
+            if (preselectName) {
+                matched = findWilayahBySavedName(data, preselectName);
+                if (matched) {
+                    setSelectedKecamatan(String(matched.id));
+                }
+            }
+
+            return { list: data, matched };
         } catch (error) {
             console.error('Error fetching kecamatan:', error);
+            return { list: [], matched: null };
         } finally {
             setLoadingDaerah(false);
         }
@@ -312,6 +489,65 @@ const KegiatanForm = ({
         }));
     };
 
+    // ===== Pulihkan pilihan Provinsi / Kabupaten / Kecamatan saat mode edit =====
+    // Database hanya menyimpan teks `kota_kab_kecamatan` (mis. "Jekan Raya, Kota Palangka Raya"),
+    // jadi nilainya dicocokkan kembali ke data wilayah agar pilihan sebelumnya tetap tampil.
+    // Hanya dijalankan SEKALI per sesi edit agar tidak menimpa pilihan yang sedang diubah user.
+    useEffect(() => {
+        if (!isEditMode) {
+            lokasiRecoveryKeyRef.current = null;
+            return;
+        }
+        if (lokasiRecoveryKeyRef.current === String(editId)) return;
+
+        const saved = String(formData.kota_kab_kecamatan || '').trim();
+        if (!saved || provinsiList.length === 0) return;
+
+        lokasiRecoveryKeyRef.current = String(editId);
+
+        const parts = saved.split(',').map(p => p.trim()).filter(Boolean);
+        const kabupatenName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+        const kecamatanName = parts.length > 1 ? parts[0] : '';
+
+        setLokasiStatus('loading');
+
+        (async () => {
+            try {
+                const index = await buildWilayahRegencyIndex();
+                const regency = findWilayahBySavedName(index, kabupatenName);
+
+                if (!regency) {
+                    console.warn('⚠️ Lokasi tersimpan tidak ditemukan pada data wilayah:', saved);
+                    setLokasiStatus('failed');
+                    return;
+                }
+
+                const provinsi = provinsiList.find(p => String(p.id) === String(regency.provinceId));
+                setSelectedProvinsi(String(regency.provinceId));
+                setFormData(prev => ({
+                    ...prev,
+                    provinsi: provinsi ? provinsi.name : (prev.provinsi || ''),
+                    kabupaten_tujuan: regency.name
+                }));
+
+                const { matched } = await fetchKabupaten(String(regency.provinceId), regency.name);
+                if (!matched) {
+                    setLokasiStatus('failed');
+                    return;
+                }
+
+                if (kecamatanName) {
+                    await fetchKecamatan(String(matched.id), kecamatanName);
+                }
+
+                setLokasiStatus('done');
+            } catch (error) {
+                console.error('Gagal memulihkan lokasi tersimpan:', error);
+                setLokasiStatus('failed');
+            }
+        })();
+    }, [isEditMode, editId, formData.kota_kab_kecamatan, provinsiList, setFormData]);
+
     // Handler untuk memilih bendahara
     const handleBendaharaChange = (e) => {
         const selectedValue = e.target.value;
@@ -329,27 +565,33 @@ const KegiatanForm = ({
             }));
             return;
         }
+
+        // Opsi hasil pemulihan (tidak ada di daftar Keycloak) -> pertahankan nilainya apa adanya
+        if (String(selectedValue).startsWith(SAVED_BENDAHARA_PREFIX)) {
+            return;
+        }
         
         // Cari bendahara berdasarkan id yang dipilih
-        const selected = bendaharaList.find(b => b.id === selectedValue || b.user_id === selectedValue);
+        const selected = bendaharaOptions.find(b => String(b.id || b.user_id) === String(selectedValue));
         
         console.log('Found bendahara:', selected);
         console.log('Available bendahara list:', bendaharaList);
         
         if (selected) {
-            setSelectedBendaharaId(selected.id);
+            const selectedId = String(selected.user_id || selected.id);
+            setSelectedBendaharaId(selectedId);
             setSelectedBendaharaNama(selected.nama);
             setSelectedBendaharaNip(selected.nip || '');
             
             setFormData(prev => ({
                 ...prev,
-                bendahara_id: selected.id,
+                bendahara_id: selectedId,
                 bendahara_nama: selected.nama,
                 bendahara_nip: selected.nip || ''
             }));
             
             console.log('Selected Bendahara saved:', {
-                id: selected.id,
+                id: selectedId,
                 nama: selected.nama,
                 nip: selected.nip
             });
@@ -536,6 +778,15 @@ const KegiatanForm = ({
         const match = value.match(/(\d+)\s*(sampel|sarana|iklan)/);
         return match ? match[1] : "";
     };
+
+    // Sinkronkan pilihan "Target Output Dicapai" dengan data yang dimuat (mode edit).
+    // Nilai yang tidak termasuk pilihan bawaan dianggap "Kegiatan lainnya" sehingga
+    // input teksnya ikut ditampilkan.
+    useEffect(() => {
+        const value = String(formData.target_output_yg_akan_dicapai || '').trim();
+        if (!value) return; // biarkan terbuka saat user memilih "Kegiatan lainnya"
+        setIsOtherActivity(getDropdownValue(value) === '');
+    }, [formData.target_output_yg_akan_dicapai]);
 
     const grandTotal = pegawaiList.reduce((sum, pegawai) => sum + (pegawai.total_biaya || 0), 0);
 
@@ -916,6 +1167,21 @@ const KegiatanForm = ({
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Lokasi Kegiatan
                             </label>
+
+                            {lokasiStatus === 'loading' && (
+                                <div className="text-xs text-blue-600 dark:text-blue-400 flex items-center">
+                                    <svg className="animate-spin h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    Memulihkan pilihan lokasi dari data tersimpan...
+                                </div>
+                            )}
+                            {lokasiStatus === 'failed' && (
+                                <div className="text-xs text-amber-600 dark:text-amber-400">
+                                    Lokasi tersimpan: <span className="font-medium">{formData.kota_kab_kecamatan}</span> — Provinsi/Kabupaten/Kota tidak dapat dipulihkan otomatis, silakan pilih ulang bila perlu.
+                                </div>
+                            )}
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-3">
@@ -1153,7 +1419,7 @@ const KegiatanForm = ({
                                         </svg>
                                         <span className="text-gray-600 dark:text-gray-300">Memuat daftar bendahara...</span>
                                     </div>
-                                ) : bendaharaList.length === 0 ? (
+                                ) : bendaharaOptions.length === 0 ? (
                                     <div className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-center text-gray-500 dark:text-gray-400">
                                         Tidak ada data bendahara. Pastikan ada user dengan role "bendahara" di Keycloak.
                                     </div>
@@ -1165,8 +1431,8 @@ const KegiatanForm = ({
                                         required
                                     >
                                         <option value="">-- Pilih Bendahara --</option>
-                                        {bendaharaList.map(bendahara => {
-                                            const optionValue = bendahara.id || bendahara.user_id;
+                                        {bendaharaOptions.map(bendahara => {
+                                            const optionValue = String(bendahara.id || bendahara.user_id);
                                             const optionLabel = `${bendahara.nama}${bendahara.nip ? ` - NIP: ${bendahara.nip}` : ''}${bendahara.pangkat ? ` - ${bendahara.pangkat}` : ''}${bendahara.jabatan ? ` (${bendahara.jabatan})` : ''}`;
                                             return (
                                                 <option key={optionValue} value={optionValue}>

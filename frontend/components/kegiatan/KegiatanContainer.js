@@ -45,6 +45,10 @@ export default function KegiatanContainer({ session, status }) {
         kota_kab_kecamatan: '',
         rencana_tanggal_pelaksanaan: '',
         rencana_tanggal_pelaksanaan_akhir: '',
+        jenis_spm: '',
+        bendahara_id: '',
+        bendahara_nama: '',
+        bendahara_nip: '',
         user_id: ''
     };
 
@@ -672,6 +676,10 @@ export default function KegiatanContainer({ session, status }) {
                     kota_kab_kecamatan: data.kota_kab_kecamatan || '',
                     rencana_tanggal_pelaksanaan: data.rencana_tanggal_pelaksanaan || '',
                     rencana_tanggal_pelaksanaan_akhir: data.rencana_tanggal_pelaksanaan_akhir || '',
+                    jenis_spm: data.jenis_spm || '',
+                    bendahara_id: data.bendahara_id || '',
+                    bendahara_nama: data.bendahara_nama || '',
+                    bendahara_nip: data.bendahara_nip || '',
                     user_id: data.user_id || '',
                 });
 
