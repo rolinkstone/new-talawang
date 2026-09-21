@@ -36,6 +36,13 @@ function getConfig() {
         .map((a) => a.trim())
         .filter(Boolean);
 
+    // Validasi audience OPT-IN. Default NONAKTIF, karena nilai KEYCLOAK_AUDIENCES
+    // di env lama belum pernah benar-benar diuji terhadap token Keycloak asli —
+    // kalau salah, SEMUA request jadi 401 (user langsung ter-logout).
+    // Nyalakan dengan KEYCLOAK_VERIFY_AUDIENCE=true setelah dicek cocok.
+    const verifyAudience =
+        String(process.env.KEYCLOAK_VERIFY_AUDIENCE || 'false').toLowerCase() === 'true';
+
     const clockTolerance = Number(process.env.JWT_CLOCK_TOLERANCE || 30);
 
     const client = jwksRsa({
@@ -48,7 +55,7 @@ function getConfig() {
         timeout: 10000,
     });
 
-    cached = { issuer, audiences, clockTolerance, client };
+    cached = { issuer, audiences, verifyAudience, clockTolerance, client };
     return cached;
 }
 
@@ -90,20 +97,38 @@ async function verifyAccessToken(token) {
         throw new Error(`Algoritma token tidak diizinkan: ${decoded.header.alg}`);
     }
 
-    const { issuer, audiences, clockTolerance, client } = getConfig();
-    const publicKey = await getSigningKey(client, decoded.header);
+    const { issuer, audiences, verifyAudience, clockTolerance, client } = getConfig();
+
+    let publicKey;
+    try {
+        publicKey = await getSigningKey(client, decoded.header);
+    } catch (jwksError) {
+        throw new Error(
+            `[jwks] gagal mengambil public key (kid=${decoded.header.kid}) dari ${issuer}: ${jwksError.message}`
+        );
+    }
 
     const verifyOptions = {
         algorithms: ['RS256'],
         issuer,
         clockTolerance,
     };
-    if (audiences.length > 0) {
+    if (verifyAudience && audiences.length > 0) {
         verifyOptions.audience = audiences;
     }
 
     // jwt.verify juga memvalidasi exp/nbf
-    return jwt.verify(token, publicKey, verifyOptions);
+    try {
+        return jwt.verify(token, publicKey, verifyOptions);
+    } catch (err) {
+        // Sertakan klaim non-rahasia supaya penyebab 401 langsung kelihatan di log
+        const claims = decoded.payload || {};
+        throw new Error(
+            `[verify] ${err.message} | token: iss=${claims.iss} aud=${JSON.stringify(claims.aud)} ` +
+            `azp=${claims.azp} exp=${claims.exp} | diharapkan: iss=${issuer} ` +
+            `aud=${verifyAudience && audiences.length > 0 ? JSON.stringify(audiences) : '(tidak divalidasi)'}`
+        );
+    }
 }
 
 module.exports = { verifyAccessToken, getConfig };
