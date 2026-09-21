@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { getSession } from 'next-auth/react';
 import DashboardLayout from '../../components/DashboardLayout';
 import LaporanContainer from '../../components/laporan/LaporanContainer';
-import { requireRole } from '../../utils/roleChecks';
+import { requireRole, sessionForClient } from '../../utils/roleChecks';
 
 export default function LaporanPage() {
   const { data: session, status } = useSession();
@@ -25,6 +25,6 @@ export async function getServerSideProps(context) {
   if (guard) return guard;
 
   return {
-    props: { session },
+    props: { session: sessionForClient(session) },
   };
 }

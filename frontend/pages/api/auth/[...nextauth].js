@@ -1,6 +1,7 @@
 // pages/api/auth/[...nextauth].js
 import NextAuth from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
+import { CLIENT_ACCESS_TOKEN_PLACEHOLDER } from "../../../utils/roleChecks";
 
 // Fungsi untuk memformat NIP dengan spasi
 function formatNipWithSpaces(nip) {
@@ -124,10 +125,15 @@ export const authOptions = {
           username: token.username,
         };
         
-        // accessToken masih diperlukan komponen untuk memanggil backend langsung.
-        // idToken & clientId TIDAK dikirim ke browser: idToken hanya dipakai
-        // server-side di events.signOut untuk menghancurkan SSO Keycloak.
-        session.accessToken = token.accessToken;
+        // Kalau API dipanggil lewat proxy Next (/backend/...), token Keycloak
+        // TIDAK perlu ada di browser: proxy menyuntikkan token dari cookie.
+        // Komponen tetap memakai session.accessToken sebagai penanda & header,
+        // jadi di mode proxy nilainya diganti placeholder (bukan rahasia) dan
+        // header itu dibuang lagi oleh proxy sebelum diteruskan ke backend.
+        // idToken & clientId tidak pernah dikirim ke browser (idToken dipakai
+        // server-side di events.signOut).
+        const viaProxy = String(process.env.NEXT_PUBLIC_API_URL || '').startsWith('/');
+        session.accessToken = viaProxy ? CLIENT_ACCESS_TOKEN_PLACEHOLDER : token.accessToken;
         session.expires = token.expiresAt ? 
           new Date(token.expiresAt * 1000).toISOString() : null;
       }

@@ -5,7 +5,7 @@ import { getSession } from 'next-auth/react';
 import DashboardLayout from '../../components/DashboardLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import axios from 'axios';
-import { requireRole } from '../../utils/roleChecks';
+import { requireRole, sessionForClient } from '../../utils/roleChecks';
 
 export default function SearchKegiatanPage() {
     const { data: session, status } = useSession();
@@ -780,6 +780,6 @@ export async function getServerSideProps(context) {
     if (guard) return guard;
 
     return {
-        props: { session },
+        props: { session: sessionForClient(session) },
     };
 }

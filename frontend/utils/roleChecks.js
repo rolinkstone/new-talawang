@@ -26,6 +26,26 @@ export const isKabalai = (session) => hasRole(session, ['kabalai', 'kepala balai
 
 // ============ Dipakai pada getServerSideProps ============
 
+// ============ Dipakai saat mengirim session ke client (getServerSideProps) ============
+// getSession() di server mengembalikan token MENTAH pada session.accessToken,
+// sehingga tanpa dibersihkan token itu ikut tertanam di __NEXT_DATA__ tiap halaman.
+// Helper ini membuang token mentah tersebut:
+//   - mode proxy (NEXT_PUBLIC_API_URL berupa path, mis. "/backend"):
+//     nilai diganti placeholder — token asli disuntikkan proxy dari cookie httpOnly.
+//   - mode langsung (URL backend penuh): nilai dibiarkan karena komponen masih
+//     memakainya untuk memanggil backend dari browser.
+const API_VIA_PROXY = String(process.env.NEXT_PUBLIC_API_URL || '').startsWith('/');
+export const CLIENT_ACCESS_TOKEN_PLACEHOLDER = 'via-proxy';
+
+export function sessionForClient(session) {
+    if (!session) return session;
+    const { idToken, ...rest } = session;
+    if (API_VIA_PROXY) {
+        return { ...rest, accessToken: CLIENT_ACCESS_TOKEN_PLACEHOLDER };
+    }
+    return rest;
+}
+
 export function redirectTo(destination) {
     return { redirect: { destination, permanent: false } };
 }

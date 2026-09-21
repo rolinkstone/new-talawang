@@ -88,6 +88,10 @@ for (const key of REQUIRED) {
   if (!(key in env) || env[key] === '') errors.push(`MISSING  ${key} — belum diisi`);
 }
 
+// Mode proxy: NEXT_PUBLIC_API_URL berupa path (mis. "/backend") → API dipanggil
+// lewat middleware Next.js (frontend/proxy.js), token tidak pernah ke browser.
+const proxyMode = String(env.NEXT_PUBLIC_API_URL || '').startsWith('/');
+
 for (const [key, value] of Object.entries(env)) {
   if (!value) continue;
   const lower = value.toLowerCase();
@@ -98,7 +102,8 @@ for (const [key, value] of Object.entries(env)) {
   if (PUBLIC_URLS.includes(key) && /(^|[/:])localhost(:|\/|$)|127\.0\.0\.1/.test(lower)) {
     errors.push(`LOCALHOST  ${key} — di production harus domain asli`);
   }
-  if (PUBLIC_URLS.includes(key) && !/^https?:\/\//.test(lower)) {
+  if (PUBLIC_URLS.includes(key) && !/^https?:\/\//.test(lower)
+    && !(key === 'NEXT_PUBLIC_API_URL' && proxyMode)) {
     warnings.push(`FORMAT  ${key} — sepertinya bukan URL (harus diawali http:// atau https://)`);
   }
   if (MIN_LEN_SECRET.includes(key) && value.length < 32) {
@@ -120,12 +125,34 @@ if (env.KEYCLOAK_SERVER_URL && env.KEYCLOAK_REALM && env.KEYCLOAK_ISSUER) {
   }
 }
 
+// Mode proxy: butuh BACKEND_ORIGIN yang benar (dipanggil dari dalam container).
+if (proxyMode) {
+  const apiPath = env.NEXT_PUBLIC_API_URL;
+  if (!/^\/[A-Za-z0-9._~\-/]*$/.test(apiPath)) {
+    errors.push(`FORMAT  NEXT_PUBLIC_API_URL="${apiPath}" — path tidak valid (contoh benar: /backend)`);
+  }
+  if (!env.BACKEND_ORIGIN) {
+    errors.push('MISSING  BACKEND_ORIGIN — wajib diisi kalau NEXT_PUBLIC_API_URL berupa path (mode proxy)');
+  } else {
+    const bo = env.BACKEND_ORIGIN.toLowerCase();
+    if (!/^https?:\/\//.test(bo)) {
+      errors.push('FORMAT  BACKEND_ORIGIN — harus diawali http:// atau https:// (tanpa akhiran /api)');
+    }
+    if (/(^|[/:])localhost(:|\/|$)|127\.0\.0\.1/.test(bo)) {
+      errors.push('LOCALHOST  BACKEND_ORIGIN — di production harus host asli (mis. https://api-<domain>)');
+    }
+    if (/\/api\/?$/.test(bo)) {
+      warnings.push('FORMAT  BACKEND_ORIGIN — jangan pakai akhiran /api; proxy menambahkannya sendiri');
+    }
+  }
+}
+
 console.log('\n── Preflight .env ─────────────────────────────');
 
 // Ringkasan nilai NON-rahasia: untuk memastikan file .env yang terbaca
 // memang file yang benar (root .env, bukan backend/.env atau frontend/.env).
 const SHOW = [
-  'NEXTAUTH_URL', 'NEXT_PUBLIC_API_URL', 'KEYCLOAK_ISSUER',
+  'NEXTAUTH_URL', 'NEXT_PUBLIC_API_URL', 'BACKEND_ORIGIN', 'KEYCLOAK_ISSUER',
   'KEYCLOAK_SERVER_URL', 'KEYCLOAK_REALM', 'KEYCLOAK_CLIENT_ID',
   'NEXT_PUBLIC_KEYCLOAK_CLIENT_ID', 'FRONTEND_URL',
   'PORT_BACKEND', 'PORT_FRONTEND',

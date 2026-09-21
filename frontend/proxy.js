@@ -2,6 +2,75 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 
+// ============================================================
+// PROXY API (/backend/...)
+// ============================================================
+// Tujuan: token Keycloak TIDAK pernah sampai ke browser.
+//
+//   Browser  ->  /backend/kegiatan          (tanpa header Authorization)
+//   Next.js  ->  <BACKEND_ORIGIN>/api/kegiatan + Authorization: Bearer <token dari cookie>
+//   Backend  ->  balasan diteruskan apa adanya
+//
+// Cara mengaktifkan: set NEXT_PUBLIC_API_URL=/backend (build-time) dan
+// BACKEND_ORIGIN=https://<host-api> (runtime, tanpa awalan /api).
+// Selama NEXT_PUBLIC_API_URL masih berupa URL penuh, komponen memanggil
+// backend langsung seperti sebelumnya — jadi pemasangan ini tidak mengubah
+// perilaku aplikasi sampai env-nya dipindah.
+const API_PROXY_PREFIX = '/backend';
+
+function backendOrigin() {
+  return String(process.env.BACKEND_ORIGIN || '').trim().replace(/\/+$/, '');
+}
+
+function buildBackendUrl(req, path) {
+  const origin = backendOrigin();
+  if (!origin) return null;
+  const rest = path.slice(API_PROXY_PREFIX.length); // "/kegiatan" | "/uploads/..."
+  return `${origin}/api${rest}${req.nextUrl.search || ''}`;
+}
+
+async function handleApiProxy(req, path) {
+  const target = buildBackendUrl(req, path);
+  if (!target) {
+    console.error('❌ Proxy - BACKEND_ORIGIN belum diisi, request ditolak:', path);
+    return withSecurityHeaders(NextResponse.json({
+      success: false,
+      error: 'Proxy belum dikonfigurasi',
+      message: 'BACKEND_ORIGIN belum diisi di environment frontend'
+    }, { status: 503 }));
+  }
+
+  // File upload disajikan backend sebagai statis (perilaku lama, tanpa token),
+  // dan /health memang route publik backend — berguna untuk uji konektivitas
+  // proxy dari luar tanpa login.
+  const isFileRequest = path.startsWith(`${API_PROXY_PREFIX}/uploads/`);
+  const isPublicBackendRoute = path === `${API_PROXY_PREFIX}/health`;
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET, raw: false });
+
+  if (!token && !isFileRequest && !isPublicBackendRoute) {
+    console.log('🛡️ Proxy - API tanpa sesi, ditolak:', path);
+    return withSecurityHeaders(NextResponse.json({
+      success: false,
+      error: 'Unauthorized',
+      message: 'Sesi tidak ditemukan'
+    }, { status: 401 }));
+  }
+
+  // Header dari browser TIDAK dipercaya: Authorization & Cookie dibuang,
+  // Authorization diisi ulang dari token di cookie httpOnly.
+  const headers = new Headers(req.headers);
+  headers.delete('authorization');
+  headers.delete('cookie');
+  headers.delete('host');
+  headers.delete('accept-encoding');
+  if (token?.accessToken) {
+    headers.set('authorization', `Bearer ${token.accessToken}`);
+  }
+
+  console.log(`🔁 Proxy - ${req.method} ${path} -> backend${token ? ' (token disuntik)' : ' (file publik)'}`);
+  return withSecurityHeaders(NextResponse.rewrite(new URL(target), { request: { headers } }));
+}
+
 /**
  * Menambahkan security headers ke response
  */
@@ -17,6 +86,11 @@ function withSecurityHeaders(response) {
 
 export async function proxy(req) {
   const path = req.nextUrl.pathname;
+
+  // Proxy API: /backend/... -> backend (token disuntik dari cookie httpOnly)
+  if (path === API_PROXY_PREFIX || path.startsWith(`${API_PROXY_PREFIX}/`)) {
+    return handleApiProxy(req, path);
+  }
   
   // Public paths - no auth required
   const publicPaths = [
@@ -41,7 +115,11 @@ export async function proxy(req) {
     
     // Rewrite /api/uploads ke backend
     if (path.startsWith('/api/uploads')) {
-      const targetUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace('/api', '') + path.replace('/api/uploads', '/uploads');
+      // Format lama (URL backend langsung). Utamakan BACKEND_ORIGIN supaya
+      // tetap benar walau NEXT_PUBLIC_API_URL sudah berupa path relatif.
+      const origin = backendOrigin() ||
+        (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '').replace(/\/api$/, '');
+      const targetUrl = origin + path.replace('/api/uploads', '/uploads');
       return withSecurityHeaders(NextResponse.rewrite(targetUrl));
     }
     

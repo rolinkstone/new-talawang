@@ -8,7 +8,9 @@
 #   1) git pull
 #   2) cp .env.example .env   → isi semua nilainya. Wajib benar:
 #        NEXTAUTH_URL        = https://<domain>        (BUKAN localhost!)
-#        NEXT_PUBLIC_API_URL = https://<domain>/api    (ter-bake saat build)
+#        NEXT_PUBLIC_API_URL = /backend              (mode proxy — disarankan)
+#                              ATAU https://<domain-api>/api (mode langsung/lama)
+#        BACKEND_ORIGIN      = https://<domain-api>  (wajib saat mode proxy, tanpa /api)
 #        FRONTEND_URL        = https://<domain>
 #      JANGAN menyalin `.env` dari laptop (isinya localhost).
 #      Verifikasi:  docker compose config | grep -E 'NEXTAUTH_URL|NEXT_PUBLIC_API_URL'
@@ -179,6 +181,9 @@ services:
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # Host backend untuk proxy /backend/... (TANPA akhiran /api).
+      # Dipakai frontend/proxy.js supaya token Keycloak tidak pernah ke browser.
+      - BACKEND_ORIGIN=${BACKEND_ORIGIN}
       # Catatan: KEYCLOAK_ADMIN_* TIDAK diberikan ke frontend — kode frontend
       # tidak memakainya, jadi password admin tidak perlu ada di container ini.
       # (path data lama — belum ada fitur yang menulis ke sini, aman dibiarkan)
