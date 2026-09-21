@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
+const { getLpdCutoffDate } = require('../utils/appSettings');
 
 // ============ TAMBAHKAN FUNGSI NORMALIZE NIP ============
 function normalizeNip(nip) {
@@ -49,12 +50,9 @@ router.get('/count', keycloakAuth, async (req, res) => {
         let notifikasiKwitansi = 0;
         
         // === BACA CUTOFF DATE ===
-        let cutoffParam = '';
-        try {
-            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
-            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
-        } catch (e) {}
+        // Tabel dipastikan ada sekali (utils/appSettings.js), bukan DDL per request.
+        const cutoffDate = await getLpdCutoffDate();
+        const cutoffParam = cutoffDate ? `${cutoffDate} 00:00:00` : '';
         const cutoffClause = cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : '';
         
         // ============ 1. NOTIFIKASI LPD UNTUK KATIM/KABAG TU ============
@@ -123,7 +121,7 @@ router.get('/count', keycloakAuth, async (req, res) => {
             JOIN nominatif_kegiatan n ON p.kegiatan_id = n.id
             LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
             WHERE n.status = 'selesai'
-            AND UPPER(n.status_2) = 'SELESAI'
+            AND n.status_2 = 'SELESAI'
             AND EXISTS (
                 SELECT 1 FROM lpd_status l 
                 WHERE l.kegiatan_id = n.id 

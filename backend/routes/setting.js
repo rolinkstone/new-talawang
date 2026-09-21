@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId } = require('../middleware/keycloakAuth');
+const { ensureAppSettings } = require('../utils/appSettings');
 
 // Helper untuk cek role admin
 function isAdmin(user) {
@@ -17,20 +18,8 @@ router.get('/', keycloakAuth, async (req, res) => {
             return res.status(403).json({ success: false, message: 'Hanya admin yang dapat mengakses pengaturan' });
         }
         
-        // Pastikan tabel ada
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS app_settings (
-                setting_key VARCHAR(100) PRIMARY KEY,
-                setting_value TEXT,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        `);
-        
-        // Insert default jika belum ada
-        await db.query(`
-            INSERT IGNORE INTO app_settings (setting_key, setting_value)
-            VALUES ('lpd_cutoff_date', '2026-07-01')
-        `);
+        // Pastikan tabel + nilai default ada (dijalankan sekali per proses)
+        await ensureAppSettings();
         
         const [rows] = await db.query('SELECT setting_key, setting_value, updated_at FROM app_settings ORDER BY setting_key');
         

@@ -7,6 +7,7 @@ const fs = require('fs');
 const db = require('../db');
 const XLSX = require('xlsx');
 const { keycloakAuth, getUsername, getUserId } = require('../middleware/keycloakAuth');
+const { getLpdCutoffDate } = require('../utils/appSettings');
 
 // Setup upload directory untuk SPTJM Transport
 const sptjmUploadDir = path.join(__dirname, '../public/uploads/sptjm-transport');
@@ -194,14 +195,11 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         const normalizedUserNip = normalizeNip(userNip);
         
         // === BACA CUTOFF DATE ===
-        let cutoffParam = '';
-        try {
-            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
-            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
-        } catch (e) {}
+        // Tabel app_settings dipastikan ada sekali (utils/appSettings.js) —
+        // tidak lagi menjalankan DDL di setiap request.
+        const cutoffDate = await getLpdCutoffDate();
+        const cutoffParam = cutoffDate ? `${cutoffDate} 00:00:00` : '';
 
-        
         console.log('👤 User info for need-kwitansi:', {
             nip: normalizedUserNip,
             userId: userId,
@@ -266,7 +264,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                 JOIN nominatif_pegawai p ON n.id = p.kegiatan_id
                 LEFT JOIN lpd_status l ON n.id = l.kegiatan_id
                 WHERE n.status = 'selesai'
-                AND UPPER(n.status_2) = 'SELESAI'
+                AND n.status_2 = 'SELESAI'
                 AND (
                     l.lpd_status = 'selesai'
                     OR EXISTS (
@@ -321,10 +319,22 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         
         const result = [];
 
-        for (const kegiatan of kegiatanList) {
-            const pegawaiQuery = `
+        // ============ PREFETCH (menghilangkan pola N+1) ============
+        // Sebelumnya: 1 query pegawai per kegiatan + 1 query biaya + 3 query rincian
+        // biaya per pegawai + 1 query jenis_spm per kegiatan. Sekarang seluruh data
+        // diambil sekaligus untuk semua kegiatan, lalu dikelompokkan di memori.
+        const pegawaiByKegiatan = new Map();
+        const biayaByPegawai = new Map();
+        const transportByBiaya = new Map();
+        const uangHarianByBiaya = new Map();
+        const penginapanByBiaya = new Map();
+        const jenisSpmByKegiatan = new Map();
+
+        const kegiatanIds = kegiatanList.map(k => k.id);
+        if (kegiatanIds.length > 0) {
+            const [allPegawai] = await db.query(`
                 SELECT 
-                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
+                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya, p.kegiatan_id,
                     k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
                     k.upload_spd,
                     COALESCE(k.status_pegawai, 'belum') as status_pegawai,
@@ -335,46 +345,90 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
                     CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
                 FROM nominatif_pegawai p
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
-                WHERE p.kegiatan_id = ?
+                WHERE p.kegiatan_id IN (?)
                 ORDER BY p.id ASC
-            `;
-            
-            const [pegawaiList] = await db.query(pegawaiQuery, [kegiatan.id]);
+            `, [kegiatanIds]);
+
+            for (const p of allPegawai) {
+                const kegId = p.kegiatan_id;
+                // kegiatan_id hanya dipakai untuk mengelompokkan, tidak ikut dikirim
+                // ke frontend (bentuk respons dijaga identik dengan sebelumnya).
+                delete p.kegiatan_id;
+                if (!pegawaiByKegiatan.has(kegId)) pegawaiByKegiatan.set(kegId, []);
+                pegawaiByKegiatan.get(kegId).push(p);
+            }
+
+            const pegawaiIds = allPegawai.map(p => p.id);
+            if (pegawaiIds.length > 0) {
+                const [allBiaya] = await db.query(`
+                    SELECT id as biaya_id, pegawai_id
+                    FROM nominatif_biaya_kegiatan
+                    WHERE pegawai_id IN (?)
+                    ORDER BY id ASC
+                `, [pegawaiIds]);
+
+                for (const b of allBiaya) {
+                    if (!biayaByPegawai.has(b.pegawai_id)) biayaByPegawai.set(b.pegawai_id, []);
+                    biayaByPegawai.get(b.pegawai_id).push(b.biaya_id);
+                }
+
+                const biayaIds = allBiaya.map(b => b.biaya_id);
+                if (biayaIds.length > 0) {
+                    const kelompokkan = (rows, map) => {
+                        for (const row of rows) {
+                            if (!map.has(row.biaya_id)) map.set(row.biaya_id, []);
+                            map.get(row.biaya_id).push(row);
+                        }
+                    };
+
+                    const [barisTransport] = await db.query(`
+                        SELECT id, trans as jenis, harga, total, biaya_id
+                        FROM nominatif_transportasi WHERE biaya_id IN (?) ORDER BY id ASC
+                    `, [biayaIds]);
+                    kelompokkan(barisTransport, transportByBiaya);
+
+                    const [barisUangHarian] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_uang_harian_items WHERE biaya_id IN (?) ORDER BY id ASC
+                    `, [biayaIds]);
+                    kelompokkan(barisUangHarian, uangHarianByBiaya);
+
+                    const [barisPenginapan] = await db.query(`
+                        SELECT id, jenis, qty, harga, total, biaya_id
+                        FROM nominatif_penginapan_items WHERE biaya_id IN (?) ORDER BY id ASC
+                    `, [biayaIds]);
+                    kelompokkan(barisPenginapan, penginapanByBiaya);
+                }
+            }
+
+            const [barisJenisSpm] = await db.query(
+                `SELECT id, jenis_spm FROM nominatif_kegiatan WHERE id IN (?)`, [kegiatanIds]);
+            for (const r of barisJenisSpm) jenisSpmByKegiatan.set(r.id, r.jenis_spm);
+
+            console.log(`⚡ Prefetch: ${allPegawai.length} pegawai untuk ${kegiatanIds.length} kegiatan`);
+        }
+
+        for (const kegiatan of kegiatanList) {
+            const pegawaiList = pegawaiByKegiatan.get(kegiatan.id) || [];
             
             if (pegawaiList.length === 0) continue;
             
-            // Ambil data biaya untuk setiap pegawai
+            // Ambil data biaya untuk setiap pegawai (dari hasil prefetch)
             for (const pegawai of pegawaiList) {
-                const [biayaList] = await db.query(`
-                    SELECT id as biaya_id 
-                    FROM nominatif_biaya_kegiatan 
-                    WHERE pegawai_id = ?
-                `, [pegawai.id]);
+                const biayaIds = biayaByPegawai.get(pegawai.id) || [];
                 
                 let transportasi = [], uangHarian = [], penginapan = [];
                 
-                if (biayaList.length > 0) {
-                    const biayaIds = biayaList.map(b => b.biaya_id);
-                    
-                    [transportasi] = await db.query(`
-                        SELECT id, trans as jenis, harga, total, biaya_id
-                        FROM nominatif_transportasi WHERE biaya_id IN (?)
-                    `, [biayaIds]);
-                    
-                    [uangHarian] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_uang_harian_items WHERE biaya_id IN (?)
-                    `, [biayaIds]);
+                if (biayaIds.length > 0) {
+                    transportasi = biayaIds.flatMap(id => transportByBiaya.get(id) || []);
+                    // uang harian disalin per pemakaian karena objeknya dimodifikasi di bawah
+                    uangHarian = biayaIds.flatMap(id => (uangHarianByBiaya.get(id) || []).map(u => ({ ...u })));
+                    penginapan = biayaIds.flatMap(id => penginapanByBiaya.get(id) || []);
                     
                     for (const uh of uangHarian) {
                         uh.rencana_tanggal_pelaksanaan = kegiatan.rencana_tanggal_pelaksanaan || null;
                         uh.rencana_tanggal_pelaksanaan_akhir = kegiatan.rencana_tanggal_pelaksanaan_akhir || null;
                     }
-                    
-                    [penginapan] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_penginapan_items WHERE biaya_id IN (?)
-                    `, [biayaIds]);
                 }
                 
                 pegawai.total_biaya_detail = 
@@ -525,9 +579,8 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
             const semuaPpkApprove = pegawaiList.every(p => p.status_ppk === 'sudah');
             const semuaBendaharaApprove = pegawaiList.every(p => p.status_bendahara === 'sudah');
             
-            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
-            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
-            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan — dari hasil prefetch
+            kegiatan.jenis_spm = jenisSpmByKegiatan.get(kegiatan.id) ?? null;
             
             result.push({
                 ...kegiatan,
@@ -583,12 +636,9 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
         const normalizedUserNip = normalizeNip(userNip);
         
         // === BACA CUTOFF DATE ===
-        let cutoffParam = '';
-        try {
-            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
-            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
-        } catch (e) {}
+        // Tabel app_settings dipastikan ada sekali (utils/appSettings.js).
+        const cutoffDate = await getLpdCutoffDate();
+        const cutoffParam = cutoffDate ? `${cutoffDate} 00:00:00` : '';
         
         console.log('👤 User info for need-kwitansi-ppk-history:', {
             nip: normalizedUserNip,
@@ -624,7 +674,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND k.status_ppk = 'sudah'
-                AND UPPER(n.status_2) = 'SELESAI'
+                AND n.status_2 = 'SELESAI'
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
@@ -647,7 +697,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 WHERE n.status = 'selesai'
                 AND (n.ppk_id = ? OR n.ppk_nip = ? OR n.ppk_nama = ?)
                 AND k.status_ppk = 'sudah'
-                AND UPPER(n.status_2) = 'SELESAI'
+                AND n.status_2 = 'SELESAI'
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
@@ -663,10 +713,19 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
         
         const result = [];
 
-        for (const kegiatan of kegiatanList) {
-            let pegawaiQuery = `
+        // ============ PREFETCH (menghilangkan pola N+1) ============
+        const pegawaiByKegiatan = new Map();
+        const biayaByPegawai = new Map();
+        const transportByBiaya = new Map();
+        const uangHarianByBiaya = new Map();
+        const penginapanByBiaya = new Map();
+        const jenisSpmByKegiatan = new Map();
+
+        const kegiatanIds = kegiatanList.map(k => k.id);
+        if (kegiatanIds.length > 0) {
+            const [allPegawai] = await db.query(`
                 SELECT 
-                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
+                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya, p.kegiatan_id,
                     k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
                     k.upload_spd,
                     COALESCE(k.status_pegawai, 'belum') as status_pegawai,
@@ -677,51 +736,64 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                     CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
                 FROM nominatif_pegawai p
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
-                WHERE p.kegiatan_id = ?
-            `;
-            
-            const pegawaiParams = [kegiatan.id];
-            
-            pegawaiQuery += ` ORDER BY p.id ASC`;
-            
-            console.log(`📝 Pegawai Query for kegiatan ${kegiatan.id}:`, pegawaiQuery);
-            console.log(`📝 Pegawai Params:`, pegawaiParams);
-            
-            const [pegawaiList] = await db.query(pegawaiQuery, pegawaiParams);
+                WHERE p.kegiatan_id IN (?)
+                ORDER BY p.id ASC
+            `, [kegiatanIds]);
+
+            for (const p of allPegawai) {
+                const kegId = p.kegiatan_id;
+                delete p.kegiatan_id;
+                if (!pegawaiByKegiatan.has(kegId)) pegawaiByKegiatan.set(kegId, []);
+                pegawaiByKegiatan.get(kegId).push(p);
+            }
+
+            const pegawaiIds = allPegawai.map(p => p.id);
+            if (pegawaiIds.length > 0) {
+                const [allBiaya] = await db.query(`
+                    SELECT id as biaya_id, pegawai_id FROM nominatif_biaya_kegiatan
+                    WHERE pegawai_id IN (?) ORDER BY id ASC
+                `, [pegawaiIds]);
+                for (const b of allBiaya) {
+                    if (!biayaByPegawai.has(b.pegawai_id)) biayaByPegawai.set(b.pegawai_id, []);
+                    biayaByPegawai.get(b.pegawai_id).push(b.biaya_id);
+                }
+                const biayaIds = allBiaya.map(b => b.biaya_id);
+                if (biayaIds.length > 0) {
+                    const kelompokkan = (rows, map) => {
+                        for (const row of rows) {
+                            if (!map.has(row.biaya_id)) map.set(row.biaya_id, []);
+                            map.get(row.biaya_id).push(row);
+                        }
+                    };
+                    const [barisTransport] = await db.query(`SELECT id, trans as jenis, harga, total, biaya_id FROM nominatif_transportasi WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisTransport, transportByBiaya);
+                    const [barisUangHarian] = await db.query(`SELECT id, jenis, qty, harga, total, biaya_id FROM nominatif_uang_harian_items WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisUangHarian, uangHarianByBiaya);
+                    const [barisPenginapan] = await db.query(`SELECT id, jenis, qty, harga, total, biaya_id FROM nominatif_penginapan_items WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisPenginapan, penginapanByBiaya);
+                }
+            }
+
+            const [barisJenisSpm] = await db.query(`SELECT id, jenis_spm FROM nominatif_kegiatan WHERE id IN (?)`, [kegiatanIds]);
+            for (const r of barisJenisSpm) jenisSpmByKegiatan.set(r.id, r.jenis_spm);
+        }
+
+        for (const kegiatan of kegiatanList) {
+            const pegawaiList = pegawaiByKegiatan.get(kegiatan.id) || [];
             
             if (pegawaiList.length === 0) continue;
             
             for (const pegawai of pegawaiList) {
-                const [biayaList] = await db.query(`
-                    SELECT id as biaya_id 
-                    FROM nominatif_biaya_kegiatan 
-                    WHERE pegawai_id = ?
-                `, [pegawai.id]);
+                const biayaIds = biayaByPegawai.get(pegawai.id) || [];
                 
                 let transportasi = [];
                 let uangHarian = [];
                 let penginapan = [];
                 
-                if (biayaList.length > 0) {
-                    const biayaIds = biayaList.map(b => b.biaya_id);
-                    
-                    [transportasi] = await db.query(`
-                        SELECT id, trans as jenis, harga, total, biaya_id
-                        FROM nominatif_transportasi
-                        WHERE biaya_id IN (?)
-                    `, [biayaIds]);
-                    
-                    [uangHarian] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_uang_harian_items
-                        WHERE biaya_id IN (?)
-                    `, [biayaIds]);
-                    
-                    [penginapan] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_penginapan_items
-                        WHERE biaya_id IN (?)
-                    `, [biayaIds]);
+                if (biayaIds.length > 0) {
+                    transportasi = biayaIds.flatMap(id => transportByBiaya.get(id) || []);
+                    uangHarian = biayaIds.flatMap(id => (uangHarianByBiaya.get(id) || []).map(u => ({ ...u })));
+                    penginapan = biayaIds.flatMap(id => penginapanByBiaya.get(id) || []);
                 }
                 
                 const totalTransport = transportasi.reduce((sum, t) => sum + (Number(t.total) || 0), 0);
@@ -763,9 +835,8 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
                 if (p.status_bendahara !== 'sudah') semuaBendaharaApprove = false;
             });
             
-            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
-            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
-            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan — dari hasil prefetch
+            kegiatan.jenis_spm = jenisSpmByKegiatan.get(kegiatan.id) ?? null;
             
             result.push({
                 ...kegiatan,
@@ -797,12 +868,9 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
         const roleInfo = getUserRoleInfo(user);
         const normalizedUserNip = normalizeNip(userNip);
         
-        let cutoffParam = '';
-        try {
-            await db.query(`CREATE TABLE IF NOT EXISTS app_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-            const [cutoffRow] = await db.query(`SELECT setting_value FROM app_settings WHERE setting_key = 'lpd_cutoff_date'`);
-            if (cutoffRow.length > 0) cutoffParam = cutoffRow[0].setting_value + ' 00:00:00';
-        } catch (e) {}
+        // Tabel app_settings dipastikan ada sekali (utils/appSettings.js).
+        const cutoffDate = await getLpdCutoffDate();
+        const cutoffParam = cutoffDate ? `${cutoffDate} 00:00:00` : '';
         
         console.log('👤 User info for need-kwitansi-bendahara-history:', {
             nip: normalizedUserNip,
@@ -837,7 +905,7 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND k.status_bendahara = 'sudah'
-                AND UPPER(n.status_2) = 'SELESAI'
+                AND n.status_2 = 'SELESAI'
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
@@ -860,7 +928,7 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
                 JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND n.id = k.kegiatan_id
                 WHERE n.status = 'selesai'
                 AND k.status_bendahara = 'sudah'
-                AND UPPER(n.status_2) = 'SELESAI'
+                AND n.status_2 = 'SELESAI'
                 ${cutoffParam ? `AND n.created_at >= '${cutoffParam}'` : ''}
                 ORDER BY n.created_at DESC
             `;
@@ -875,10 +943,19 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
         console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
         
         const result = [];
-        for (const kegiatan of kegiatanList) {
-            const pegawaiQuery = `
+        // ============ PREFETCH (menghilangkan pola N+1) ============
+        const pegawaiByKegiatan = new Map();
+        const biayaByPegawai = new Map();
+        const transportByBiaya = new Map();
+        const uangHarianByBiaya = new Map();
+        const penginapanByBiaya = new Map();
+        const jenisSpmByKegiatan = new Map();
+
+        const kegiatanIds = kegiatanList.map(k => k.id);
+        if (kegiatanIds.length > 0) {
+            const [allPegawai] = await db.query(`
                 SELECT 
-                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya,
+                    p.id, p.nama, p.nip, p.jabatan, p.total_biaya, p.kegiatan_id,
                     k.id as kwitansi_id, k.no_lpd, k.tgl_kwitansi, k.tgl_spd,
                     k.upload_spd,
                     COALESCE(k.status_pegawai, 'belum') as status_pegawai,
@@ -889,45 +966,66 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
                     CASE WHEN k.id IS NOT NULL THEN 'sudah' ELSE 'belum' END as kwitansi_status
                 FROM nominatif_pegawai p
                 LEFT JOIN kwitansi_perjadin k ON p.id = k.pegawai_id AND k.kegiatan_id = p.kegiatan_id
-                WHERE p.kegiatan_id = ?
+                WHERE p.kegiatan_id IN (?)
                 ORDER BY p.id ASC
-            `;
-            
-            const [pegawaiList] = await db.query(pegawaiQuery, [kegiatan.id]);
+            `, [kegiatanIds]);
+
+            for (const p of allPegawai) {
+                const kegId = p.kegiatan_id;
+                delete p.kegiatan_id;
+                if (!pegawaiByKegiatan.has(kegId)) pegawaiByKegiatan.set(kegId, []);
+                pegawaiByKegiatan.get(kegId).push(p);
+            }
+
+            const pegawaiIds = allPegawai.map(p => p.id);
+            if (pegawaiIds.length > 0) {
+                const [allBiaya] = await db.query(`
+                    SELECT id as biaya_id, pegawai_id FROM nominatif_biaya_kegiatan
+                    WHERE pegawai_id IN (?) ORDER BY id ASC
+                `, [pegawaiIds]);
+                for (const b of allBiaya) {
+                    if (!biayaByPegawai.has(b.pegawai_id)) biayaByPegawai.set(b.pegawai_id, []);
+                    biayaByPegawai.get(b.pegawai_id).push(b.biaya_id);
+                }
+                const biayaIds = allBiaya.map(b => b.biaya_id);
+                if (biayaIds.length > 0) {
+                    const kelompokkan = (rows, map) => {
+                        for (const row of rows) {
+                            if (!map.has(row.biaya_id)) map.set(row.biaya_id, []);
+                            map.get(row.biaya_id).push(row);
+                        }
+                    };
+                    const [barisTransport] = await db.query(`SELECT id, trans as jenis, harga, total, biaya_id FROM nominatif_transportasi WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisTransport, transportByBiaya);
+                    const [barisUangHarian] = await db.query(`SELECT id, jenis, qty, harga, total, biaya_id FROM nominatif_uang_harian_items WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisUangHarian, uangHarianByBiaya);
+                    const [barisPenginapan] = await db.query(`SELECT id, jenis, qty, harga, total, biaya_id FROM nominatif_penginapan_items WHERE biaya_id IN (?) ORDER BY id ASC`, [biayaIds]);
+                    kelompokkan(barisPenginapan, penginapanByBiaya);
+                }
+            }
+
+            const [barisJenisSpm] = await db.query(`SELECT id, jenis_spm FROM nominatif_kegiatan WHERE id IN (?)`, [kegiatanIds]);
+            for (const r of barisJenisSpm) jenisSpmByKegiatan.set(r.id, r.jenis_spm);
+        }
+
+        for (const kegiatan of kegiatanList) {
+            const pegawaiList = pegawaiByKegiatan.get(kegiatan.id) || [];
             
             if (pegawaiList.length === 0) continue;
             
             for (const pegawai of pegawaiList) {
-                const [biayaList] = await db.query(`
-                    SELECT id as biaya_id 
-                    FROM nominatif_biaya_kegiatan 
-                    WHERE pegawai_id = ?
-                `, [pegawai.id]);
-                
+                const biayaIds = biayaByPegawai.get(pegawai.id) || [];
                 let transportasi = [], uangHarian = [], penginapan = [];
-                
-                if (biayaList.length > 0) {
-                    const biayaIds = biayaList.map(b => b.biaya_id);
-                    
-                    [transportasi] = await db.query(`
-                        SELECT id, trans as jenis, harga, total, biaya_id
-                        FROM nominatif_transportasi WHERE biaya_id IN (?)
-                    `, [biayaIds]);
-                    
-                    [uangHarian] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_uang_harian_items WHERE biaya_id IN (?)
-                    `, [biayaIds]);
+                if (biayaIds.length > 0) {
+                    transportasi = biayaIds.flatMap(id => transportByBiaya.get(id) || []);
+                    // uang harian disalin karena objeknya dimodifikasi di bawah
+                    uangHarian = biayaIds.flatMap(id => (uangHarianByBiaya.get(id) || []).map(u => ({ ...u })));
+                    penginapan = biayaIds.flatMap(id => penginapanByBiaya.get(id) || []);
                     
                     for (const uh of uangHarian) {
                         uh.rencana_tanggal_pelaksanaan = kegiatan.rencana_tanggal_pelaksanaan || null;
                         uh.rencana_tanggal_pelaksanaan_akhir = kegiatan.rencana_tanggal_pelaksanaan_akhir || null;
                     }
-                    
-                    [penginapan] = await db.query(`
-                        SELECT id, jenis, qty, harga, total, biaya_id
-                        FROM nominatif_penginapan_items WHERE biaya_id IN (?)
-                    `, [biayaIds]);
                 }
                 
                 pegawai.transport_detail = transportasi;
@@ -935,9 +1033,8 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
                 pegawai.penginapan_detail = penginapan;
             }
             
-            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan
-            const [jenisSpmRows] = await db.query(`SELECT jenis_spm FROM nominatif_kegiatan WHERE id = ?`, [kegiatan.id]);
-            kegiatan.jenis_spm = jenisSpmRows.length > 0 ? jenisSpmRows[0].jenis_spm : null;
+            // Ambil jenis SPM (LS/KKP) untuk pembeda tampilan — dari hasil prefetch
+            kegiatan.jenis_spm = jenisSpmByKegiatan.get(kegiatan.id) ?? null;
             
             result.push({
                 ...kegiatan,
@@ -1320,7 +1417,7 @@ router.get('/export-xlsx', keycloakAuth, async (req, res) => {
         const money = (v) => { const n = Number(v || 0); return isNaN(n) ? 0 : n; };
 
         // ===== Filter: nominatif yang sudah selesai & aktif =====
-        const statusFilter = `n.status = 'selesai' AND UPPER(COALESCE(n.status_2, '')) = 'SELESAI'`;
+        const statusFilter = `n.status = 'selesai' AND n.status_2 = 'SELESAI'`;
 
         // 1) Data Nominatif (header)
         const [kegiatanRows] = await db.query(`

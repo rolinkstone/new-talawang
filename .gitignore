@@ -56,6 +56,9 @@ backend/public/uploads.zip
 *.dump
 *.bak
 *.backup
+# Pengecualian: migrasi DB (DDL/index) memang harus ikut repo supaya bisa
+# diterapkan di server. Dump data (*.sql besar) tetap terabaikan.
+!scripts/db/*.sql
 
 # ---------- Logs ----------
 logs/

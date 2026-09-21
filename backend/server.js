@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { loginLimiter, authLimiter, writeLimiter } = require('./utils/rateLimiter');
 const { verifyAccessToken } = require('./utils/jwtVerifier');
+const { ensureAppSettings } = require('./utils/appSettings');
 
 const app = express();
 
@@ -524,6 +525,13 @@ if (!fs.existsSync(lpdUploadsDir)) {
     fs.mkdirSync(lpdUploadsDir, { recursive: true });
     console.log('✅ LPD dokumentasi directory created:', lpdUploadsDir);
 }
+
+// ========== PASTIKAN TABEL SETTING ADA (sekali, bukan per request) ==========
+// Sebelumnya setiap request lpd/kwitansi/notifikasi menjalankan
+// CREATE TABLE IF NOT EXISTS app_settings — sekarang cukup sekali di startup.
+ensureAppSettings().catch(err => {
+    console.warn('⚠️ app_settings belum siap saat startup (akan dicoba lagi saat dipakai):', err.message);
+});
 
 // ========== START SERVER ==========
 app.listen(PORT, () => {
