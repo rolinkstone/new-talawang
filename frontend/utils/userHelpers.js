@@ -31,8 +31,9 @@ export const fetchAllUsers = async (accessToken) => {
         return userCache.data;
     }
     
-    // Fallback: coba ambil token dari sessionStorage jika tidak diberikan
-    const token = accessToken || sessionStorage.getItem('token') || localStorage.getItem('token');
+    // Token HARUS diberikan pemanggil (dari session NextAuth).
+    // Tidak ada lagi fallback ke localStorage/sessionStorage.
+    const token = accessToken;
     
     if (!token) {
         console.warn('fetchAllUsers: Token tidak tersedia');

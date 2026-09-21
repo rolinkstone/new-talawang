@@ -12,15 +12,11 @@ const createAxiosInstance = (baseURL = process.env.NEXT_PUBLIC_API_URL || 'http:
     }
   });
 
-  // Request interceptor untuk menambahkan token
+  // Request interceptor: TIDAK membaca token dari localStorage/sessionStorage
+  // (nilai itu tidak pernah ditulis lagi dan bisa berisi token basi).
+  // Pemanggil wajib mengirim header Authorization dari session NextAuth.
   instance.interceptors.request.use(
-    (config) => {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    },
+    (config) => config,
     (error) => {
       console.error('Request interceptor error:', error);
       return Promise.reject(error);

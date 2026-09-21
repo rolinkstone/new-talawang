@@ -59,8 +59,12 @@ export async function proxy(req) {
   console.log("🛡️ Proxy - Hostname:", req.nextUrl.hostname);
   
   const secret = process.env.NEXTAUTH_SECRET;
-  const cookieName = "next-auth.session-token";
-  const rawCookie = req.cookies.get(cookieName)?.value;
+  // Nama cookie berubah kalau diakses via https (prefiks __Secure-),
+  // jadi cek keduanya. Ini hanya untuk logging — getToken() menentukan
+  // nama cookie sendiri.
+  const rawCookie =
+    req.cookies.get("next-auth.session-token")?.value ||
+    req.cookies.get("__Secure-next-auth.session-token")?.value;
   
   console.log("🛡️ Proxy - Cookie present:", !!rawCookie);
   console.log("🛡️ Proxy - NEXTAUTH_SECRET defined:", !!secret);

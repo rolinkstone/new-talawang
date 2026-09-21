@@ -7,6 +7,7 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const { loginLimiter, authLimiter, writeLimiter } = require('./utils/rateLimiter');
+const { verifyAccessToken } = require('./utils/jwtVerifier');
 
 const app = express();
 
@@ -104,15 +105,20 @@ const enhancedAuth = async (req, res, next) => {
             });
         }
         
-        const decoded = jwt.decode(token);
-        
-        if (!decoded) {
+        let decoded;
+        try {
+            // Verifikasi tanda tangan (JWKS Keycloak) + iss + exp.
+            decoded = await verifyAccessToken(token);
+        } catch (verifyError) {
+            console.warn('❌ Verifikasi token gagal:', verifyError.message);
             return res.status(401).json({
                 success: false,
                 error: 'Unauthorized',
-                message: 'Invalid token format'
+                message: 'Token tidak valid'
             });
         }
+        
+        // (format + tanda tangan token sudah diverifikasi di verifyAccessToken)
         
         const currentTime = Math.floor(Date.now() / 1000);
         if (decoded.exp && decoded.exp < currentTime) {
@@ -467,10 +473,19 @@ app.get('/api/health', (req, res) => {
 
 // ========== DEBUG ENDPOINT ==========
 app.get('/api/debug', (req, res) => {
+    // Hanya tersedia di development — jangan sampai membocorkan header request
+    // (Authorization/Cookie) lewat endpoint publik.
+    if (process.env.NODE_ENV !== 'development') {
+        return res.status(404).json({
+            success: false,
+            error: 'Not Found',
+            message: 'Route GET /api/debug not found'
+        });
+    }
+
     res.json({
         success: true,
         message: 'Debug endpoint',
-        headers: req.headers,
         timestamp: new Date().toISOString(),
         ssl_verification: 'ENABLED'
     });
