@@ -33,6 +33,9 @@ export default function KegiatanContainer({ session, status }) {
     const isFilterChanging = useRef(false);
     const previousFilterString = useRef('');
     const formContainerRef = useRef(null);
+    // Penanda fetch terakhir, berbasis nilai STABIL (id user + accessToken) —
+    // bukan objek session, yang identitasnya berubah tiap SessionProvider refetch.
+    const lastFetchSignature = useRef(null);
     
     // State form
     const defaultFormData = {
@@ -436,7 +439,19 @@ export default function KegiatanContainer({ session, status }) {
         }
     }, [session]);
 
-    // Fetch data kegiatan - hanya dijalankan sekali saat mount
+    // Fetch data kegiatan — dijalankan sekali per token, BUKAN tiap objek session berubah.
+    //
+    // PENTING: SessionProvider di _app.js memakai refetchInterval={30} +
+    // refetchOnWindowFocus, jadi useSession() mengembalikan objek session BARU
+    // (isi sama, identitas beda) setiap 30 detik dan setiap kali tab kembali aktif.
+    // Dulu effect ini bergantung pada objek `session`, sehingga fetchKegiatan()
+    // ikut jalan berulang dan mereset detailShown/pegawaiDetailShown — akibatnya
+    // baris "Show" (pegawai & rincian) yang baru dibuka tertutup sendiri.
+    // Sekarang dependensinya memakai signature stabil: id user + accessToken.
+    const sessionSignature = session?.user
+        ? `${session.user.id ?? session.user.username ?? session.user.email ?? ''}|${session.accessToken ?? ''}`
+        : '';
+
     useEffect(() => {
         const fetchData = async () => {
             if (status === 'loading') {
@@ -444,18 +459,44 @@ export default function KegiatanContainer({ session, status }) {
             }
             
             if (!session) {
+                // Sesudah logout/login ulang, paksa fetch lagi.
+                lastFetchSignature.current = null;
                 router.push('/login');
                 return;
             }
+
+            // Jangan fetch ulang hanya karena objek session berganti identitas.
+            if (lastFetchSignature.current === sessionSignature) {
+                return;
+            }
+            lastFetchSignature.current = sessionSignature;
             
             await fetchKegiatan();
         };
 
         fetchData();
-    }, [session, status]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionSignature, status]);
+
+    // Refresh daftar secara berkala (pengganti efek samping polling session di atas),
+    // TANPA menutup baris detail yang sedang dibuka.
+    useEffect(() => {
+        if (!session || status !== 'authenticated') return undefined;
+
+        const timer = setInterval(() => {
+            // Hemat: lewati saat tab tidak aktif.
+            if (typeof document !== 'undefined' && document.hidden) return;
+            fetchKegiatan(false, { background: true });
+        }, 30000);
+
+        return () => clearInterval(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionSignature, status]);
 
     // Fetch data kegiatan
-    const fetchKegiatan = async (showLoading = false) => {
+    // background = true -> refresh senyap (dipakai polling): tidak mereset
+    // state detail pegawai/rincian dan tidak menampilkan modal saat gagal.
+    const fetchKegiatan = async (showLoading = false, { background = false } = {}) => {
         if (!session?.accessToken) {
             console.error('No access token available');
             setNotificationMessage('Token tidak ditemukan. Silakan login kembali.');
@@ -483,9 +524,13 @@ export default function KegiatanContainer({ session, status }) {
                 
                 setKegiatanList(sortedData);
                 setFilteredKegiatan(sortedData);
-                setDetailData({});
-                setDetailShown({});
-                setPegawaiDetailShown({});
+
+                // Pertahankan baris detail yang sedang terbuka saat refresh latar.
+                if (!background) {
+                    setDetailData({});
+                    setDetailShown({});
+                    setPegawaiDetailShown({});
+                }
                 
                 if (showLoading) {
                     setCurrentPage(1);
@@ -504,13 +549,18 @@ export default function KegiatanContainer({ session, status }) {
                 localStorage.removeItem('access_token');
                 sessionStorage.removeItem('token');
                 await signOut({ callbackUrl: '/login' });
+                setKegiatanList([]);
+                setFilteredKegiatan([]);
+            } else if (background) {
+                // Refresh latar gagal: biarkan data lama tetap tampil, jangan
+                // mengganggu user dengan modal tiap 30 detik.
+                console.warn('Refresh latar gagal, data lama dipertahankan.');
             } else {
                 setNotificationMessage('Gagal memuat data kegiatan. Silakan coba lagi.');
                 setModalOpen(true);
+                setKegiatanList([]);
+                setFilteredKegiatan([]);
             }
-            
-            setKegiatanList([]);
-            setFilteredKegiatan([]);
         } finally {
             if (showLoading) {
                 setFormLoading(false);

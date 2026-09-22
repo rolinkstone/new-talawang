@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
+const { getUserRoleLabel } = require('../utils/keycloakHelpers');
 
 // ========== HELPER FUNCTIONS UNTUK QUERY FILTER BERDASARKAN ROLE ==========
 
@@ -1325,7 +1326,7 @@ router.post('/:id/kirim-ke-ppk', keycloakAuth, async (req, res) => {
         
         await connection.execute(historyQuery, [
             id, 'diajukan', userId, username,
-            req.user.extractedRoles ? req.user.extractedRoles.join(',') : 'user',
+            getUserRoleLabel(req.user),
             `Diajukan ke PPK: ${ppk_nama} (NIP: ${ppk_nip || '-'})`
         ]);
         
@@ -1914,7 +1915,7 @@ router.post('/:id/surat-tugas', keycloakAuth, async (req, res) => {
         const catatanHistory = `Surat Tugas direkam: No. ${no_st}, Tgl. ${tgl_st}`;
         await connection.execute(historyQuery, [
             id, 'selesai', userId, username,
-            req.user.extractedRoles ? req.user.extractedRoles.join(',') : 'user',
+            getUserRoleLabel(req.user),
             catatanHistory
         ]);
         

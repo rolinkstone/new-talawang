@@ -1,0 +1,46 @@
+-- ============================================================
+-- 2026-09-22-status-history-user-role.sql
+-- Melebarkan kolom `user_role` pada tabel riwayat status nominatif.
+--
+-- MASALAH YANG DIPERBAIKI
+--   Kolom aslinya VARCHAR(50), sementara kode menyimpan SELURUH role Keycloak
+--   user yang digabung dengan koma. Contoh kejadian nyata (2026-09-22):
+--     user 198701042009121003 punya 5 role ->
+--     'admin_tambun_raya,admin_arsiparis,user,pic_lab,admin_pemeliharaan' (65 char)
+--   INSERT riwayat gagal:
+--     ER_DATA_TOO_LONG (1406): Data too long for column 'user_role' at row 1
+--   Akibatnya aksi bisnis ikut gagal 500 — bukan hanya riwayatnya:
+--     POST /api/kegiatan/:id/kirim-ke-ppk
+--     PUT  /api/kegiatan/:id/rekam-surat-tugas
+--   (keduanya INSERT ke tabel ini di dalam transaksi yang sama).
+--
+-- DATA LAMA (per 2026-09-22) — aman semua, terpanjang 38 karakter:
+--     38  'default-roles-master,uma_authorization'
+--     31  'user,pic_lab,admin_pemeliharaan'
+--     27  'pic_persediaan,user,pic_lab'
+--     22  'admin_tambun_raya,user'
+--   Jadi tidak ada baris lama yang perlu diubah/dibersihkan.
+--
+-- CARA PAKAI (dijalankan SEKALI per database):
+--   mysql -u <user> -p <database> < scripts/db/2026-09-22-status-history-user-role.sql
+--   atau impor lewat phpMyAdmin/HeidiSQL.
+--
+-- SIFAT: HANYA memperlebar kolom (tidak mengubah/menghapus/menambah data).
+--   Dijalankan dua kali hasilnya sama (idempoten). MySQL 8 mengerjakan ALTER
+--   ini secara online (INPLACE) sehingga tabel tidak terkunci untuk tulis.
+--
+-- CATATAN KODE: batas ini dipakai `getUserRoleLabel()` di
+--   backend/utils/keycloakHelpers.js (default 255) yang dipanggil
+--   backend/routes/kegiatan.js. Kalau kolom ini diubah lagi, angka default
+--   di helper tersebut harus ikut disesuaikan.
+-- ============================================================
+
+ALTER TABLE accounting.nominatif_status_history
+  MODIFY COLUMN user_role VARCHAR(255) NULL;
+
+-- Verifikasi (harus menampilkan varchar(255)):
+--   SELECT COLUMN_NAME, COLUMN_TYPE
+--   FROM information_schema.COLUMNS
+--   WHERE TABLE_SCHEMA = 'accounting'
+--     AND TABLE_NAME = 'nominatif_status_history'
+--     AND COLUMN_NAME = 'user_role';

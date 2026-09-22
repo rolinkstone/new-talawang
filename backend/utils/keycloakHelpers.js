@@ -622,6 +622,76 @@ function isRegularUser(user) {
 }
 
 /**
+ * Helper untuk menyusun label role yang aman disimpan ke kolom DB.
+ *
+ * MASALAH YANG DIPERBAIKI: kolom `accounting.nominatif_status_history.user_role`
+ * dulu VARCHAR(50), sementara kode menyimpan SELURUH role Keycloak yang digabung
+ * koma. User dengan banyak role (mis. 5 role = 65 karakter) membuat INSERT gagal:
+ *   ER_DATA_TOO_LONG: Data too long for column 'user_role' at row 1
+ * sehingga aksi bisnis (kirim ke PPK, rekam surat tugas) ikut gagal 500.
+ *
+ * Aturan:
+ *   - role digabung koma dengan urutan asli (sama seperti data lama di tabel);
+ *   - duplikat dibuang (case-insensitive);
+ *   - kalau hasil gabungan tetap melebihi batas kolom, simpan role utama saja
+ *     (lebih baik daripada potongan kata yang menyesatkan).
+ *
+ * @param {object} user  req.user sesudah middleware keycloakAuth
+ * @param {number} maxLength  lebar kolom `user_role` (default 255).
+ *   Nilai default HARUS >= lebar kolom sebenarnya — lihat
+ *   scripts/db/2026-09-22-status-history-user-role.sql.
+ */
+function getUserRoleLabel(user, maxLength = 255) {
+    const raw = user?.extractedRoles || user?.role || [];
+    const roles = (Array.isArray(raw) ? raw : [raw])
+        .filter(Boolean)
+        .map(role => String(role).trim())
+        .filter(role => role.length > 0);
+
+    if (roles.length === 0) return 'user';
+
+    // Buang duplikat tanpa mengubah urutan.
+    const seen = new Set();
+    const unique = [];
+    for (const role of roles) {
+        const key = role.toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(role);
+        }
+    }
+
+    const parsedLimit = Number(maxLength);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 255;
+    const joined = unique.join(',');
+
+    if (joined.length <= limit) return joined;
+
+    const label = getPrimaryUserRole(user);
+    console.warn(`⚠️ Label role terlalu panjang (${joined.length} > ${limit} char), disimpan sebagai "${label}" saja`);
+    return label;
+}
+
+/**
+ * Role utama user menurut prioritas aplikasi:
+ * admin > ppk > kabalai > bendahara > user.
+ *
+ * Sengaja memakai aturan pencocokan yang SAMA dengan isUserAdmin/isUserPPK/
+ * isUserKabalai/isUserBendahara supaya label tidak bertentangan dengan hak akses
+ * (mis. 'admin_tambun_raya' TIDAK dianggap 'admin' karena isUserAdmin butuh persis 'admin').
+ */
+function getPrimaryUserRole(user) {
+    const raw = user?.extractedRoles || user?.role || [];
+    const list = (Array.isArray(raw) ? raw : [raw]).map(role => String(role || '').toLowerCase());
+
+    if (list.some(role => role === 'admin')) return 'admin';
+    if (list.some(role => role === 'ppk')) return 'ppk';
+    if (list.some(role => role.includes('kabalai'))) return 'kabalai';
+    if (list.some(role => role === 'bendahara')) return 'bendahara';
+    return 'user';
+}
+
+/**
  * Helper untuk mendapatkan user ID secara konsisten
  */
 function getUserId(user) {
@@ -649,5 +719,6 @@ module.exports = {
     isRegularUser,
     getUserId,
     getUsername,
+    getUserRoleLabel,
     getUserNip  // TAMBAHKAN fungsi getUserNip ke exports
 };
