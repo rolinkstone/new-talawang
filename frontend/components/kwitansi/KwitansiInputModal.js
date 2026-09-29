@@ -75,6 +75,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 if (transportRes.data.success && transportRes.data.data.length > 0) {
                     setSptjmList(transportRes.data.data.map(item => ({
                         id: item.id || Date.now(),
+                        dbId: item.id || null, // id baris di DB (dipakai saat update agar file lama tidak terhapus)
                         jenis_transport: item.jenis_transport || '',
                         nama_maskapai: item.nama_maskapai || '',
                         kode_penerbangan: item.kode_penerbangan || '',
@@ -100,6 +101,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 if (penginapanRes.data.success && penginapanRes.data.data.length > 0) {
                     setPenginapanList(penginapanRes.data.data.map(item => ({
                         id: item.id || Date.now(),
+                        dbId: item.id || null, // id baris di DB (dipakai saat update agar file lama tidak terhapus)
                         nama_penginapan: item.nama_penginapan || '',
                         alamat_penginapan: item.alamat_penginapan || '',
                         nomor_kamar: item.nomor_kamar || '',
@@ -464,17 +466,18 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 }
                 
                 // 2. Simpan SPTJM Transport
-                const validSptjm = sptjmList.filter(item => item.jenis_transport !== '');
+                const validSptjm = sptjmList.filter(item => item.dbId || item.jenis_transport !== '');
                 
                 if (validSptjm.length > 0) {
                     const formDataToSend = new FormData();
                     
                     const sptjmData = validSptjm.map(item => ({
+                        id: item.dbId || null, // null = entri baru, angka = entri lama (di-update)
                         jenis_transport: item.jenis_transport,
                         nama_maskapai: item.nama_maskapai,
                         kode_penerbangan: item.kode_penerbangan,
                         nomor_kursi: item.nomor_kursi,
-                        files: item.files.map(f => ({ file_name: f.name }))
+                        files: item.files.map(f => ({ id: f.id || null, file_name: f.name }))
                     }));
                     
                     formDataToSend.append('sptjm_list', JSON.stringify(sptjmData));
@@ -504,6 +507,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                 
                 // 3. Simpan SPTJM Penginapan
                 const validPenginapan = penginapanList.filter(item => 
+                    item.dbId ||
                     item.nama_penginapan !== '' || 
                     item.alamat_penginapan !== '' || 
                     item.nomor_kamar !== '' || 
@@ -516,12 +520,13 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                     const formDataPenginapan = new FormData();
                     
                     const penginapanData = validPenginapan.map(item => ({
+                        id: item.dbId || null, // null = entri baru, angka = entri lama (di-update)
                         nama_penginapan: item.nama_penginapan,
                         alamat_penginapan: item.alamat_penginapan,
                         nomor_kamar: item.nomor_kamar,
                         tarif_hotel: item.tarif_hotel ? parseFloat(item.tarif_hotel) : null,
                         tgl_menginap: item.tgl_menginap,
-                        files: item.files.map(f => ({ file_name: f.name }))
+                        files: item.files.map(f => ({ id: f.id || null, file_name: f.name }))
                     }));
                     
                     formDataPenginapan.append('penginapan_list', JSON.stringify(penginapanData));
@@ -892,6 +897,16 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                                 <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
                                                             )}
                                                             <span className="text-sm text-gray-600 dark:text-gray-300 truncate max-w-xs">{fileObj.file.name}</span>
+                                                            {fileObj.isExisting && fileObj.preview && (
+                                                                <a
+                                                                    href={fileObj.preview}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+                                                                >
+                                                                    Lihat
+                                                                </a>
+                                                            )}
                                                         </div>
                                                         <button
                                                             type="button"
@@ -1045,6 +1060,16 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
                                                                 <img src={fileObj.preview} alt="preview" className="w-8 h-8 object-cover rounded" />
                                                             )}
                                                             <span className="text-sm text-gray-600 dark:text-gray-300 truncate max-w-xs">{fileObj.file.name}</span>
+                                                            {fileObj.isExisting && fileObj.preview && (
+                                                                <a
+                                                                    href={fileObj.preview}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+                                                                >
+                                                                    Lihat
+                                                                </a>
+                                                            )}
                                                         </div>
                                                         <button
                                                             type="button"

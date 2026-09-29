@@ -2260,71 +2260,116 @@ router.post('/sptjm-transport/:kwitansiId', keycloakAuth, (req, res) => {
             await connection.beginTransaction();
             
             try {
+                // Normalisasi id (hanya angka positif yang valid)
+                const toPositiveInt = (v) => {
+                    const n = Number(v);
+                    return Number.isFinite(n) && n > 0 ? n : null;
+                };
+                
+                // Id entri & file yang MASIH dipertahankan (dikirim dari form)
+                const keepEntryIds = sptjmListData
+                    .map(entry => toPositiveInt(entry.id))
+                    .filter(Boolean);
+                
+                const keepFileIds = [];
+                sptjmListData.forEach(entry => {
+                    (entry.files || []).forEach(f => {
+                        const fid = toPositiveInt(f.id);
+                        if (fid) keepFileIds.push(fid);
+                    });
+                });
+                
                 const [oldFiles] = await connection.query(
-                    'SELECT file_path FROM sptjm_transport_files WHERE kwitansi_id = ?',
+                    'SELECT id, file_path FROM sptjm_transport_files WHERE kwitansi_id = ?',
                     [kwitansiId]
                 );
                 
+                // Hapus HANYA file yang sudah di-remove user dari form (file lama lain tetap aman)
                 for (const file of oldFiles) {
-                    const filePath = path.join(__dirname, '../public', file.file_path);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                        console.log(`🗑️ Deleted old file: ${filePath}`);
+                    if (!keepFileIds.includes(file.id)) {
+                        const filePath = path.join(__dirname, '../public', file.file_path);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                            console.log(`🗑️ Deleted removed file: ${filePath}`);
+                        }
+                        await connection.query('DELETE FROM sptjm_transport_files WHERE id = ?', [file.id]);
                     }
                 }
                 
-                await connection.query('DELETE FROM sptjm_transport_files WHERE kwitansi_id = ?', [kwitansiId]);
-                await connection.query('DELETE FROM sptjm_transport WHERE kwitansi_id = ?', [kwitansiId]);
+                // Hapus HANYA entri transport yang sudah di-remove user dari form
+                const [oldEntries] = await connection.query(
+                    'SELECT id FROM sptjm_transport WHERE kwitansi_id = ?',
+                    [kwitansiId]
+                );
                 
-                console.log(`🗑️ Deleted old records for kwitansi_id: ${kwitansiId}`);
+                for (const entry of oldEntries) {
+                    if (!keepEntryIds.includes(entry.id)) {
+                        await connection.query('DELETE FROM sptjm_transport_files WHERE sptjm_transport_id = ?', [entry.id]);
+                        await connection.query('DELETE FROM sptjm_transport WHERE id = ?', [entry.id]);
+                    }
+                }
                 
-                const insertedIds = [];
                 let fileIndex = 0;
                 
                 for (let i = 0; i < sptjmListData.length; i++) {
                     const item = sptjmListData[i];
+                    const existingId = toPositiveInt(item.id);
+                    let sptjmId;
                     
-                    const [insertResult] = await connection.query(`
-                        INSERT INTO sptjm_transport 
-                        (kwitansi_id, kegiatan_id, pegawai_id, jenis_transport, nama_maskapai, kode_penerbangan, nomor_kursi)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    `, [
-                        parseInt(kwitansiId),
-                        parseInt(kegiatan_id),
-                        parseInt(pegawai_id),
-                        item.jenis_transport || null,
-                        item.nama_maskapai || null,
-                        item.kode_penerbangan || null,
-                        item.nomor_kursi || null
-                    ]);
+                    if (existingId) {
+                        // Entri lama: UPDATE saja (file lama tetap tersimpan)
+                        await connection.query(`
+                            UPDATE sptjm_transport
+                            SET jenis_transport = ?, nama_maskapai = ?, kode_penerbangan = ?, nomor_kursi = ?
+                            WHERE id = ? AND kwitansi_id = ?
+                        `, [
+                            item.jenis_transport || null,
+                            item.nama_maskapai || null,
+                            item.kode_penerbangan || null,
+                            item.nomor_kursi || null,
+                            existingId,
+                            parseInt(kwitansiId)
+                        ]);
+                        sptjmId = existingId;
+                    } else {
+                        const [insertResult] = await connection.query(`
+                            INSERT INTO sptjm_transport 
+                            (kwitansi_id, kegiatan_id, pegawai_id, jenis_transport, nama_maskapai, kode_penerbangan, nomor_kursi)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            parseInt(kwitansiId),
+                            parseInt(kegiatan_id),
+                            parseInt(pegawai_id),
+                            item.jenis_transport || null,
+                            item.nama_maskapai || null,
+                            item.kode_penerbangan || null,
+                            item.nomor_kursi || null
+                        ]);
+                        sptjmId = insertResult.insertId;
+                    }
                     
-                    insertedIds.push({
-                        index: i,
-                        id: insertResult.insertId
-                    });
-                    
-                    if (item.files && item.files.length > 0 && req.files) {
-                        for (let f = 0; f < item.files.length && fileIndex < req.files.length; f++) {
-                            const fileInfo = item.files[f];
-                            const uploadedFile = req.files[fileIndex];
-                            
-                            const filePath = `/uploads/sptjm-transport/${uploadedFile.filename}`;
-                            
-                            await connection.query(`
-                                INSERT INTO sptjm_transport_files 
-                                (sptjm_transport_id, kwitansi_id, file_path, file_name, file_type, file_size)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            `, [
-                                insertResult.insertId,
-                                parseInt(kwitansiId),
-                                filePath,
-                                fileInfo.file_name || uploadedFile.originalname,
-                                uploadedFile.mimetype,
-                                uploadedFile.size
-                            ]);
-                            
-                            fileIndex++;
-                        }
+                    // Simpan HANYA file baru (punya file blob). File lama punya id -> dilewati.
+                    for (const fileInfo of (item.files || [])) {
+                        if (toPositiveInt(fileInfo.id)) continue;
+                        if (!req.files || fileIndex >= req.files.length) break;
+                        
+                        const uploadedFile = req.files[fileIndex];
+                        const filePath = `/uploads/sptjm-transport/${uploadedFile.filename}`;
+                        
+                        await connection.query(`
+                            INSERT INTO sptjm_transport_files 
+                            (sptjm_transport_id, kwitansi_id, file_path, file_name, file_type, file_size)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        `, [
+                            sptjmId,
+                            parseInt(kwitansiId),
+                            filePath,
+                            fileInfo.file_name || uploadedFile.originalname,
+                            uploadedFile.mimetype,
+                            uploadedFile.size
+                        ]);
+                        
+                        fileIndex++;
                     }
                 }
                 
@@ -2588,72 +2633,118 @@ router.post('/sptjm-penginapan/:kwitansiId', keycloakAuth, (req, res) => {
             await connection.beginTransaction();
             
             try {
+                // Normalisasi id (hanya angka positif yang valid)
+                const toPositiveInt = (v) => {
+                    const n = Number(v);
+                    return Number.isFinite(n) && n > 0 ? n : null;
+                };
+                
+                // Id entri & file yang MASIH dipertahankan (dikirim dari form)
+                const keepEntryIds = penginapanListData
+                    .map(entry => toPositiveInt(entry.id))
+                    .filter(Boolean);
+                
+                const keepFileIds = [];
+                penginapanListData.forEach(entry => {
+                    (entry.files || []).forEach(f => {
+                        const fid = toPositiveInt(f.id);
+                        if (fid) keepFileIds.push(fid);
+                    });
+                });
+                
                 const [oldFiles] = await connection.query(
-                    'SELECT file_path FROM sptjm_penginapan_files WHERE kwitansi_id = ?',
+                    'SELECT id, file_path FROM sptjm_penginapan_files WHERE kwitansi_id = ?',
                     [kwitansiId]
                 );
                 
+                // Hapus HANYA file yang sudah di-remove user dari form (file lama lain tetap aman)
                 for (const file of oldFiles) {
-                    const filePath = path.join(__dirname, '../public', file.file_path);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                        console.log(`🗑️ Deleted old file: ${filePath}`);
+                    if (!keepFileIds.includes(file.id)) {
+                        const filePath = path.join(__dirname, '../public', file.file_path);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                            console.log(`🗑️ Deleted removed file: ${filePath}`);
+                        }
+                        await connection.query('DELETE FROM sptjm_penginapan_files WHERE id = ?', [file.id]);
                     }
                 }
                 
-                await connection.query('DELETE FROM sptjm_penginapan_files WHERE kwitansi_id = ?', [kwitansiId]);
-                await connection.query('DELETE FROM sptjm_penginapan WHERE kwitansi_id = ?', [kwitansiId]);
+                // Hapus HANYA entri penginapan yang sudah di-remove user dari form
+                const [oldEntries] = await connection.query(
+                    'SELECT id FROM sptjm_penginapan WHERE kwitansi_id = ?',
+                    [kwitansiId]
+                );
                 
-                console.log(`🗑️ Deleted old records for kwitansi_id: ${kwitansiId}`);
+                for (const entry of oldEntries) {
+                    if (!keepEntryIds.includes(entry.id)) {
+                        await connection.query('DELETE FROM sptjm_penginapan_files WHERE sptjm_penginapan_id = ?', [entry.id]);
+                        await connection.query('DELETE FROM sptjm_penginapan WHERE id = ?', [entry.id]);
+                    }
+                }
                 
-                const insertedIds = [];
                 let fileIndex = 0;
                 
                 for (let i = 0; i < penginapanListData.length; i++) {
                     const item = penginapanListData[i];
+                    const existingId = toPositiveInt(item.id);
+                    let penginapanId;
                     
-                    const [insertResult] = await connection.query(`
-                        INSERT INTO sptjm_penginapan 
-                        (kwitansi_id, kegiatan_id, pegawai_id, nama_penginapan, alamat_penginapan, nomor_kamar, tarif_hotel, tgl_menginap)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [
-                        parseInt(kwitansiId),
-                        parseInt(kegiatan_id),
-                        parseInt(pegawai_id),
-                        item.nama_penginapan || null,
-                        item.alamat_penginapan || null,
-                        item.nomor_kamar || null,
-                        item.tarif_hotel || null,
-                        item.tgl_menginap || null
-                    ]);
+                    if (existingId) {
+                        // Entri lama: UPDATE saja (file lama tetap tersimpan)
+                        await connection.query(`
+                            UPDATE sptjm_penginapan
+                            SET nama_penginapan = ?, alamat_penginapan = ?, nomor_kamar = ?, tarif_hotel = ?, tgl_menginap = ?
+                            WHERE id = ? AND kwitansi_id = ?
+                        `, [
+                            item.nama_penginapan || null,
+                            item.alamat_penginapan || null,
+                            item.nomor_kamar || null,
+                            item.tarif_hotel || null,
+                            item.tgl_menginap || null,
+                            existingId,
+                            parseInt(kwitansiId)
+                        ]);
+                        penginapanId = existingId;
+                    } else {
+                        const [insertResult] = await connection.query(`
+                            INSERT INTO sptjm_penginapan 
+                            (kwitansi_id, kegiatan_id, pegawai_id, nama_penginapan, alamat_penginapan, nomor_kamar, tarif_hotel, tgl_menginap)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            parseInt(kwitansiId),
+                            parseInt(kegiatan_id),
+                            parseInt(pegawai_id),
+                            item.nama_penginapan || null,
+                            item.alamat_penginapan || null,
+                            item.nomor_kamar || null,
+                            item.tarif_hotel || null,
+                            item.tgl_menginap || null
+                        ]);
+                        penginapanId = insertResult.insertId;
+                    }
                     
-                    insertedIds.push({
-                        index: i,
-                        id: insertResult.insertId
-                    });
-                    
-                    if (item.files && item.files.length > 0 && req.files) {
-                        for (let f = 0; f < item.files.length && fileIndex < req.files.length; f++) {
-                            const fileInfo = item.files[f];
-                            const uploadedFile = req.files[fileIndex];
-                            
-                            const filePath = `/uploads/sptjm-penginapan/${uploadedFile.filename}`;
-                            
-                            await connection.query(`
-                                INSERT INTO sptjm_penginapan_files 
-                                (sptjm_penginapan_id, kwitansi_id, file_path, file_name, file_type, file_size)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            `, [
-                                insertResult.insertId,
-                                parseInt(kwitansiId),
-                                filePath,
-                                fileInfo.file_name || uploadedFile.originalname,
-                                uploadedFile.mimetype,
-                                uploadedFile.size
-                            ]);
-                            
-                            fileIndex++;
-                        }
+                    // Simpan HANYA file baru (punya file blob). File lama punya id -> dilewati.
+                    for (const fileInfo of (item.files || [])) {
+                        if (toPositiveInt(fileInfo.id)) continue;
+                        if (!req.files || fileIndex >= req.files.length) break;
+                        
+                        const uploadedFile = req.files[fileIndex];
+                        const filePath = `/uploads/sptjm-penginapan/${uploadedFile.filename}`;
+                        
+                        await connection.query(`
+                            INSERT INTO sptjm_penginapan_files 
+                            (sptjm_penginapan_id, kwitansi_id, file_path, file_name, file_type, file_size)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        `, [
+                            penginapanId,
+                            parseInt(kwitansiId),
+                            filePath,
+                            fileInfo.file_name || uploadedFile.originalname,
+                            uploadedFile.mimetype,
+                            uploadedFile.size
+                        ]);
+                        
+                        fileIndex++;
                     }
                 }
                 
