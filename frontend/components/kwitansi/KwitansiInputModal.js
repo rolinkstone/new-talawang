@@ -1,5 +1,5 @@
 // components/kwitansi/KwitansiInputModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useSession } from 'next-auth/react';
 
@@ -56,9 +56,20 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         }
     ]);
     
+    // Guard: data existing SPTJM hanya dimuat SEKALI per kwitansi.
+    // SessionProvider (_app.js) memakai refetchInterval={30} + refetchOnWindowFocus,
+    // sehingga objek `session` (termasuk accessToken hasil rotasi) bisa berubah identitas
+    // secara berkala. Tanpa guard, effect di bawah akan berjalan ulang dan menimpa input
+    // user yang sedang diketik (mis. "Kode Penerbangan / No. Polisi" tiba-tiba kosong).
+    const loadedKwitansiRef = useRef(null);
+    
     // Load existing SPTJM data saat edit
     useEffect(() => {
         if (!isEdit || !pegawai?.kwitansi_id || !session?.accessToken) return;
+        
+        // Sudah pernah dimuat untuk kwitansi ini -> jangan timpa isian user.
+        if (loadedKwitansiRef.current === pegawai.kwitansi_id) return;
+        loadedKwitansiRef.current = pegawai.kwitansi_id;
         
         const loadExistingData = async () => {
             setDataLoading(true);
@@ -133,7 +144,7 @@ export default function KwitansiInputModal({ kegiatan, pegawai, onClose, onSucce
         };
         
         loadExistingData();
-    }, [isEdit, pegawai?.kwitansi_id, session]);
+    }, [isEdit, pegawai?.kwitansi_id, session?.accessToken]);
     
     // Jenis transport options
     const jenisTransportOptions = [
