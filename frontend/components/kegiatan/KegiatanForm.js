@@ -103,6 +103,48 @@ const buildWilayahRegencyIndex = () => {
     return wilayahRegencyPromise;
 };
 
+// Petakan pesan kegagalan dari server ke bagian form yang bermasalah,
+// supaya user tahu gagal simpan-nya di bagian mana.
+const describeSaveFailure = (message) => {
+    const msg = String(message || '').toLowerCase();
+    if (!msg) return '';
+
+    if (msg.includes('token') || msg.includes('login') || msg.includes('sesi') || msg.includes('unauthorized') || msg.includes('401')) {
+        return 'Autentikasi/sesi — token login tidak valid atau sudah kedaluwarsa. Login ulang lalu simpan kembali.';
+    }
+    if (msg.includes('hanya user biasa') || msg.includes('403') || msg.includes('akses') || msg.includes('izin') || msg.includes('permission')) {
+        return 'Hak akses — akun ini tidak berizin menambah/mengubah kegiatan.';
+    }
+    if (msg.includes('kegiatan dan mak')) {
+        return 'Data Kegiatan — nama Kegiatan dan/atau MAK belum terkirim ke server.';
+    }
+    if (msg.includes('mak')) {
+        return 'Data Kegiatan (MAK) — periksa kembali kolom MAK beserta formatnya.';
+    }
+    if (msg.includes('pegawai')) {
+        return 'Data Pegawai — periksa kembali daftar pegawai (nama wajib terisi).';
+    }
+    if (msg.includes('bendahara')) {
+        return 'Data Bendahara — bendahara belum dipilih atau datanya tidak valid.';
+    }
+    if (msg.includes('status')) {
+        return 'Status kegiatan — data dengan status ini tidak boleh diubah. Cek histori status kegiatan.';
+    }
+    if (msg.includes('duplicate') || msg.includes('duplikat') || msg.includes('unique')) {
+        return 'Data Kegiatan — kemungkinan data serupa sudah pernah tersimpan sebelumnya.';
+    }
+    if (msg.includes('data too long') || msg.includes('cannot be null') || msg.includes('foreign key') || msg.includes('sql')) {
+        return 'Penyimpanan database — ada nilai yang tidak diterima struktur tabel (mis. terlalu panjang atau kosong).';
+    }
+    if (msg.includes('network') || msg.includes('failed to fetch') || msg.includes('timeout') || msg.includes('econnrefused')) {
+        return 'Server/koneksi — backend tidak dapat dihubungi. Periksa koneksi lalu coba lagi.';
+    }
+    return 'Penyimpanan ke server — periksa kembali bagian Data Kegiatan, Data Pegawai, dan Data Bendahara.';
+};
+
+// Urutan bagian form saat menampilkan rincian kolom yang kurang
+const SECTION_ORDER = ['Jenis SPM', 'Data Kegiatan', 'Data Pegawai', 'Data Bendahara'];
+
 const KegiatanForm = ({
     editId,
     isEditMode,
@@ -135,6 +177,22 @@ const KegiatanForm = ({
     const [loadingPegawai, setLoadingPegawai] = useState(false);
     const [fetchError, setFetchError] = useState('');
 
+    // ===== Validasi terperinci: daftar kolom yang kurang, dikelompokkan per bagian =====
+    // errors  = wajib diperbaiki (menghalangi simpan)
+    // warnings = opsional/kosong, hanya informasi
+    const [validationIssues, setValidationIssues] = useState({ errors: [], warnings: [] });
+    const issuesPanelRef = useRef(null);
+    const jenisSpmSectionRef = useRef(null);
+    const dataKegiatanSectionRef = useRef(null);
+    const dataPegawaiSectionRef = useRef(null);
+    const dataBendaharaSectionRef = useRef(null);
+    const sectionRefMap = {
+        'Jenis SPM': jenisSpmSectionRef,
+        'Data Kegiatan': dataKegiatanSectionRef,
+        'Data Pegawai': dataPegawaiSectionRef,
+        'Data Bendahara': dataBendaharaSectionRef
+    };
+
     // State untuk Jenis SPM
     const [jenisSPM, setJenisSPM] = useState(formData.jenis_spm || '');
     
@@ -152,6 +210,96 @@ const KegiatanForm = ({
     const [selectedBendaharaNip, setSelectedBendaharaNip] = useState(formData.bendahara_nip || '');
     const [loadingBendahara, setLoadingBendahara] = useState(false);
     const [bendaharaError, setBendaharaError] = useState('');
+
+    // ========== Validasi terperinci ==========
+    // Kumpulkan SEMUA kolom yang kurang/bermasalah (bukan berhenti di yang pertama),
+    // supaya pesan gagal simpan langsung menunjukkan bagian dan kolom mana yang perlu diisi.
+    const collectValidationIssues = useCallback(() => {
+        const errors = [];
+        const warnings = [];
+        const add = (bucket, section, field, message) => bucket.push({ section, field, message });
+
+        // ---------- Jenis SPM ----------
+        if (!jenisSPM) {
+            add(errors, 'Jenis SPM', 'jenis_spm', 'Jenis SPM belum dipilih (LS atau KKP)');
+        }
+
+        // ---------- Data Kegiatan ----------
+        if (!String(formData.kegiatan || '').trim()) {
+            add(errors, 'Data Kegiatan', 'kegiatan', 'Nama Kegiatan masih kosong');
+        }
+
+        const makValue = String(makDisplay || formData.mak || '').trim();
+        if (!makValue) {
+            add(errors, 'Data Kegiatan', 'mak', 'MAK masih kosong');
+        } else if (!validateMakFormat(makValue)) {
+            add(errors, 'Data Kegiatan', 'mak', `Format MAK "${makValue}" belum sesuai pola XXXX.XXX.XXX.XXX.XXXXXX.X`);
+        }
+
+        if (!String(formData.kota_kab_kecamatan || '').trim()) {
+            add(errors, 'Data Kegiatan', 'kota_kab_kecamatan', 'Kabupaten/Kota belum dipilih (bagian Lokasi Kegiatan)');
+        }
+
+        if (!String(formData.user_id || '').trim()) {
+            add(errors, 'Data Kegiatan', 'user_id', 'User ID pembuat data belum tersedia — muat ulang halaman atau login kembali');
+        }
+
+        if (!formData.rencana_tanggal_pelaksanaan) {
+            add(warnings, 'Data Kegiatan', 'rencana_tanggal_pelaksanaan', 'Rencana tanggal pelaksanaan (awal) masih kosong');
+        }
+        if (!formData.rencana_tanggal_pelaksanaan_akhir) {
+            add(warnings, 'Data Kegiatan', 'rencana_tanggal_pelaksanaan_akhir', 'Rencana tanggal pelaksanaan (akhir) masih kosong');
+        } else if (formData.rencana_tanggal_pelaksanaan && formData.rencana_tanggal_pelaksanaan_akhir < formData.rencana_tanggal_pelaksanaan) {
+            add(errors, 'Data Kegiatan', 'rencana_tanggal_pelaksanaan_akhir', 'Tanggal akhir pelaksanaan lebih awal daripada tanggal mulai');
+        }
+
+        if (String(formData.target_output_yg_akan_dicapai || '').trim() === '') {
+            add(warnings, 'Data Kegiatan', 'target_output_yg_akan_dicapai', 'Target Output yang akan dicapai masih kosong');
+        }
+
+        // ---------- Data Pegawai ----------
+        if (!Array.isArray(pegawaiList) || pegawaiList.length === 0) {
+            add(errors, 'Data Pegawai', 'pegawai', 'Belum ada pegawai yang ditambahkan (minimal 1 pegawai)');
+        } else {
+            pegawaiList.forEach((p, idx) => {
+                const label = `Pegawai ke-${idx + 1}`;
+                const nama = String(p?.nama || '').trim();
+
+                if (!nama) {
+                    add(errors, 'Data Pegawai', `pegawai_${idx}_nama`, `${label}: nama pegawai masih kosong`);
+                }
+
+                const kurang = [];
+                if (!String(p?.nip || '').trim()) kurang.push('NIP');
+                if (!String(p?.pangkat || '').trim()) kurang.push('pangkat/golongan');
+                if (!String(p?.jabatan || '').trim()) kurang.push('jabatan');
+                if (kurang.length > 0) {
+                    add(warnings, 'Data Pegawai', `pegawai_${idx}_pelengkap`, `${label}${nama ? ` (${nama})` : ''}: ${kurang.join(', ')} masih kosong`);
+                }
+
+                if ((Number(p?.total_biaya) || 0) <= 0) {
+                    add(warnings, 'Data Pegawai', `pegawai_${idx}_total_biaya`, `${label}${nama ? ` (${nama})` : ''}: total biaya masih Rp 0 — periksa rincian transport/uang harian/penginapan`);
+                }
+            });
+        }
+
+        // ---------- Data Bendahara ----------
+        if (!String(selectedBendaharaId || formData.bendahara_id || '').trim() &&
+            !String(formData.bendahara_nama || '').trim()) {
+            add(errors, 'Data Bendahara', 'bendahara_id', 'Bendahara belum dipilih');
+        }
+
+        return { errors, warnings };
+    }, [formData, pegawaiList, jenisSPM, makDisplay, selectedBendaharaId]);
+
+    // Panel rincian hanya muncul setelah percobaan simpan gagal, lalu isinya
+    // diperbarui langsung mengikuti perbaikan user (kolom yang sudah diisi otomatis hilang).
+    useEffect(() => {
+        setValidationIssues(prev => {
+            if (prev.errors.length === 0 && prev.warnings.length === 0) return prev;
+            return collectValidationIssues();
+        });
+    }, [formData, pegawaiList, selectedBendaharaId, collectValidationIssues]);
 
     // Opsi bendahara: gabungan daftar dari Keycloak + bendahara yang sudah tersimpan pada data
     // (agar nilai sebelumnya tetap tampil walau daftar bendahara tidak dapat diambil).
@@ -708,30 +856,53 @@ const KegiatanForm = ({
         }
     }, [showMakDropdown, filteredPagu]);
 
+    const groupIssuesBySection = (items) => SECTION_ORDER
+        .map(section => ({ section, items: items.filter(it => it.section === section) }))
+        .filter(group => group.items.length > 0);
+
+    // Arahkan user ke kolom pertama yang bermasalah (kalau kolomnya ada di form),
+    // kalau tidak ada (mis. bagian pegawai/bendahara) lompat ke section-nya.
+    const scrollToFirstIssue = (issues) => {
+        const first = issues[0];
+        if (!first) return;
+
+        const el = first.field ? document.querySelector(`[name="${first.field}"]`) : null;
+        if (el && typeof el.focus === 'function') {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            try { el.focus({ preventScroll: true }); } catch (_) { /* abaikan */ }
+            return;
+        }
+
+        const target = sectionRefMap[first.section]?.current || issuesPanelRef.current;
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    const isFieldInvalid = (field) => validationIssues.errors.some(item => item.field === field);
+
+    const fieldBorderClass = (field) => (isFieldInvalid(field)
+        ? 'border-red-500 ring-1 ring-red-400 dark:border-red-500'
+        : 'border-gray-300 dark:border-gray-600');
+
+    const backendErrorHint = useMemo(
+        () => (validationIssues.errors.length === 0 ? describeSaveFailure(formError) : ''),
+        [formError, validationIssues.errors.length]
+    );
+
     // ========== PERBAIKAN UTAMA: TAMBAHKAN PANGKAT KE DATA YANG DIKIRIM ==========
     const handleSubmitForm = async (e) => {
         e.preventDefault();
-        
-        if (!formData.jenis_spm) {
-            setFormError('Jenis SPM harus dipilih');
+
+        // Validasi menyeluruh: tampilkan SEMUA kolom yang kurang beserta bagiannya
+        const { errors, warnings } = collectValidationIssues();
+        setValidationIssues({ errors, warnings });
+
+        if (errors.length > 0) {
+            setFormError(`Gagal menyimpan: ada ${errors.length} kolom wajib yang belum lengkap/valid. Rinciannya per bagian ada di panel merah di atas.`);
+            scrollToFirstIssue(errors);
             return;
         }
-        
-        if (!formData.user_id) {
-            setFormError('User ID harus diisi');
-            return;
-        }
-        
-        if (pegawaiList.length === 0) {
-            setFormError('Minimal harus ada satu pegawai');
-            return;
-        }
-        
-        const invalidPegawai = pegawaiList.find(p => !p.nama || p.nama.trim() === '');
-        if (invalidPegawai) {
-            setFormError('Nama pegawai harus diisi untuk semua pegawai');
-            return;
-        }
+
+        setFormError('');
         
         // 🔥 PERBAIKAN: Buat data baru dengan menambahkan field pangkat untuk setiap pegawai
         const dataToSend = {
@@ -799,12 +970,85 @@ const KegiatanForm = ({
             {/* Error Messages */}
             {formError && (
                 <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md border border-red-200 dark:border-red-800">
-                    <div className="flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="flex items-start">
+                        <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
-                        {formError}
+                        <div className="flex-1">
+                            <div className="font-medium">{formError}</div>
+                            {backendErrorHint && (
+                                <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800 text-sm">
+                                    <span className="font-semibold">Kemungkinan gagal pada bagian: </span>
+                                    {backendErrorHint}
+                                </div>
+                            )}
+                        </div>
                     </div>
+                </div>
+            )}
+
+            {/* Rincian kolom yang belum lengkap — dikelompokkan per bagian form */}
+            {(validationIssues.errors.length > 0 || validationIssues.warnings.length > 0) && (
+                <div ref={issuesPanelRef} className="mb-4 space-y-3">
+                    {validationIssues.errors.length > 0 && (
+                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-800 rounded-md">
+                            <div className="flex items-start">
+                                <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                                <div className="flex-1">
+                                    <div className="font-semibold text-red-800 dark:text-red-200">
+                                        Data belum lengkap — {validationIssues.errors.length} kolom wajib perlu diperbaiki
+                                    </div>
+                                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                                        Lengkapi bagian berikut, lalu simpan kembali:
+                                    </p>
+                                    {groupIssuesBySection(validationIssues.errors).map(group => (
+                                        <div key={group.section} className="mt-3">
+                                            <div className="text-sm font-semibold text-red-800 dark:text-red-200">
+                                                ▸ {group.section}
+                                            </div>
+                                            <ul className="mt-1 ml-5 list-disc space-y-0.5 text-sm text-red-700 dark:text-red-300">
+                                                {group.items.map(item => (
+                                                    <li key={item.field}>{item.message}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {validationIssues.warnings.length > 0 && (
+                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800 rounded-md">
+                            <div className="flex items-start">
+                                <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <div className="flex-1">
+                                    <div className="font-semibold text-amber-800 dark:text-amber-200">
+                                        Ada {validationIssues.warnings.length} kolom yang masih kosong
+                                    </div>
+                                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                                        Tidak menghalangi penyimpanan, tetapi sebaiknya dilengkapi:
+                                    </p>
+                                    {groupIssuesBySection(validationIssues.warnings).map(group => (
+                                        <div key={group.section} className="mt-3">
+                                            <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                                ▸ {group.section}
+                                            </div>
+                                            <ul className="mt-1 ml-5 list-disc space-y-0.5 text-sm text-amber-700 dark:text-amber-300">
+                                                {group.items.map(item => (
+                                                    <li key={item.field}>{item.message}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
             
@@ -826,7 +1070,7 @@ const KegiatanForm = ({
             )}
 
             {/* Jenis SPM Section */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div ref={jenisSpmSectionRef} className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/40 dark:to-indigo-900/40 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div className="mb-2">
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                         <svg className="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -903,9 +1147,9 @@ const KegiatanForm = ({
                 )}
             </div>
             
-            <form onSubmit={handleSubmitForm} className="space-y-6">
+            <form onSubmit={handleSubmitForm} noValidate className="space-y-6">
                 {/* Data Kegiatan */}
-                <div className="space-y-4">
+                <div ref={dataKegiatanSectionRef} className="space-y-4">
                     <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2">Data Kegiatan</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         
@@ -919,7 +1163,7 @@ const KegiatanForm = ({
                                 value={formData.kegiatan}
                                 onChange={handleFormChange}
                                 required
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 ${fieldBorderClass('kegiatan')}`}
                                 placeholder="Contoh: Pengambilan sampling pangan segar"
                             />
                         </div>
@@ -941,7 +1185,7 @@ const KegiatanForm = ({
                                     onFocus={() => setShowMakDropdown(true)}
                                     onBlur={() => setTimeout(() => setShowMakDropdown(false), 200)}
                                     placeholder={getMakPlaceholder()}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg"
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg dark:bg-gray-700 dark:text-gray-100 ${fieldBorderClass('mak')}`}
                                     required
                                     maxLength={29}
                                     autoComplete="off"
@@ -1211,7 +1455,7 @@ const KegiatanForm = ({
                                         <select
                                             value={selectedKabupaten}
                                             onChange={handleKabupatenChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 ${fieldBorderClass('kota_kab_kecamatan')}`}
                                             disabled={!selectedProvinsi || loadingDaerah}
                                             required
                                         >
@@ -1347,7 +1591,7 @@ const KegiatanForm = ({
                 </div>
 
                 {/* Data Pegawai */}
-                <div className="space-y-4">
+                <div ref={dataPegawaiSectionRef} className="space-y-4">
                     <div className="flex justify-between items-center">
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                             {loadingPegawai ? (
@@ -1377,7 +1621,7 @@ const KegiatanForm = ({
                 </div>
 
                 {/* SECTION: DATA BENDAHARA - DARI KEYCLOAK */}
-                <div className="space-y-4">
+                <div ref={dataBendaharaSectionRef} className="space-y-4">
                     <div className="border-t pt-4">
                         <h4 className="text-lg font-medium text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2 mb-4 flex items-center">
                             <svg className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1427,7 +1671,7 @@ const KegiatanForm = ({
                                     <select
                                         value={selectedBendaharaId}
                                         onChange={handleBendaharaChange}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 ${fieldBorderClass('bendahara_id')}`}
                                         required
                                     >
                                         <option value="">-- Pilih Bendahara --</option>
@@ -1481,7 +1725,13 @@ const KegiatanForm = ({
                     </div>
                 </div>
                 
-                <div className="flex justify-end space-x-3 pt-4 border-t">
+                <div className="pt-4 border-t space-y-2">
+                    {!formData.user_id && (
+                        <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300 text-right">
+                            Tombol simpan dinonaktifkan karena <span className="font-medium">User ID</span> belum tersedia. Muat ulang halaman atau login kembali.
+                        </div>
+                    )}
+                    <div className="flex justify-end space-x-3">
                     <button
                         type="button"
                         onClick={onCancel}
@@ -1505,6 +1755,7 @@ const KegiatanForm = ({
                             </>
                         ) : isEditMode ? 'Perbarui Data' : 'Simpan Kegiatan & Pegawai'}
                     </button>
+                    </div>
                 </div>
             </form>
         </div>
