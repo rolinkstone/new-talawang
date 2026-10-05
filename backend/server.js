@@ -39,7 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 app.use('/api/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // ========== KEYCLOAK CONFIG (dari env vars — TANPA secret hardcoded) ==========
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: '.env' });
 
 const KEYCLOAK_CONFIG = {
     url: process.env.KEYCLOAK_SERVER_URL || 'https://auth.bbpompky.id',

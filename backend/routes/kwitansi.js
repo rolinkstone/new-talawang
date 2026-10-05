@@ -1229,7 +1229,21 @@ router.post('/approve/:kwitansiId', keycloakAuth, async (req, res) => {
                 n.bendahara_nama,
                 n.status as kegiatan_status,
                 n.status_2 as kegiatan_status_2,
-                COALESCE(l.lpd_status, 'belum_ada') as lpd_status
+                -- LPD bersifat shared per No ST: jika kegiatan lain dengan No ST yang sama
+                -- sudah 'selesai', maka LPD kegiatan ini dianggap selesai juga.
+                CASE
+                    WHEN l.lpd_status = 'selesai' THEN 'selesai'
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM nominatif_kegiatan n2
+                        INNER JOIN lpd_status l2 ON n2.id = l2.kegiatan_id
+                        WHERE n2.no_st = n.no_st
+                          AND n2.no_st IS NOT NULL
+                          AND TRIM(n2.no_st) <> ''
+                          AND l2.lpd_status = 'selesai'
+                    ) THEN 'selesai'
+                    ELSE COALESCE(l.lpd_status, 'belum_ada')
+                END as lpd_status
             FROM kwitansi_perjadin k
             JOIN nominatif_pegawai p ON k.pegawai_id = p.id
             JOIN nominatif_kegiatan n ON k.kegiatan_id = n.id
