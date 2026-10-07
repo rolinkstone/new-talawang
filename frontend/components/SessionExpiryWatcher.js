@@ -2,15 +2,21 @@
 // Watcher global (dipasang di _app.js) untuk:
 //  1. Menampilkan peringatan + countdown sebelum session habis.
 //  2. Auto-redirect ke /login?message=session_expired saat session habis.
-//  3. Menangkap response 401 dari API (token tidak valid) lalu memperlakukan
-//     sebagai session habis, sehingga semua halaman protected mendapat perilaku sama.
+//  3. Menangkap response 401 dari API: sesi dicoba dipulihkan lebih dulu
+//     (token disegarkan di server). Hanya kalau sesi memang sudah tidak bisa
+//     dipulihkan, user diarahkan ke login — sehingga satu 401 sesaat tidak
+//     membuang isian form yang sedang dikerjakan.
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
-import { useSession, signOut } from 'next-auth/react';
-import { getTimeLeftMs, SESSION_WARNING_MS, formatCountdown } from '../utils/sessionExpiry';
+import { getSession, useSession, signOut } from 'next-auth/react';
+import { getTimeLeftMs, isSessionExpired, SESSION_WARNING_MS, formatCountdown } from '../utils/sessionExpiry';
 
 const LOGIN_URL = '/login?message=session_expired';
+
+// Mode proxy (/backend/...): Authorization diisi proxy dari cookie httpOnly,
+// jadi header dari browser tidak perlu (dan tidak boleh) ditulis ulang.
+const API_VIA_PROXY = String(process.env.NEXT_PUBLIC_API_URL || '').startsWith('/');
 
 export default function SessionExpiryWatcher() {
     const router = useRouter();
@@ -49,15 +55,64 @@ export default function SessionExpiryWatcher() {
         redirectToLogin();
     };
 
-    // ==== Interceptor global: 401 dari axios mana pun = token invalid ====
+    // ==== Interceptor global: 401 dari axios = token mungkin kedaluwarsa ====
+    // Sebelum mengeluarkan user, sesi dicoba dipulihkan (getSession memicu
+    // refresh token di server) lalu request diulang sekali dengan token baru.
     useEffect(() => {
         let disposed = false;
+        let inFlightRecovery = null;
+
+        // Kembalikan session terbaru bila masih valid; null bila tidak bisa
+        // dipulihkan (tidak ada sesi / refresh gagal / sesi sudah habis).
+        const recoverSession = () => {
+            if (!inFlightRecovery) {
+                inFlightRecovery = getSession()
+                    .then((fresh) => (fresh && !fresh.error && !isSessionExpired(fresh) ? fresh : null))
+                    .catch(() => null)
+                    .then((result) => {
+                        inFlightRecovery = null;
+                        return result;
+                    });
+            }
+            return inFlightRecovery;
+        };
+
         const responseInterceptor = axios.interceptors.response.use(
             (res) => res,
-            (err) => {
-                if (err?.response?.status === 401 && !disposed) {
-                    window.dispatchEvent(new Event('session-expired'));
+            async (err) => {
+                if (disposed || err?.response?.status !== 401) {
+                    return Promise.reject(err);
                 }
+
+                const config = err?.config;
+
+                // Sesi mungkin masih bisa dipulihkan (token disegarkan di
+                // server). Kalau berhasil, user TIDAK dikeluarkan dan request
+                // diulang sekali dengan token baru.
+                if (config && !config.__retriedAfterRefresh) {
+                    const fresh = await recoverSession();
+
+                    if (fresh) {
+                        config.__retriedAfterRefresh = true;
+                        if (!API_VIA_PROXY && fresh.accessToken) {
+                            const headers = config.headers?.toJSON
+                                ? { ...config.headers.toJSON() }
+                                : { ...config.headers };
+                            headers.Authorization = `Bearer ${fresh.accessToken}`;
+                            config.headers = headers;
+                        }
+                        console.log('🔁 401 ditangani: token disegarkan, request diulang');
+                        return axios(config);
+                    }
+                } else if (config) {
+                    // Sudah diulang dengan token baru dan tetap 401 → bukan
+                    // soal token kedaluwarsa; teruskan error ke pemanggil saja.
+                    return Promise.reject(err);
+                }
+
+                // Sesi benar-benar tidak dapat dipulihkan → perlakukan sebagai
+                // sesi habis (user diarahkan ke halaman login).
+                window.dispatchEvent(new Event('session-expired'));
                 return Promise.reject(err);
             }
         );

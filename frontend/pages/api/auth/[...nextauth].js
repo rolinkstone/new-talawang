@@ -23,6 +23,45 @@ function formatNipWithSpaces(nip) {
     return cleanNip;
 }
 
+// Access token Keycloak (default ±5 menit) disegarkan 60 detik sebelum
+// kedaluwarsa. Margin ini harus lebih besar dari interval polling session di
+// _app.js (30 detik) supaya token yang dipakai komponen selalu masih valid.
+const ACCESS_TOKEN_REFRESH_MARGIN_SECONDS = 60;
+
+// Perbarui access token memakai refresh token yang tersimpan di JWT httpOnly
+// (refresh token tidak pernah dikirim ke browser). Dipanggil dari callback jwt
+// hanya ketika access token sudah/hampir kedaluwarsa.
+async function refreshAccessToken(token) {
+  const issuer = String(process.env.KEYCLOAK_ISSUER || '').replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: process.env.KEYCLOAK_CLIENT_ID,
+    client_secret: process.env.KEYCLOAK_CLIENT_SECRET,
+    refresh_token: token.refreshToken,
+  });
+
+  const response = await fetch(`${issuer}/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params,
+  });
+  const refreshed = await response.json();
+
+  if (!response.ok || !refreshed.access_token) {
+    throw refreshed;
+  }
+
+  console.log('🔄 JWT - Access token Keycloak disegarkan');
+  return {
+    ...token,
+    accessToken: refreshed.access_token,
+    idToken: refreshed.id_token || token.idToken,
+    refreshToken: refreshed.refresh_token || token.refreshToken,
+    expiresAt: Math.floor(Date.now() / 1000) + (Number(refreshed.expires_in) || 300),
+    error: null,
+  };
+}
+
 export const authOptions = {
   providers: [
     KeycloakProvider({
@@ -103,7 +142,29 @@ export const authOptions = {
         token.username = user.username;
         token.accessToken = account.access_token;
         token.idToken = account.id_token;
+        token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        token.error = null;
+      } else if (
+        token.expiresAt &&
+        Date.now() >= (token.expiresAt - ACCESS_TOKEN_REFRESH_MARGIN_SECONDS) * 1000
+      ) {
+        // Access token sudah/hampir kedaluwarsa → segarkan di server. Tanpa ini
+        // token tetap basi sampai user terlempar ke halaman login (dan isian
+        // form yang sedang dikerjakan ikut hilang).
+        if (!token.refreshToken) {
+          // Sesi lama (login sebelum refresh token disimpan) atau refresh token
+          // dimatikan di Keycloak: access token tidak bisa diperpanjang, jadi
+          // tandai sesi bermasalah agar user diminta login ulang.
+          console.warn('⚠️ JWT - Refresh token tidak tersedia, sesi harus login ulang');
+          return { ...token, error: 'RefreshAccessTokenError' };
+        }
+        try {
+          return await refreshAccessToken(token);
+        } catch (error) {
+          console.error('❌ JWT - Gagal menyegarkan token Keycloak:', error?.error || error?.message || error);
+          return { ...token, error: 'RefreshAccessTokenError' };
+        }
       }
       
       console.log("🔄 JWT - Token has nip_raw:", !!token.nip_raw, "| has idToken:", !!token.idToken);
@@ -134,8 +195,10 @@ export const authOptions = {
         // server-side di events.signOut).
         const viaProxy = String(process.env.NEXT_PUBLIC_API_URL || '').startsWith('/');
         session.accessToken = viaProxy ? CLIENT_ACCESS_TOKEN_PLACEHOLDER : token.accessToken;
-        session.expires = token.expiresAt ? 
-          new Date(token.expiresAt * 1000).toISOString() : null;
+        // `session.expires` sengaja TIDAK diisi dari umur access token Keycloak.
+        // Nilai dari NextAuth (session.maxAge, bergulir) adalah umur sesi yang
+        // sebenarnya; access token tetap diperpanjang otomatis lewat refresh.
+        session.error = token.error || null;
       }
       
       console.log("💼 SESSION - NIP_raw value:", session.user?.nip_raw);
