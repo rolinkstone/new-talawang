@@ -7,6 +7,20 @@ const fs = require('fs');
 const db = require('../db');
 const { keycloakAuth, getUsername, getUserId } = require('../middleware/keycloakAuth');
 const { getLpdCutoffDate } = require('../utils/appSettings');
+const {
+    decryptLokasi,
+    isEncryptedLokasi,
+    isEncryptedLokasiV2,
+    decryptLokasiV2,
+    parseLokasiBundle,
+    unwrapDekFromBundle,
+    getLokasiCodeFromKeyEnc,
+    totpKeyId,
+    maskLokasi
+} = require('../utils/lokasiCrypto');
+const { verifyTotpToken } = require('../utils/totpCrypto');
+const { getEnabledTotpSecret, markTotpUsed } = require('../utils/totpStore');
+const { totpLimiter } = require('../utils/rateLimiter');
 
 // Setup upload directory untuk dokumentasi LPD
 const lpdUploadDir = path.join(__dirname, '../public/uploads/lpd-dokumentasi');
@@ -181,6 +195,158 @@ async function isUserInKegiatan(kegiatanId, userId, userNip, userUsername) {
     }
 }
 
+// POST - Buka (dekripsi) lokasi kegiatan.
+// Dua cara:
+//   1. `token`: 6 digit Google Authenticator milik PEMBUAT kegiatan (disarankan).
+//   2. `kode`: kode enkripsi 16 karakter (cara lama, tetap didukung).
+// Dekripsi bersifat PERMANEN: hasil dekripsi disimpan kembali ke database dan
+// flag enkripsi dihapus, sehingga semua user (termasuk admin) melihat lokasi
+// asli tanpa perlu kode lagi.
+router.post('/lokasi/decrypt', keycloakAuth, totpLimiter, async (req, res) => {
+    const { kegiatan_id, kode, token } = req.body || {};
+
+    if (!kegiatan_id || (!kode && !token)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Kegiatan dan kode authenticator/kode enkripsi wajib diisi'
+        });
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT user_id, kota_kab_kecamatan, kota_kab_kecamatan_encrypted, kota_kab_kecamatan_key_enc
+             FROM nominatif_kegiatan
+             WHERE id = ?`,
+            [kegiatan_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
+        }
+
+        const row = rows[0];
+
+        if (Number(row.kota_kab_kecamatan_encrypted) !== 1 || !isEncryptedLokasi(row.kota_kab_kecamatan)) {
+            return res.status(200).json({
+                success: true,
+                message: 'Lokasi kegiatan tidak terenkripsi',
+                data: { tempat_pelaksanaan: row.kota_kab_kecamatan || '' }
+            });
+        }
+
+        let tempat = null;
+
+        if (token) {
+            const currentUserId = getUserId(req.user);
+
+            if (String(row.user_id) !== String(currentUserId)) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Kode authenticator hanya dapat dipakai oleh pembuat kegiatan'
+                });
+            }
+
+            const secret = await getEnabledTotpSecret(currentUserId);
+            if (!secret) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Google Authenticator belum diaktifkan. Aktifkan di halaman Profil atau gunakan kode enkripsi.'
+                });
+            }
+
+            if (!verifyTotpToken(secret, token)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Kode authenticator salah atau sudah kedaluwarsa'
+                });
+            }
+
+            if (isEncryptedLokasiV2(row.kota_kab_kecamatan)) {
+                const bundle = parseLokasiBundle(row.kota_kab_kecamatan_key_enc);
+                if (!bundle) {
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Kunci lokasi tidak dapat dibaca. Periksa LOKASI_ENCRYPTION_KEY di server'
+                    });
+                }
+
+                if (!bundle.totp) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Lokasi ini dienkripsi sebelum authenticator diaktifkan. Gunakan kode enkripsi 16 karakter untuk membukanya.'
+                    });
+                }
+
+                if (bundle.totp_kid && bundle.totp_kid !== totpKeyId(secret)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Authenticator sudah dihubungkan ulang dengan secret baru. Gunakan kode enkripsi 16 karakter untuk lokasi ini.'
+                    });
+                }
+
+                const dek = unwrapDekFromBundle(bundle, { totpSecret: secret });
+                if (!dek) {
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Kunci lokasi tidak dapat dibuka. Periksa LOKASI_ENCRYPTION_KEY di server'
+                    });
+                }
+
+                tempat = decryptLokasiV2(row.kota_kab_kecamatan, dek);
+            } else {
+                const lokasiCode = getLokasiCodeFromKeyEnc(row.kota_kab_kecamatan_key_enc);
+                if (!lokasiCode) {
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Kode enkripsi lokasi tidak dapat dibuka. Periksa LOKASI_ENCRYPTION_KEY di server'
+                    });
+                }
+
+                tempat = decryptLokasi(row.kota_kab_kecamatan, lokasiCode);
+            }
+
+            if (tempat) {
+                await markTotpUsed(currentUserId);
+            }
+        } else {
+            if (isEncryptedLokasiV2(row.kota_kab_kecamatan)) {
+                const bundle = parseLokasiBundle(row.kota_kab_kecamatan_key_enc);
+                const dek = bundle ? unwrapDekFromBundle(bundle, { code: String(kode).trim() }) : null;
+                tempat = dek ? decryptLokasiV2(row.kota_kab_kecamatan, dek) : null;
+            } else {
+                tempat = decryptLokasi(row.kota_kab_kecamatan, String(kode).trim());
+            }
+        }
+
+        if (!tempat) {
+            return res.status(400).json({
+                success: false,
+                message: 'Kode enkripsi salah'
+            });
+        }
+
+        // Simpan hasil dekripsi secara permanen dan hapus data enkripsinya.
+        await db.query(
+            `UPDATE nominatif_kegiatan
+             SET kota_kab_kecamatan = ?,
+                 kota_kab_kecamatan_encrypted = 0,
+                 kota_kab_kecamatan_key_enc = NULL,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [tempat, kegiatan_id]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Lokasi berhasil dibuka dan disimpan permanen',
+            data: { tempat_pelaksanaan: tempat }
+        });
+    } catch (error) {
+        console.error('❌ Error decrypt lokasi:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
     try {
         const user = req.user;
@@ -211,6 +377,7 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 n.tgl_st,
                 n.mak,
                 n.kota_kab_kecamatan as tempat,
+                n.kota_kab_kecamatan_encrypted,
                 n.status_2,
                 n.jenis_spm,
                 n.user_id,
@@ -463,7 +630,8 @@ router.get('/daftar-kegiatan', keycloakAuth, async (req, res) => {
                 no_st: kegiatan.no_st,
                 tgl_st: kegiatan.tgl_st,
                 mak: kegiatan.mak,
-                tempat: kegiatan.tempat,
+                tempat: maskLokasi(kegiatan.tempat),
+                tempat_terenkripsi: Number(kegiatan.kota_kab_kecamatan_encrypted) === 1,
                 tgl_mulai: kegiatan.tgl_mulai,
                 tgl_selesai: kegiatan.tgl_selesai,
                 status: kegiatan.status_2,
@@ -574,6 +742,7 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 n.kegiatan as nama_kegiatan,
                 n.mak,
                 n.kota_kab_kecamatan as tempat_pelaksanaan,
+                n.kota_kab_kecamatan_encrypted,
                 n.rencana_tanggal_pelaksanaan as tgl_mulai,
                 n.rencana_tanggal_pelaksanaan_akhir as tgl_selesai,
                 DATEDIFF(n.rencana_tanggal_pelaksanaan_akhir, n.rencana_tanggal_pelaksanaan) + 1 as lama_perjalanan,
@@ -727,7 +896,8 @@ router.get('/kegiatan/:kegiatanId', keycloakAuth, async (req, res) => {
                 lama_perjalanan: `${lamaPerjalanan} (hari)`,
                 tanggal_mulai: formatTanggal(kegiatanData.tgl_mulai),
                 tanggal_selesai: formatTanggal(kegiatanData.tgl_selesai),
-                tempat_pelaksanaan: kegiatanData.tempat_pelaksanaan || ''
+                tempat_pelaksanaan: maskLokasi(kegiatanData.tempat_pelaksanaan) || '',
+                tempat_pelaksanaan_terenkripsi: Number(kegiatanData.kota_kab_kecamatan_encrypted) === 1
             },
             pembiayaan: {
                 mak: kegiatanData.mak || ''
@@ -1746,6 +1916,7 @@ router.get('/print/:kegiatanId', keycloakAuth, async (req, res) => {
                 n.kegiatan as nama_kegiatan,
                 n.mak,
                 n.kota_kab_kecamatan as tempat_pelaksanaan,
+                n.kota_kab_kecamatan_encrypted,
                 n.rencana_tanggal_pelaksanaan as tgl_mulai,
                 n.rencana_tanggal_pelaksanaan_akhir as tgl_selesai,
                 n.ppk_nama,
@@ -1853,7 +2024,8 @@ router.get('/print/:kegiatanId', keycloakAuth, async (req, res) => {
             mak: kegiatanData.mak,
             tgl_mulai: kegiatanData.tgl_mulai,
             tgl_selesai: kegiatanData.tgl_selesai,
-            tempat_pelaksanaan: kegiatanData.tempat_pelaksanaan || '-',
+            tempat_pelaksanaan: maskLokasi(kegiatanData.tempat_pelaksanaan) || '-',
+            tempat_pelaksanaan_terenkripsi: Number(kegiatanData.kota_kab_kecamatan_encrypted) === 1,
             lama_perjalanan: `${lamaPerjalanan} (${lamaPerjalanan} hari)`,
             petugas_pelaksana: pegawaiList.map(p => ({
                 nama: p.nama,

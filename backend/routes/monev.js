@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
+const { maskLokasi } = require('../utils/lokasiCrypto');
 
 // Helper untuk mengecek role user
 function getUserRoleInfo(user) {
@@ -166,6 +167,8 @@ router.get('/', keycloakAuth, requireMonevAccess, async (req, res) => {
 
         console.log(`📝 Executing monev query...`);
         const [rows] = await db.query(query, params);
+
+        rows.forEach(row => { row.tempat = maskLokasi(row.tempat); });
 
         if (rows.length === 0) {
             return res.status(200).json({
@@ -378,6 +381,7 @@ router.get('/pegawai/:pegawaiId', keycloakAuth, requireMonevAccess, async (req, 
         }
 
         const pegawaiData = pegawai[0];
+        pegawaiData.tempat = maskLokasi(pegawaiData.tempat);
 
         // Ambil rincian biaya
         const [biayaList] = await db.query(`

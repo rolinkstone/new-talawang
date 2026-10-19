@@ -105,6 +105,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - JWT_SECRET=${JWT_SECRET}
       - SIGNED_URL_SECRET=${SIGNED_URL_SECRET}
+      - LOKASI_ENCRYPTION_KEY=${LOKASI_ENCRYPTION_KEY}
       # ---------- URL & CORS ----------
       # FRONTEND_URL dipakai backend/server.js untuk redirect setelah logout.
       - FRONTEND_URL=${FRONTEND_URL}

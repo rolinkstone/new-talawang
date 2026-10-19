@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
+const { maskLokasi } = require('../utils/lokasiCrypto');
 
 // ========== HELPER FUNCTIONS ==========
 
@@ -371,6 +372,8 @@ router.get('/pegawai/:nip', keycloakAuth, async (req, res) => {
         `;
         
         const [rows] = await db.query(query, [normalizedNip, status_2, jenis_spm, filterTahun, filterTahun]);
+
+        rows.forEach(row => { row.lokasi = maskLokasi(row.lokasi); });
         
         if (rows.length === 0) {
             return res.status(404).json({

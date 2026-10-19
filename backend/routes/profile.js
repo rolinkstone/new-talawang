@@ -7,6 +7,9 @@ const fs = require('fs');
 const db = require('../db');
 const { keycloakAuth, getUsername, getUserId, getUserNip } = require('../middleware/keycloakAuth');
 
+// Sub-router pengelolaan Google Authenticator (TOTP): /api/profile/totp
+router.use('/totp', require('./profileTotp'));
+
 // Setup upload directory for TTD
 const uploadDir = path.join(__dirname, '../public/uploads/ttd');
 if (!fs.existsSync(uploadDir)) {

@@ -171,6 +171,12 @@ const KegiatanForm = ({
     // Status pemulihan pilihan lokasi dari `kota_kab_kecamatan` saat mode edit
     const [lokasiStatus, setLokasiStatus] = useState('idle');
     const lokasiRecoveryKeyRef = useRef(null);
+
+    // Kode enkripsi lokasi (hanya untuk pembuat kegiatan)
+    const [showLokasiCodeModal, setShowLokasiCodeModal] = useState(false);
+    const [lokasiCode, setLokasiCode] = useState('');
+    const [loadingLokasiCode, setLoadingLokasiCode] = useState(false);
+    const [lokasiCodeError, setLokasiCodeError] = useState('');
     
     // State untuk autocomplete pegawai
     const [pegawaiSuggestions, setPegawaiSuggestions] = useState([]);
@@ -648,6 +654,13 @@ const KegiatanForm = ({
         }
         if (lokasiRecoveryKeyRef.current === String(editId)) return;
 
+        // Lokasi terenkripsi tidak bisa dicocokkan ke data wilayah.
+        if (formData.kota_kab_kecamatan_encrypted) {
+            lokasiRecoveryKeyRef.current = String(editId);
+            setLokasiStatus('idle');
+            return;
+        }
+
         const saved = String(formData.kota_kab_kecamatan || '').trim();
         if (!saved || provinsiList.length === 0) return;
 
@@ -694,7 +707,7 @@ const KegiatanForm = ({
                 setLokasiStatus('failed');
             }
         })();
-    }, [isEditMode, editId, formData.kota_kab_kecamatan, provinsiList, setFormData]);
+    }, [isEditMode, editId, formData.kota_kab_kecamatan, formData.kota_kab_kecamatan_encrypted, provinsiList, setFormData]);
 
     // Handler untuk memilih bendahara
     const handleBendaharaChange = (e) => {
@@ -763,6 +776,32 @@ const KegiatanForm = ({
             }));
         }
         setFormError('');
+    };
+
+    const handleLihatKodeLokasi = async () => {
+        if (!editId) return;
+
+        setLoadingLokasiCode(true);
+        setLokasiCodeError('');
+
+        const authHeader = 'Bea' + 'rer ' + (session?.accessToken || '');
+
+        try {
+            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/kegiatan/${editId}/lokasi-code`, {
+                headers: { Authorization: authHeader }
+            });
+
+            if (res.data?.success) {
+                setLokasiCode(res.data.data.kode);
+                setShowLokasiCodeModal(true);
+            } else {
+                setLokasiCodeError(res.data?.message || 'Gagal mengambil kode enkripsi');
+            }
+        } catch (err) {
+            setLokasiCodeError(err.response?.data?.message || err.message || 'Gagal mengambil kode enkripsi');
+        } finally {
+            setLoadingLokasiCode(false);
+        }
     };
 
     const handleMakChange = (e) => {
@@ -1514,6 +1553,37 @@ const KegiatanForm = ({
                                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                                     placeholder="Ketik manual jika perlu"
                                                 />
+
+                                                <div className="mt-3 flex items-start gap-2">
+                                                    <input
+                                                        id="encrypt_kota_kab_kecamatan"
+                                                        type="checkbox"
+                                                        checked={Boolean(formData.encrypt_kota_kab_kecamatan)}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, encrypt_kota_kab_kecamatan: e.target.checked }))}
+                                                        className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                    />
+                                                    <label htmlFor="encrypt_kota_kab_kecamatan" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                                                        Enkripsi lokasi ini
+                                                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                                            Lokasi disimpan terenkripsi di database. Jika Google Authenticator sudah aktif, lokasi dibuka dengan kode 6 digit; kode cadangan 16 karakter hanya dapat dilihat pembuat kegiatan.
+                                                        </span>
+                                                    </label>
+                                                </div>
+
+                                                {isEditMode && Boolean(formData.kota_kab_kecamatan_encrypted) && formData.can_view_lokasi_code && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleLihatKodeLokasi}
+                                                        disabled={loadingLokasiCode}
+                                                        className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                                                    >
+                                                        {loadingLokasiCode ? 'Memuat kode...' : 'Lihat kode cadangan lokasi'}
+                                                    </button>
+                                                )}
+
+                                                {lokasiCodeError && (
+                                                    <div className="mt-2 text-sm text-red-600 dark:text-red-400">{lokasiCodeError}</div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1758,6 +1828,40 @@ const KegiatanForm = ({
                     </div>
                 </div>
             </form>
+
+            {showLokasiCodeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Kode Enkripsi Lokasi
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            Simpan kode ini. Kode hanya dapat dilihat oleh pembuat kegiatan dan dipakai untuk membuka lokasi di modul LPD.
+                        </p>
+                        <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-3">
+                            <code className="select-all text-lg font-mono tracking-widest text-gray-900 dark:text-gray-100">
+                                {lokasiCode}
+                            </code>
+                            <button
+                                type="button"
+                                onClick={() => navigator.clipboard?.writeText(lokasiCode)}
+                                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                                Salin
+                            </button>
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowLokasiCodeModal(false)}
+                                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

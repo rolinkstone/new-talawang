@@ -3,7 +3,7 @@
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-    export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl) => {
+    export const printLPD = async (kegiatanId, kegiatanData, session, apiBaseUrl, tempatOverride) => {
         try {
             // Fetch data lengkap LPD
             const response = await fetch(`${apiBaseUrl}/lpd/kegiatan/${kegiatanId}`, {
@@ -19,7 +19,34 @@
             }
             
             const lpdData = result.data;
-            
+
+            // ============ Buka lokasi terenkripsi (cek data TERBARU dari server) ============
+            // Mengecek dari respons server agar tidak memakai flag lama di state frontend:
+            // jika user lain sudah mendekripsi, admin tidak perlu kode lagi.
+            let lokasiTerbuka = tempatOverride || '';
+
+            if (!lokasiTerbuka && lpdData?.waktu_tempat?.tempat_pelaksanaan_terenkripsi) {
+                const kode = window.prompt('Lokasi kegiatan ini terenkripsi. Masukkan kode enkripsi lokasi:');
+                if (!kode || !kode.trim()) return;
+
+                const authHeader = 'Bea' + 'rer ' + (session?.accessToken || '');
+                const decryptResponse = await fetch(`${apiBaseUrl}/lpd/lokasi/decrypt`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': authHeader,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ kegiatan_id: kegiatanId, kode: kode.trim() })
+                });
+
+                const decryptResult = await decryptResponse.json().catch(() => ({}));
+                if (!decryptResponse.ok || !decryptResult.success) {
+                    throw new Error(decryptResult.message || 'Kode enkripsi salah');
+                }
+
+                lokasiTerbuka = decryptResult.data?.tempat_pelaksanaan || '';
+            }
+
             // ============ DEBUG: Cek semua kemungkinan lokasi path ============
             console.log('========== DEBUG TANDA TANGAN LPD ==========');
             console.log('1. lpdData lengkap:', JSON.stringify(lpdData, null, 2));
@@ -307,7 +334,7 @@
                                 </tr>
                                 <tr>
                                     <td class="label-cell" style="width: 130px;">Tempat Pelaksanaan</td>
-                                    <td class="value-cell">: ${kegiatanData?.tempat || '-'}</td>
+                                    <td class="value-cell">: ${lokasiTerbuka || lpdData?.waktu_tempat?.tempat_pelaksanaan || kegiatanData?.tempat || '-'}</td>
                                 </tr>
                             </tbody>
                         </table>

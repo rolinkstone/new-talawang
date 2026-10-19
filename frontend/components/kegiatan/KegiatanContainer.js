@@ -46,6 +46,9 @@ export default function KegiatanContainer({ session, status }) {
         realisasi_output_sebelumnya: '',
         target_output_yg_akan_dicapai: '',
         kota_kab_kecamatan: '',
+        kota_kab_kecamatan_encrypted: 0,
+        can_view_lokasi_code: false,
+        encrypt_kota_kab_kecamatan: false,
         rencana_tanggal_pelaksanaan: '',
         rencana_tanggal_pelaksanaan_akhir: '',
         jenis_spm: '',
@@ -114,6 +117,9 @@ export default function KegiatanContainer({ session, status }) {
     const [showStatus2Modal, setShowStatus2Modal] = useState(false);
     const [selectedStatus2Item, setSelectedStatus2Item] = useState(null);
     const [status2Loading, setStatus2Loading] = useState(false);
+
+    // Kode enkripsi lokasi yang baru dibuat/diperbarui (hanya untuk pembuat)
+    const [lokasiCodeInfo, setLokasiCodeInfo] = useState(null);
     
     const [userRole, setUserRole] = useState('');
     const [userType, setUserType] = useState({
@@ -675,7 +681,19 @@ export default function KegiatanContainer({ session, status }) {
             }
 
             setNotificationMessage(response.data.message || (isEditMode ? 'Data berhasil diperbarui!' : 'Kegiatan berhasil ditambahkan!'));
-            setModalOpen(true);
+
+            if (response.data?.data?.lokasi_code) {
+                setLokasiCodeInfo({
+                    kode: response.data.data.lokasi_code,
+                    kegiatan: formData.kegiatan
+                });
+            } else {
+                if (response.data?.data?.lokasi_totp) {
+                    setNotificationMessage('Kegiatan berhasil disimpan. Lokasi terenkripsi dapat dibuka dengan kode 6 digit Google Authenticator.');
+                }
+                setModalOpen(true);
+            }
+
             resetForm();
             
             setTimeout(() => {
@@ -724,6 +742,9 @@ export default function KegiatanContainer({ session, status }) {
                     realisasi_output_sebelumnya: data.realisasi_output_sebelumnya || '',
                     target_output_yg_akan_dicapai: data.target_output_yg_akan_dicapai || '',
                     kota_kab_kecamatan: data.kota_kab_kecamatan || '',
+                    kota_kab_kecamatan_encrypted: data.kota_kab_kecamatan_encrypted || 0,
+                    can_view_lokasi_code: Boolean(data.can_view_lokasi_code),
+                    encrypt_kota_kab_kecamatan: Boolean(data.kota_kab_kecamatan_encrypted),
                     rencana_tanggal_pelaksanaan: data.rencana_tanggal_pelaksanaan || '',
                     rencana_tanggal_pelaksanaan_akhir: data.rencana_tanggal_pelaksanaan_akhir || '',
                     jenis_spm: data.jenis_spm || '',
@@ -1355,6 +1376,46 @@ export default function KegiatanContainer({ session, status }) {
                         setModalOpen(true);
                     }}
                 />
+            )}
+
+            {lokasiCodeInfo && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Kode Enkripsi Lokasi</h3>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            Google Authenticator belum diaktifkan, jadi kode ini diperlukan untuk membuka lokasi pada modul LPD. Simpan kode ini dan jangan dibagikan.
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Aktifkan Google Authenticator di halaman Profil agar kegiatan berikutnya cukup dibuka dengan kode 6 digit.
+                        </p>
+                        {lokasiCodeInfo.kegiatan && (
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                                Kegiatan: <span className="font-medium">{lokasiCodeInfo.kegiatan}</span>
+                            </p>
+                        )}
+                        <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-3">
+                            <code className="select-all text-lg font-mono tracking-widest text-gray-900 dark:text-gray-100">
+                                {lokasiCodeInfo.kode}
+                            </code>
+                            <button
+                                type="button"
+                                onClick={() => navigator.clipboard?.writeText(lokasiCodeInfo.kode)}
+                                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                                Salin
+                            </button>
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setLokasiCodeInfo(null)}
+                                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

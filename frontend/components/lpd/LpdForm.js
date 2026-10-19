@@ -1,9 +1,10 @@
 // components/lpd/LpdForm.js
 import React, { useState, useEffect } from 'react';
+import KodeLokasiInput from './KodeLokasiInput';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpenModal }) {
+export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpenModal, unlockedTempat, onLokasiUnlocked }) {
     const [activeTab, setActiveTab] = useState('pegawai');
     const [dokumentasiList, setDokumentasiList] = useState([]);
     const [rincianList, setRincianList] = useState([]);
@@ -173,7 +174,17 @@ export default function LpdForm({ lpdData, session, apiBaseUrl, onRefresh, onOpe
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tempat Pelaksanaan</label>
-                        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.waktu_tempat?.tempat_pelaksanaan || '-'}</p>
+                        {lpdData?.waktu_tempat?.tempat_pelaksanaan_terenkripsi ? (
+                            <KodeLokasiInput
+                                kegiatanId={lpdData?.kegiatan_id}
+                                apiBaseUrl={apiBaseUrl || BACKEND_URL}
+                                session={session}
+                                nilaiTerbuka={unlockedTempat}
+                                onUnlocked={onLokasiUnlocked}
+                            />
+                        ) : (
+                            <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{lpdData?.waktu_tempat?.tempat_pelaksanaan || '-'}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal Pelaksanaan</label>

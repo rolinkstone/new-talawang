@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
+const { maskLokasi } = require('../utils/lokasiCrypto');
 
 // Helper function untuk check user role
 const getUserRole = (user) => {
@@ -156,7 +157,7 @@ router.get('/search', keycloakAuth, async (req, res) => {
             tgl_st: row.tgl_st,
             status: row.status,
             status_2: row.status_2,
-            kota_kab_kecamatan: row.kota_kab_kecamatan,
+            kota_kab_kecamatan: maskLokasi(row.kota_kab_kecamatan),
             rencana_tanggal_pelaksanaan: row.rencana_tanggal_pelaksanaan,
             ppk_nama: row.ppk_nama,
             ppk_id: row.ppk_id,

@@ -8,6 +8,7 @@ const db = require('../db');
 const XLSX = require('xlsx');
 const { keycloakAuth, getUsername, getUserId } = require('../middleware/keycloakAuth');
 const { getLpdCutoffDate } = require('../utils/appSettings');
+const { maskLokasi } = require('../utils/lokasiCrypto');
 
 // Setup upload directory untuk SPTJM Transport
 const sptjmUploadDir = path.join(__dirname, '../public/uploads/sptjm-transport');
@@ -315,6 +316,7 @@ router.get('/need-kwitansi', keycloakAuth, async (req, res) => {
         console.log('📝 Params:', queryParams);
         
         const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        kegiatanList.forEach(k => { k.kota_kab_kecamatan = maskLokasi(k.kota_kab_kecamatan); });
         console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
         
         const result = [];
@@ -709,6 +711,7 @@ router.get('/need-kwitansi-ppk-history', keycloakAuth, async (req, res) => {
         console.log('📝 Params:', queryParams);
         
         const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        kegiatanList.forEach(k => { k.kota_kab_kecamatan = maskLokasi(k.kota_kab_kecamatan); });
         console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
         
         const result = [];
@@ -940,6 +943,7 @@ router.get('/need-kwitansi-bendahara-history', keycloakAuth, async (req, res) =>
         console.log('📝 Params:', queryParams);
         
         const [kegiatanList] = await db.query(kegiatanQuery, queryParams);
+        kegiatanList.forEach(k => { k.kota_kab_kecamatan = maskLokasi(k.kota_kab_kecamatan); });
         console.log(`📊 Found ${kegiatanList.length} kegiatan from query`);
         
         const result = [];
@@ -1447,6 +1451,8 @@ router.get('/export-xlsx', keycloakAuth, async (req, res) => {
             ORDER BY n.created_at DESC
         `);
 
+        kegiatanRows.forEach(k => { k.kota_kab_kecamatan = maskLokasi(k.kota_kab_kecamatan); });
+
         const kegiatanIds = kegiatanRows.map(k => k.id);
         const idPlaceholder = kegiatanIds.map(() => '?').join(',');
 
@@ -1718,6 +1724,8 @@ router.get('/:id', keycloakAuth, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
         }
         
+        results[0].kota_kab_kecamatan = maskLokasi(results[0].kota_kab_kecamatan);
+
         res.status(200).json({ success: true, data: results[0] });
     } catch (error) {
         console.error('❌ Error fetching kwitansi:', error);

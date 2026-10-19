@@ -1,11 +1,12 @@
 // components/lpd/modals/LihatLPDModal.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import KodeLokasiInput from '../KodeLokasiInput';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-export default function LihatLPDModal({ show, onClose, kegiatanId, kegiatanNama, session }) {
+export default function LihatLPDModal({ show, onClose, kegiatanId, kegiatanNama, session, unlockedTempat, onLokasiUnlocked }) {
     const [loading, setLoading] = useState(true);
     const [lpdData, setLpdData] = useState(null);
     const [error, setError] = useState('');
@@ -213,7 +214,20 @@ export default function LihatLPDModal({ show, onClose, kegiatanId, kegiatanNama,
                                                 <div><span className="font-medium">Nomor ST:</span> {lpdData.dasar_pelaksanaan?.nomor_st || '-'}</div>
                                                 <div><span className="font-medium">Tanggal ST:</span> {lpdData.dasar_pelaksanaan?.tanggal_st || '-'}</div>
                                                 <div><span className="font-medium">MAK:</span> {lpdData.pembiayaan?.mak || '-'}</div>
-                                                <div><span className="font-medium">Tempat:</span> {lpdData.waktu_tempat?.tempat_pelaksanaan || '-'}</div>
+                                                <div>
+                                                    <span className="font-medium">Tempat:</span>{' '}
+                                                    {lpdData.waktu_tempat?.tempat_pelaksanaan_terenkripsi ? (
+                                                        <KodeLokasiInput
+                                                            kegiatanId={kegiatanId}
+                                                            apiBaseUrl={API_BASE_URL}
+                                                            session={session}
+                                                            nilaiTerbuka={unlockedTempat}
+                                                            onUnlocked={onLokasiUnlocked}
+                                                        />
+                                                    ) : (
+                                                        lpdData.waktu_tempat?.tempat_pelaksanaan || '-'
+                                                    )}
+                                                </div>
                                                 <div><span className="font-medium">Tanggal:</span> {lpdData.waktu_tempat?.tanggal_mulai || '-'} s/d {lpdData.waktu_tempat?.tanggal_selesai || '-'}</div>
                                                 <div><span className="font-medium">Lama:</span> {lpdData.waktu_tempat?.lama_perjalanan || '-'}</div>
                                             </div>

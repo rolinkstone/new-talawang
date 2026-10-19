@@ -59,6 +59,10 @@ export default function LpdContainer({ session, status }) {
     // State untuk modal Lihat LPD
     const [showLihatLPDModal, setShowLihatLPDModal] = useState(false);
     const [selectedKegiatanForLihat, setSelectedKegiatanForLihat] = useState(null);
+
+    // Nilai lokasi yang baru dibuka (per kegiatan). Dekripsi sudah disimpan
+    // permanen di database oleh backend, state ini hanya untuk tampilan langsung.
+    const [unlockedLokasi, setUnlockedLokasi] = useState({});
     
     // State user role
     const [userRole, setUserRole] = useState('');
@@ -381,11 +385,30 @@ export default function LpdContainer({ session, status }) {
         setShowLihatLPDModal(true);
     };
 
+    // Setelah dekripsi, backend sudah menyimpan nilai asli secara permanen.
+    // Segarkan daftar & detail supaya flag enkripsi di UI ikut hilang.
+    const handleLokasiUnlocked = (kegiatanId, plain) => {
+        if (!kegiatanId) return;
+
+        setUnlockedLokasi(prev => ({ ...prev, [kegiatanId]: plain }));
+        fetchKegiatanList();
+
+        if (showForm && selectedKegiatan?.kegiatan_id) {
+            fetchLpdData(selectedKegiatan.kegiatan_id);
+        }
+    };
+
     // Handler untuk cetak LPD
     const handlePrintLPD = async (kegiatan) => {
         try {
             setLoading(true);
-            await printLPD(kegiatan.id, kegiatan, session, API_BASE_URL);
+
+            // printLPD mengecek status enkripsi TERBARU dari server. Kalau lokasi
+            // sudah pernah didekripsi user lain, kode tidak akan diminta lagi.
+            await printLPD(kegiatan.id, kegiatan, session, API_BASE_URL, unlockedLokasi[kegiatan.id]);
+
+            // Segarkan daftar agar label "Terenkripsi" ikut berubah setelah dekripsi.
+            fetchKegiatanList();
         } catch (error) {
             console.error('Error printing LPD:', error);
             setNotificationMessage('Gagal mencetak LPD: ' + (error.message || 'Terjadi kesalahan'));
@@ -673,6 +696,8 @@ export default function LpdContainer({ session, status }) {
                     apiBaseUrl={API_BASE_URL}
                     onRefresh={() => fetchLpdData(selectedKegiatan.kegiatan_id)}
                     onOpenModal={openModal}
+                    unlockedTempat={unlockedLokasi[selectedKegiatan.kegiatan_id]}
+                    onLokasiUnlocked={(plain) => handleLokasiUnlocked(selectedKegiatan.kegiatan_id, plain)}
                 />
 
                 <LpdModal
@@ -1208,6 +1233,8 @@ export default function LpdContainer({ session, status }) {
                 kegiatanId={selectedKegiatanForLihat?.id}
                 kegiatanNama={selectedKegiatanForLihat?.kegiatan}
                 session={session}
+                unlockedTempat={unlockedLokasi[selectedKegiatanForLihat?.id]}
+                onLokasiUnlocked={(plain) => handleLokasiUnlocked(selectedKegiatanForLihat?.id, plain)}
             />
 
             <KirimKeKatimModal

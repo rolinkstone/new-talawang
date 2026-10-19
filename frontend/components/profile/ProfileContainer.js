@@ -7,6 +7,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import NotificationModal from '../common/NotificationModal';
 import ConfirmDeleteModal from '../common/ConfirmDeleteModal';
 import ProfileForm from './ProfileForm';
+import TotpSecurityCard from './TotpSecurityCard';
 import UploadTTDModal from './modals/UploadTTDModal';
 import ViewTTDModal from './modals/ViewTTDModal';
 
@@ -351,6 +352,16 @@ const fetchProfile = async () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Keamanan: Google Authenticator */}
+                    <TotpSecurityCard
+                        apiBaseUrl={process.env.NEXT_PUBLIC_API_URL}
+                        session={session}
+                        onNotify={(message) => {
+                            setNotificationMessage(message);
+                            setModalOpen(true);
+                        }}
+                    />
 
                     {/* Action Buttons */}
                     <div className="flex justify-end pt-4 border-t">

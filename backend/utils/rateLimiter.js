@@ -7,6 +7,7 @@
 // asli, bukan IP proxy.
 
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 const DEFAULT_MESSAGE = 'Terlalu banyak permintaan. Silakan coba lagi nanti.';
 
@@ -42,7 +43,8 @@ function makeLimiter({ windowMs, limit, message, keyGenerator }) {
 function writeKeyGenerator(req) {
     const user = req.user || {};
     const identity = user.nip || user.user_id || user.id;
-    return identity ? `user:${identity}` : `ip:${req.ip}`;
+    // ipKeyGenerator menormalkan IPv6 (mencegah bypass limit via rotasi alamat).
+    return identity ? `user:${identity}` : `ip:${ipKeyGenerator(req.ip)}`;
 }
 
 module.exports = {
@@ -66,5 +68,13 @@ module.exports = {
         limit: 120,
         keyGenerator: writeKeyGenerator,
         message: 'Terlalu banyak permintaan. Silakan coba lagi beberapa saat lagi.'
+    }),
+
+    // Verifikasi kode TOTP (Google Authenticator) — cegah brute-force 6 digit
+    totpLimiter: makeLimiter({
+        windowMs: 10 * 60 * 1000,
+        limit: 20,
+        keyGenerator: writeKeyGenerator,
+        message: 'Terlalu banyak percobaan kode authenticator. Silakan coba lagi nanti.'
     })
 };

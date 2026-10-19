@@ -3,6 +3,22 @@ const router = express.Router();
 const db = require('../db');
 const { keycloakAuth, getUserId, getUsername } = require('../middleware/keycloakAuth');
 const { getUserRoleLabel } = require('../utils/keycloakHelpers');
+const {
+    MASKED_LOKASI,
+    generateLokasiCode,
+    decryptLokasi,
+    isEncryptedLokasi,
+    isEncryptedLokasiV2,
+    generateLokasiDataKey,
+    encryptLokasiV2,
+    decryptLokasiV2,
+    createLokasiBundle,
+    parseLokasiBundle,
+    unwrapDekFromBundle,
+    getLokasiCodeFromKeyEnc,
+    maskLokasi
+} = require('../utils/lokasiCrypto');
+const { getEnabledTotpSecret } = require('../utils/totpStore');
 
 // ========== HELPER FUNCTIONS UNTUK QUERY FILTER BERDASARKAN ROLE ==========
 
@@ -153,6 +169,7 @@ router.get('/', keycloakAuth, async (req, res) => {
                 tgl_st, 
                 status_2, 
                 catatan_status_2,
+                kota_kab_kecamatan_encrypted,
                 DATE_FORMAT(tgl_st, '%Y-%m-%d') as tgl_st_format,  
                 DATE_FORMAT(tanggal_diajukan, '%Y-%m-%d %H:%i:%s') as tanggal_diajukan,
                 DATE_FORMAT(tanggal_diketahui, '%Y-%m-%d %H:%i:%s') as tanggal_diketahui,
@@ -173,6 +190,10 @@ router.get('/', keycloakAuth, async (req, res) => {
         `;
 
         const [rows] = await db.query(query, finalParams);
+
+        rows.forEach(row => {
+            row.kota_kab_kecamatan = maskLokasi(row.kota_kab_kecamatan);
+        });
 
         res.status(200).json({
             success: true,
@@ -215,6 +236,7 @@ router.get('/:id', keycloakAuth, async (req, res) => {
                 realisasi_output_sebelumnya,
                 target_output_yg_akan_dicapai,
                 kota_kab_kecamatan,
+                kota_kab_kecamatan_encrypted,
                 DATE_FORMAT(rencana_tanggal_pelaksanaan, '%Y-%m-%d') as rencana_tanggal_pelaksanaan,
                 DATE_FORMAT(rencana_tanggal_pelaksanaan_akhir, '%Y-%m-%d') as rencana_tanggal_pelaksanaan_akhir,
                 user_id,
@@ -244,6 +266,8 @@ router.get('/:id', keycloakAuth, async (req, res) => {
             });
         }
 
+        rows[0].kota_kab_kecamatan = maskLokasi(rows[0].kota_kab_kecamatan);
+
         res.status(200).json({
             success: true,
             message: 'Detail kegiatan berhasil diambil',
@@ -263,6 +287,7 @@ router.get('/:id', keycloakAuth, async (req, res) => {
 router.get('/:id/edit', keycloakAuth, async (req, res) => {
     const { id } = req.params;
     const username = getUsername(req.user);
+    const userId = getUserId(req.user);
 
     if (!id || isNaN(id)) {
         return res.status(400).json({
@@ -302,6 +327,7 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
                 k.diketahui_oleh,
                 k.diketahui_oleh_id,
                 k.diketahui_oleh_nip,
+                k.kota_kab_kecamatan_encrypted,
                 k.jenis_spm,
                 k.bendahara_id,
                 k.bendahara_nama,
@@ -436,6 +462,8 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
 
         const responseData = {
             ...kegiatanData,
+            kota_kab_kecamatan: maskLokasi(kegiatanData.kota_kab_kecamatan),
+            can_view_lokasi_code: String(kegiatanData.user_id) === String(userId),
             pegawai: pegawaiRows || []
         };
 
@@ -452,6 +480,59 @@ router.get('/:id/edit', keycloakAuth, async (req, res) => {
             message: 'Terjadi kesalahan server',
             error: error.message
         });
+    }
+});
+
+// GET kode enkripsi lokasi — HANYA pembuat kegiatan
+router.get('/:id/lokasi-code', keycloakAuth, async (req, res) => {
+    const { id } = req.params;
+    const userId = getUserId(req.user);
+
+    if (!id || isNaN(id)) {
+        return res.status(400).json({ success: false, message: 'ID kegiatan tidak valid' });
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT user_id, kota_kab_kecamatan_encrypted, kota_kab_kecamatan_key_enc
+             FROM accounting.nominatif_kegiatan
+             WHERE id = ?`,
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Kegiatan tidak ditemukan' });
+        }
+
+        const row = rows[0];
+
+        // Admin pun tidak boleh melihat kode: hanya pembuat kegiatan.
+        if (String(row.user_id) !== String(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Kode enkripsi lokasi hanya dapat dilihat oleh pembuat kegiatan'
+            });
+        }
+
+        if (Number(row.kota_kab_kecamatan_encrypted) !== 1 || !row.kota_kab_kecamatan_key_enc) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lokasi kegiatan tidak terenkripsi'
+            });
+        }
+
+        const kode = getLokasiCodeFromKeyEnc(row.kota_kab_kecamatan_key_enc);
+        if (!kode) {
+            return res.status(500).json({
+                success: false,
+                message: 'Kode enkripsi tidak dapat dibuka. Periksa LOKASI_ENCRYPTION_KEY di server'
+            });
+        }
+
+        res.status(200).json({ success: true, data: { kode } });
+    } catch (error) {
+        console.error('❌ Error fetching lokasi code:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
@@ -650,6 +731,7 @@ router.get('/:id/detail', keycloakAuth, async (req, res) => {
 
         const responseData = {
             ...kegiatanData,
+            kota_kab_kecamatan: maskLokasi(kegiatanData.kota_kab_kecamatan),
             pegawai: pegawaiRows,
             total_pegawai: pegawaiRows.length,
             total_biaya: pegawaiRows.reduce((sum, p) => sum + (parseFloat(p.total_biaya) || 0), 0)
@@ -698,6 +780,7 @@ router.post('/', keycloakAuth, async (req, res) => {
         realisasi_output_sebelumnya = 0,
         target_output_yg_akan_dicapai = '',
         kota_kab_kecamatan = '',
+        encrypt_kota_kab_kecamatan = false,
         rencana_tanggal_pelaksanaan,
         rencana_tanggal_pelaksanaan_akhir,
         no_st = '',
@@ -737,6 +820,33 @@ router.post('/', keycloakAuth, async (req, res) => {
         });
     }
 
+    // Enkripsi lokasi (kota/kab/kecamatan) bila diminta
+    let lokasiTersimpan = kota_kab_kecamatan || null;
+    let lokasiEncrypted = 0;
+    let lokasiKeyEnc = null;
+    let lokasiCode = null;
+    let lokasiTotpActive = false;
+
+    if (encrypt_kota_kab_kecamatan) {
+        const lokasiPlain = String(kota_kab_kecamatan || '').trim();
+        if (!lokasiPlain) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lokasi (kota/kab/kecamatan) wajib diisi jika enkripsi diaktifkan'
+            });
+        }
+        lokasiCode = generateLokasiCode();
+        const totpSecret = await getEnabledTotpSecret(userId).catch((err) => {
+            console.warn('⚠️ Gagal membaca secret TOTP saat menyimpan lokasi:', err.message);
+            return null;
+        });
+        lokasiTotpActive = Boolean(totpSecret);
+        const dek = generateLokasiDataKey();
+        lokasiTersimpan = encryptLokasiV2(lokasiPlain, dek);
+        lokasiEncrypted = 1;
+        lokasiKeyEnc = createLokasiBundle({ dek, code: lokasiCode, totpSecret, userId });
+    }
+
     let connection;
     try {
         connection = await db.getConnection();
@@ -746,11 +856,12 @@ router.post('/', keycloakAuth, async (req, res) => {
             INSERT INTO accounting.nominatif_kegiatan
             (kegiatan, mak, realisasi_anggaran_sebelumnya, target_output_tahun,
              realisasi_output_sebelumnya, target_output_yg_akan_dicapai,
-             kota_kab_kecamatan, rencana_tanggal_pelaksanaan,
+             kota_kab_kecamatan, kota_kab_kecamatan_encrypted, kota_kab_kecamatan_key_enc,
+             rencana_tanggal_pelaksanaan,
              rencana_tanggal_pelaksanaan_akhir, user_id, status, created_at,
              no_st, tgl_st, status_2, catatan_status_2, jenis_spm,
              bendahara_id, bendahara_nama, bendahara_nip)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const kegiatanValues = [
@@ -759,7 +870,9 @@ router.post('/', keycloakAuth, async (req, res) => {
             parseInt(target_output_tahun) || 0,
             parseInt(realisasi_output_sebelumnya) || 0,
             target_output_yg_akan_dicapai,
-            kota_kab_kecamatan,
+            lokasiTersimpan,
+            lokasiEncrypted,
+            lokasiKeyEnc,
             rencana_tanggal_pelaksanaan || null,
             rencana_tanggal_pelaksanaan_akhir || null,
             userId,
@@ -896,6 +1009,9 @@ router.post('/', keycloakAuth, async (req, res) => {
                 total_biaya: totalBiaya,
                 bendahara_nama: bendahara_nama || null,
                 bendahara_nip: bendahara_nip || null,
+                kota_kab_kecamatan_encrypted: lokasiEncrypted,
+                lokasi_code: lokasiTotpActive ? null : lokasiCode,
+                lokasi_totp: lokasiTotpActive,
                 saved_pegawai: savedPegawai // Kirim balik data yang tersimpan untuk verifikasi
             }
         });
@@ -1036,6 +1152,7 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         realisasi_output_sebelumnya,
         target_output_yg_akan_dicapai,
         kota_kab_kecamatan,
+        encrypt_kota_kab_kecamatan = false,
         rencana_tanggal_pelaksanaan,
         rencana_tanggal_pelaksanaan_akhir,
         jenis_spm,
@@ -1057,7 +1174,8 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         const { where, params } = buildSingleItemWhereClause(req.user, id);
         
         const checkQuery = `
-            SELECT id, kegiatan, user_id, status, ppk_id 
+            SELECT id, kegiatan, user_id, status, ppk_id,
+                   kota_kab_kecamatan, kota_kab_kecamatan_encrypted, kota_kab_kecamatan_key_enc
             FROM accounting.nominatif_kegiatan 
             ${where}
         `;
@@ -1079,7 +1197,80 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 message: `Kegiatan dengan status ${existingKegiatan.status} tidak dapat diubah.`
             });
         }
-        
+
+        // ========== Enkripsi / dekripsi lokasi ==========
+        const existingLokasi = existingKegiatan.kota_kab_kecamatan;
+        const wasEncrypted = Number(existingKegiatan.kota_kab_kecamatan_encrypted) === 1
+            || isEncryptedLokasi(existingLokasi);
+        const incomingLokasi = String(kota_kab_kecamatan || '').trim();
+        const incomingIsMasked = !incomingLokasi
+            || incomingLokasi === MASKED_LOKASI
+            || isEncryptedLokasi(incomingLokasi);
+
+        let lokasiTersimpan = kota_kab_kecamatan || null;
+        let lokasiEncrypted = 0;
+        let lokasiKeyEnc = null;
+        let lokasiCode = null;
+        let lokasiTotpActive = false;
+
+        if (encrypt_kota_kab_kecamatan) {
+            lokasiEncrypted = 1;
+            if (wasEncrypted && incomingIsMasked) {
+                // Nilai tidak diubah: pertahankan ciphertext dan kode lama.
+                lokasiTersimpan = existingLokasi;
+                lokasiKeyEnc = existingKegiatan.kota_kab_kecamatan_key_enc;
+            } else {
+                if (incomingIsMasked) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Lokasi (kota/kab/kecamatan) wajib diisi jika enkripsi diaktifkan'
+                    });
+                }
+                const existingCode = wasEncrypted
+                    ? getLokasiCodeFromKeyEnc(existingKegiatan.kota_kab_kecamatan_key_enc)
+                    : null;
+                lokasiCode = existingCode || generateLokasiCode();
+                const totpSecret = await getEnabledTotpSecret(userId).catch((err) => {
+                    console.warn('⚠️ Gagal membaca secret TOTP saat menyimpan lokasi:', err.message);
+                    return null;
+                });
+                lokasiTotpActive = Boolean(totpSecret);
+                const dek = generateLokasiDataKey();
+                lokasiTersimpan = encryptLokasiV2(incomingLokasi, dek);
+                lokasiKeyEnc = createLokasiBundle({ dek, code: lokasiCode, totpSecret, userId });
+            }
+        } else if (wasEncrypted) {
+            // Membuka enkripsi hanya boleh dilakukan pembuat kegiatan.
+            if (String(existingKegiatan.user_id) !== String(userId)) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Hanya pembuat kegiatan yang dapat membuka enkripsi lokasi'
+                });
+            }
+
+            const existingCode = getLokasiCodeFromKeyEnc(existingKegiatan.kota_kab_kecamatan_key_enc);
+            let plainLokasi = null;
+
+            if (isEncryptedLokasiV2(existingLokasi)) {
+                const bundle = parseLokasiBundle(existingKegiatan.kota_kab_kecamatan_key_enc);
+                const dek = bundle ? unwrapDekFromBundle(bundle, { code: existingCode }) : null;
+                plainLokasi = dek ? decryptLokasiV2(existingLokasi, dek) : null;
+            } else {
+                plainLokasi = existingCode ? decryptLokasi(existingLokasi, existingCode) : null;
+            }
+
+            if (!plainLokasi) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Gagal membuka enkripsi lokasi. Kode enkripsi tidak tersedia.'
+                });
+            }
+
+            lokasiTersimpan = incomingIsMasked ? plainLokasi : incomingLokasi;
+            lokasiEncrypted = 0;
+            lokasiKeyEnc = null;
+        }
+
         connection = await db.getConnection();
         await connection.beginTransaction();
         
@@ -1093,6 +1284,8 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 realisasi_output_sebelumnya = ?,
                 target_output_yg_akan_dicapai = ?,
                 kota_kab_kecamatan = ?,
+                kota_kab_kecamatan_encrypted = ?,
+                kota_kab_kecamatan_key_enc = ?,
                 rencana_tanggal_pelaksanaan = ?,
                 rencana_tanggal_pelaksanaan_akhir = ?,
                 jenis_spm = COALESCE(?, jenis_spm),
@@ -1109,7 +1302,9 @@ router.put('/:id', keycloakAuth, async (req, res) => {
             target_output_tahun || null,
             realisasi_output_sebelumnya || null,
             target_output_yg_akan_dicapai || null,
-            kota_kab_kecamatan || null,
+            lokasiTersimpan,
+            lokasiEncrypted,
+            lokasiKeyEnc,
             rencana_tanggal_pelaksanaan || null,
             rencana_tanggal_pelaksanaan_akhir || null,
             jenis_spm || null,
@@ -1225,7 +1420,10 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 kegiatan: kegiatanNama,
                 total_pegawai: totalPegawai,
                 bendahara_nama: bendahara_nama || null,
-                bendahara_nip: bendahara_nip || null
+                bendahara_nip: bendahara_nip || null,
+                kota_kab_kecamatan_encrypted: lokasiEncrypted,
+                lokasi_code: lokasiTotpActive ? null : lokasiCode,
+                lokasi_totp: lokasiTotpActive
             }
         });
         
