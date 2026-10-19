@@ -86,100 +86,53 @@
                 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
             ];
             
+            // Parse berbagai format tanggal (Date, ISO datetime, YYYY-MM-DD, DD-MM-YYYY)
+            // menjadi Date lokal. ISO datetime dari API (mis. "2026-09-21T17:00:00.000Z")
+            // harus dikonversi ke waktu lokal agar tidak bergeser satu hari.
+            const parseTanggalLokal = (value) => {
+                if (!value) return null;
+                if (value instanceof Date) {
+                    return isNaN(value.getTime()) ? null : value;
+                }
+
+                const dateStr = String(value).trim();
+                if (!dateStr) return null;
+
+                // DD-MM-YYYY atau DD/MM/YYYY
+                let match = dateStr.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+                if (match) {
+                    return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
+                }
+
+                // YYYY-MM-DD tanpa jam: pakai tanggal apa adanya (hindari pergeseran UTC)
+                match = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                if (match) {
+                    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+                }
+
+                // ISO datetime / format lain yang bisa di-parse
+                const parsed = new Date(dateStr);
+                return isNaN(parsed.getTime()) ? null : parsed;
+            };
+
             // Format tanggal ke "06 Mei 2026"
             const formatTanggalIndonesia = (date) => {
-                if (!date) return '-';
-                
-                let tahun, bulan, hari;
-                const dateStr = String(date);
-                
-                if (dateStr.includes('/')) {
-                    const parts = dateStr.split('/');
-                    if (parts.length === 3) {
-                        tahun = parseInt(parts[0]);
-                        bulan = parseInt(parts[1]) - 1;
-                        hari = parseInt(parts[2]);
-                        return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
-                    }
-                }
-                else if (dateStr.includes('-')) {
-                    const parts = dateStr.split('-');
-                    if (parts.length === 3) {
-                        tahun = parseInt(parts[0]);
-                        bulan = parseInt(parts[1]) - 1;
-                        hari = parseInt(parts[2]);
-                        return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
-                    }
-                }
-                else if (date instanceof Date && !isNaN(date)) {
-                    hari = date.getDate();
-                    bulan = date.getMonth();
-                    tahun = date.getFullYear();
-                    return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
-                }
-                else {
-                    const parsedDate = new Date(date);
-                    if (!isNaN(parsedDate.getTime())) {
-                        hari = parsedDate.getDate();
-                        bulan = parsedDate.getMonth();
-                        tahun = parsedDate.getFullYear();
-                        return `${hari.toString().padStart(2, '0')} ${namaBulan[bulan]} ${tahun}`;
-                    }
-                }
-                
-                return dateStr;
+                const parsed = parseTanggalLokal(date);
+                if (!parsed) return date ? String(date) : '-';
+                const hari = parsed.getDate().toString().padStart(2, '0');
+                const bulan = namaBulan[parsed.getMonth()];
+                const tahun = parsed.getFullYear();
+                return `${hari} ${bulan} ${tahun}`;
             };
             
-            // PERBAIKAN: Format tanggal untuk rincian kegiatan menjadi DD-MM-YYYY
+            // Format tanggal untuk rincian kegiatan menjadi DD-MM-YYYY
             const formatTanggalRincian = (date) => {
-                if (!date) return '-';
-                
-                let tahun, bulan, hari;
-                const dateStr = String(date);
-                
-                if (dateStr.includes('/')) {
-                    const parts = dateStr.split('/');
-                    if (parts.length === 3) {
-                        tahun = parts[0];
-                        bulan = parts[1];
-                        hari = parts[2];
-                        // Format menjadi DD-MM-YYYY (hari-bulan-tahun)
-                        return `${hari.toString().padStart(2, '0')}-${bulan.toString().padStart(2, '0')}-${tahun}`;
-                    }
-                }
-                else if (dateStr.includes('-')) {
-                    const parts = dateStr.split('-');
-                    if (parts.length === 3) {
-                        // Jika format YYYY-MM-DD, ubah ke DD-MM-YYYY
-                        if (parts[0].length === 4) {
-                            tahun = parts[0];
-                            bulan = parts[1];
-                            hari = parts[2];
-                            return `${hari.toString().padStart(2, '0')}-${bulan.toString().padStart(2, '0')}-${tahun}`;
-                        } 
-                        // Jika sudah DD-MM-YYYY atau MM-DD-YYYY
-                        else {
-                            return dateStr;
-                        }
-                    }
-                }
-                else if (date instanceof Date && !isNaN(date)) {
-                    hari = date.getDate().toString().padStart(2, '0');
-                    bulan = (date.getMonth() + 1).toString().padStart(2, '0');
-                    tahun = date.getFullYear();
-                    return `${hari}-${bulan}-${tahun}`;
-                }
-                else {
-                    const parsedDate = new Date(date);
-                    if (!isNaN(parsedDate.getTime())) {
-                        hari = parsedDate.getDate().toString().padStart(2, '0');
-                        bulan = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
-                        tahun = parsedDate.getFullYear();
-                        return `${hari}-${bulan}-${tahun}`;
-                    }
-                }
-                
-                return '-';
+                const parsed = parseTanggalLokal(date);
+                if (!parsed) return '-';
+                const hari = parsed.getDate().toString().padStart(2, '0');
+                const bulan = (parsed.getMonth() + 1).toString().padStart(2, '0');
+                const tahun = parsed.getFullYear();
+                return `${hari}-${bulan}-${tahun}`;
             };
             
             // Format tanggal untuk header menggunakan created_at dari kegiatanData
@@ -196,25 +149,10 @@
             
             // Hitung lama perjalanan
             const hitungLamaPerjalanan = () => {
-                if (!kegiatanData?.tgl_mulai || !kegiatanData?.tgl_selesai) return '-';
+                const start = parseTanggalLokal(kegiatanData?.tgl_mulai);
+                const end = parseTanggalLokal(kegiatanData?.tgl_selesai);
                 
-                const parseTanggal = (date) => {
-                    const dateStr = String(date);
-                    if (dateStr.includes('/')) {
-                        const parts = dateStr.split('/');
-                        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                    }
-                    if (dateStr.includes('-')) {
-                        const parts = dateStr.split('-');
-                        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                    }
-                    return new Date(date);
-                };
-                
-                const start = parseTanggal(kegiatanData.tgl_mulai);
-                const end = parseTanggal(kegiatanData.tgl_selesai);
-                
-                if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+                if (!start || !end) return '-';
                 
                 const diffTime = Math.abs(end - start);
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -334,7 +272,7 @@
                                 </tr>
                                 <tr>
                                     <td class="label-cell" style="width: 65px;">Tanggal</td>
-                                    <td class="value-cell">: ${formatTanggalIndonesia(kegiatanData?.tgl_st)}</td>
+                                    <td class="value-cell">: ${formatTanggalIndonesia(lpdData?.dasar_pelaksanaan?.tanggal_st || kegiatanData?.tgl_st)}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -365,7 +303,7 @@
                                 </tr>
                                 <tr>
                                     <td class="label-cell" style="width: 130px;">Tanggal</td>
-                                    <td class="value-cell">: ${kegiatanData?.tgl_mulai ? formatTanggalIndonesia(kegiatanData.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai ? formatTanggalIndonesia(kegiatanData.tgl_selesai) : '-'}</td>
+                                    <td class="value-cell">: ${kegiatanData?.tgl_mulai || lpdData?.waktu_tempat?.tanggal_mulai ? formatTanggalIndonesia(lpdData?.waktu_tempat?.tanggal_mulai || kegiatanData?.tgl_mulai) : '-'} s/d ${kegiatanData?.tgl_selesai || lpdData?.waktu_tempat?.tanggal_selesai ? formatTanggalIndonesia(lpdData?.waktu_tempat?.tanggal_selesai || kegiatanData?.tgl_selesai) : '-'}</td>
                                 </tr>
                                 <tr>
                                     <td class="label-cell" style="width: 130px;">Tempat Pelaksanaan</td>
