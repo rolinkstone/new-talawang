@@ -26,6 +26,7 @@ export default function LaporanContainer({ session: propSession, status: propSta
     // State untuk loading
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [exportingXlsx, setExportingXlsx] = useState(false);
     const [optionsLoading, setOptionsLoading] = useState(true);
     
     // State untuk filter
@@ -313,6 +314,50 @@ export default function LaporanContainer({ session: propSession, status: propSta
         }
     };
     
+    // Export rekap perjalanan dinas (XLSX)
+    const handleExportXlsx = async () => {
+        if (!session?.accessToken) return;
+        
+        setExportingXlsx(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.tahun) params.append('tahun', filters.tahun);
+            if (filters.bulan && filters.bulan !== 'all') params.append('bulan', filters.bulan);
+            if (filters.pegawai_id && filters.pegawai_id !== 'all') params.append('pegawai_id', filters.pegawai_id);
+            if (filters.status_2 && filters.status_2 !== 'all') params.append('status_2', filters.status_2);
+            if (filters.jenis_spm && filters.jenis_spm !== 'all') params.append('jenis_spm', filters.jenis_spm);
+            
+            const url = `${process.env.NEXT_PUBLIC_API_URL}/laporan/nominatif-perjadin/export/xlsx?${params.toString()}`;
+            console.log('📥 Exporting XLSX from:', url);
+            
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${session.accessToken}` },
+                responseType: 'blob'
+            });
+            
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+            const link = document.createElement('a');
+            const downloadUrl = window.URL.createObjectURL(blob);
+            link.href = downloadUrl;
+            link.download = 'rekap_perjalanan_dinas.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            setNotificationMessage('Export XLSX berhasil');
+            setModalOpen(true);
+        } catch (error) {
+            console.error('Error exporting XLSX:', error);
+            setNotificationMessage('Gagal mengexport data: ' + (error.response?.data?.message || error.message));
+            setModalOpen(true);
+        } finally {
+            setExportingXlsx(false);
+        }
+    };
+    
     // Handle print
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -517,6 +562,21 @@ export default function LaporanContainer({ session: propSession, status: propSta
                             </svg>
                         )}
                         Export CSV
+                    </button>
+                    
+                    <button 
+                        onClick={handleExportXlsx} 
+                        disabled={exportingXlsx}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {exportingXlsx ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-5" />
+                            </svg>
+                        )}
+                        Export Excel
                     </button>
                     
                     <button 
