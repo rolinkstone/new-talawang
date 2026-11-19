@@ -109,6 +109,8 @@ services:
       # ---------- URL & CORS ----------
       # FRONTEND_URL dipakai backend/server.js untuk redirect setelah logout.
       - FRONTEND_URL=${FRONTEND_URL}
+      # Opsional: URL publik backend untuk link TTD yang dipakai aplikasi lain.
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       # Catatan: backend/server.js saat ini masih memakai `origin: '*'`.
       # Sebaiknya diubah ke CORS_ORIGIN agar browser hanya dari domain sendiri.
       - CORS_ORIGIN=${CORS_ORIGIN}

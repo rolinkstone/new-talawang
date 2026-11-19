@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { 
   FaHome, FaCog, FaSignOutAlt, FaBell, FaClipboardList,
-  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook
+  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook, FaSignature
 } from 'react-icons/fa';
 import { useSession, signOut } from 'next-auth/react';
 import { useNotifications } from '../hooks/useNotifications';
@@ -284,7 +284,17 @@ export default function DashboardLayout({ children }) {
       title: 'Pengaturan',
       items: [
         { href: '/profile', label: 'Profile', icon: <FaCog /> },
-        ...(hasAdminRole() ? [{ href: '/setting', label: 'Settings', icon: <FaCog /> }] : [])
+        ...(hasAdminRole() ? [
+          { 
+            href: '/monitoring-ttd', 
+            label: 'Monitoring TTD', 
+            icon: <FaSignature />,
+            description: 'Daftar user yang sudah TTD & link tanda tangan',
+            badge: 'Admin',
+            badgeColor: 'bg-red-500'
+          },
+          { href: '/setting', label: 'Settings', icon: <FaCog /> }
+        ] : [])
       ]
     }
   ];
@@ -430,6 +440,7 @@ export default function DashboardLayout({ children }) {
                  router.pathname === '/laporan' ? 'Rekap Perjalanan Dinas Pegawai' :
                  router.pathname.startsWith('/lpd/') ? 'Laporan Perjalanan Dinas (LPD)' :
                  router.pathname === '/pagu' ? 'Pagu & Realisasi' :
+                 router.pathname === '/monitoring-ttd' ? 'Monitoring Tanda Tangan (TTD)' :
                  'Aplikasi Nominatif'}
               </h2>
             </div>

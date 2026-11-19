@@ -57,6 +57,21 @@ function cleanFilePath(filePath) {
     return clean;
 }
 
+// Base URL publik backend untuk link TTD yang dipakai aplikasi lain.
+// PUBLIC_BASE_URL dipakai bila domain publik berbeda dari host request (mis. di balik proxy).
+function getPublicBaseUrl(req) {
+    const configured = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+    if (configured) return configured;
+    return `${req.protocol}://${req.get('host')}`;
+}
+
+// Link absolut ke file TTD (disajikan statis tanpa auth, bisa diakses aplikasi lain).
+function buildTtdPublicUrl(req, filePath) {
+    const cleanPath = cleanFilePath(filePath);
+    if (!cleanPath) return null;
+    return `${getPublicBaseUrl(req)}/api${cleanPath}`;
+}
+
 // ============ PROFILE ROUTES ============
 
 // GET - Get user profile
@@ -493,6 +508,86 @@ router.get('/users/search', keycloakAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: error.message
+        });
+    }
+});
+
+// GET - Monitoring TTD semua user (khusus admin)
+// Menampilkan siapa saja yang sudah/belum upload TTD beserta link absolut
+// yang bisa dipakai aplikasi lain (file TTD disajikan statis tanpa auth).
+router.get('/ttd-monitoring', keycloakAuth, async (req, res) => {
+    try {
+        const roles = req.user.extractedRoles || (req.user.role ? [req.user.role] : []);
+        const isAdmin = roles.some(r => String(r).toLowerCase() === 'admin');
+        if (!isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Hanya admin yang dapat mengakses monitoring TTD'
+            });
+        }
+
+        const search = String(req.query.search || '').trim();
+        const params = [];
+        let where = '';
+
+        if (search) {
+            const nameTerm = `%${search}%`;
+            const nipTerm = `%${search.replace(/\s/g, '')}%`;
+            where = `WHERE nama_lengkap LIKE ? OR username LIKE ? OR REPLACE(nip, ' ', '') LIKE ?`;
+            params.push(nameTerm, nameTerm, nipTerm);
+        }
+
+        const [rows] = await db.query(`
+            SELECT
+                user_id,
+                username,
+                nama_lengkap,
+                nip,
+                jabatan,
+                unit_kerja,
+                email,
+                ttd_path,
+                DATE_FORMAT(ttd_uploaded_at, '%Y-%m-%d %H:%i:%s') AS ttd_uploaded_at
+            FROM user_profiles
+            ${where}
+            ORDER BY (ttd_path IS NULL), nama_lengkap ASC
+        `, params);
+
+        const data = rows.map(row => {
+            const ttdPath = row.ttd_path ? cleanFilePath(row.ttd_path) : null;
+            return {
+                user_id: row.user_id,
+                username: row.username,
+                nama_lengkap: row.nama_lengkap || row.username,
+                nip: row.nip || '',
+                jabatan: row.jabatan || '',
+                unit_kerja: row.unit_kerja || '',
+                email: row.email || '',
+                has_ttd: Boolean(ttdPath),
+                ttd_path: ttdPath,
+                ttd_url: ttdPath ? buildTtdPublicUrl(req, ttdPath) : null,
+                ttd_uploaded_at: row.ttd_uploaded_at
+            };
+        });
+
+        const sudahTtd = data.filter(item => item.has_ttd).length;
+
+        res.status(200).json({
+            success: true,
+            data,
+            summary: {
+                total: data.length,
+                sudah_ttd: sudahTtd,
+                belum_ttd: data.length - sudahTtd
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching TTD monitoring:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengambil data monitoring TTD',
+            error: error.message
         });
     }
 });
