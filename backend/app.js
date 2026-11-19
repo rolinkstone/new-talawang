@@ -11,6 +11,7 @@ const keycloakRoutes = require('./routes/keycloak');
 const kegiatanRoutes = require('./routes/kegiatan');
 const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
+const nominatifPerbaikanRoutes = require('./routes/nominatifPerbaikan');
 const lpdRoutes = require('./routes/lpd');
 const laporanRoutes = require('./routes/laporan');
 const notifikasiRoutes = require('./routes/notifikasi');
@@ -111,6 +112,7 @@ app.use('/api/keycloak', keycloakRoutes);
 app.use('/api/kegiatan', kegiatanRoutes);
 app.use('/api/kwitansi', kwitansiRoutes);  // TAMBAHKAN INI (jika belum ada)
 app.use('/api/search', searchRoutes);
+app.use('/api/nominatif-perbaikan', nominatifPerbaikanRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
 app.use('/api/laporan', laporanRoutes);
 app.use('/api/notifikasi', notifikasiRoutes);
@@ -129,6 +131,7 @@ app.get('/api/health', (req, res) => {
             '/api/kegiatan',
             '/api/kwitansi',
             '/api/search',
+            '/api/nominatif-perbaikan',
             '/api/lpd',
             '/api/health'
         ]

@@ -158,7 +158,8 @@ const KegiatanForm = ({
     formError,
     setFormError,
     formLoading,
-    setFormLoading
+    setFormLoading,
+    lokasiReadOnly = false
 }) => {
     // State untuk data daerah
     const [provinsiList, setProvinsiList] = useState([]);
@@ -1476,7 +1477,7 @@ const KegiatanForm = ({
                                             value={selectedProvinsi}
                                             onChange={handleProvinsiChange}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            disabled={loadingDaerah}
+                                            disabled={loadingDaerah || lokasiReadOnly}
                                         >
                                             <option value="">Pilih Provinsi</option>
                                             {provinsiList.map(provinsi => (
@@ -1495,7 +1496,7 @@ const KegiatanForm = ({
                                             value={selectedKabupaten}
                                             onChange={handleKabupatenChange}
                                             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 ${fieldBorderClass('kota_kab_kecamatan')}`}
-                                            disabled={!selectedProvinsi || loadingDaerah}
+                                            disabled={!selectedProvinsi || loadingDaerah || lokasiReadOnly}
                                             required
                                         >
                                             <option value="">Pilih Kabupaten/Kota</option>
@@ -1515,7 +1516,7 @@ const KegiatanForm = ({
                                             value={selectedKecamatan}
                                             onChange={handleKecamatanChange}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            disabled={!selectedKabupaten || loadingDaerah}
+                                            disabled={!selectedKabupaten || loadingDaerah || lokasiReadOnly}
                                         >
                                             <option value="">Pilih Kecamatan</option>
                                             {kecamatanList.map(kecamatan => (
@@ -1550,9 +1551,16 @@ const KegiatanForm = ({
                                                     name="kota_kab_kecamatan"
                                                     value={formData.kota_kab_kecamatan}
                                                     onChange={handleFormChange}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                                    disabled={lokasiReadOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm disabled:opacity-70"
                                                     placeholder="Ketik manual jika perlu"
                                                 />
+
+                                                {lokasiReadOnly && (
+                                                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                                        Lokasi kegiatan ini terenkripsi dan hanya dapat diubah oleh pembuat kegiatan melalui menu Nominatif.
+                                                    </p>
+                                                )}
 
                                                 <div className="mt-3 flex items-start gap-2">
                                                     <input
@@ -1560,6 +1568,7 @@ const KegiatanForm = ({
                                                         type="checkbox"
                                                         checked={Boolean(formData.encrypt_kota_kab_kecamatan)}
                                                         onChange={(e) => setFormData(prev => ({ ...prev, encrypt_kota_kab_kecamatan: e.target.checked }))}
+                                                        disabled={lokasiReadOnly}
                                                         className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                                                     />
                                                     <label htmlFor="encrypt_kota_kab_kecamatan" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">

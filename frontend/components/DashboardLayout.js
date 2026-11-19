@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { 
   FaHome, FaCog, FaSignOutAlt, FaBell, FaClipboardList,
-  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook, FaSignature
+  FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook, FaSignature, FaEdit
 } from 'react-icons/fa';
 import { useSession, signOut } from 'next-auth/react';
 import { useNotifications } from '../hooks/useNotifications';
@@ -227,6 +227,16 @@ export default function DashboardLayout({ children }) {
             description: 'Membatalkan kegiatan (PPK & Admin)',
             badge: hasAdminRole() ? 'Admin' : 'PPK',
             badgeColor: hasAdminRole() ? 'bg-red-500' : 'bg-yellow-500'
+          }
+        ] : []),
+        ...(hasAdminRole() ? [
+          {
+            href: '/perbaikan-nominatif',
+            label: 'Perbaikan Nominatif',
+            icon: <FaEdit />,
+            description: 'Perbaiki data nominatif berdasarkan nama atau no. surat tugas',
+            badge: 'Admin',
+            badgeColor: 'bg-red-500'
           }
         ] : [])
       ]

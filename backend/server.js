@@ -176,6 +176,7 @@ const kegiatanRoutes = require('./routes/kegiatan');
 const sptjmRoutes = require('./routes/sptjm');
 const kwitansiRoutes = require('./routes/kwitansi');
 const searchRoutes = require('./routes/search');
+const nominatifPerbaikanRoutes = require('./routes/nominatifPerbaikan');
 const keycloakRoutes = require('./routes/keycloak');
 const profileRoutes = require('./routes/profile');
 const lpdRoutes = require('./routes/lpd');  // TAMBAHKAN INI
@@ -190,6 +191,7 @@ app.use('/api/kegiatan', kegiatanRoutes);
 app.use('/api/sptjm', sptjmRoutes);
 app.use('/api/kwitansi', kwitansiRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/nominatif-perbaikan', nominatifPerbaikanRoutes);
 app.use('/api/keycloak', keycloakRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/lpd', lpdRoutes);  // TAMBAHKAN INI
@@ -545,6 +547,7 @@ app.listen(PORT, () => {
        /api/kwitansi
        /api/lpd
        /api/search
+       /api/nominatif-perbaikan
        /api/keycloak
        /api/profile
        /uploads (static files)
