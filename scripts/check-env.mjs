@@ -54,7 +54,7 @@ const PLACEHOLDERS = [
 ];
 
 // Rahasia minimal 32 karakter (biar tidak ada yang pakai "secret123").
-const MIN_LEN_SECRET = ['SESSION_SECRET', 'JWT_SECRET', 'SIGNED_URL_SECRET', 'NEXTAUTH_SECRET'];
+const MIN_LEN_SECRET = ['SESSION_SECRET', 'JWT_SECRET', 'SIGNED_URL_SECRET', 'NEXTAUTH_SECRET', 'LOKASI_ENCRYPTION_KEY'];
 
 function parseEnv(text) {
   const out = {};
@@ -109,6 +109,15 @@ for (const [key, value] of Object.entries(env)) {
   if (MIN_LEN_SECRET.includes(key) && value.length < 32) {
     errors.push(`LEMAH  ${key} — kurang dari 32 karakter (${value.length})`);
   }
+}
+
+// Kunci enkripsi lokasi nominatif. Bila kosong, backend memakai SESSION_SECRET
+// sebagai kunci cadangan — tetap jalan, tapi rawan: begitu SESSION_SECRET
+// diganti/di-rotate, semua lokasi yang sudah terenkripsi tidak bisa dibuka lagi.
+if (!env.LOKASI_ENCRYPTION_KEY) {
+  warnings.push('KOSONG  LOKASI_ENCRYPTION_KEY — backend memakai SESSION_SECRET sebagai kunci enkripsi lokasi. '
+    + 'Bila SUDAH ada lokasi terenkripsi, isi dengan nilai yang SAMA seperti SESSION_SECRET saat ini '
+    + '(jangan nilai acak baru), lalu jangan diubah lagi.');
 }
 
 // Client ID frontend & backend harus konsisten.

@@ -17,11 +17,30 @@
 #   2b) node scripts/check-env.mjs
 #      → menolak `contoh.id`, `ganti_...`, localhost, atau rahasia < 32 karakter.
 #   3) docker compose build      (NEXT_PUBLIC_* di-bake di langkah INI)
+#      ⚠️ Compose versi baru menjalankan `build` lewat buildx dan menolak bila
+#         buildx < 0.17.0:
+#             compose build requires buildx 0.17.0 or later
+#         Ini masalah di SERVER (bukan kode aplikasi). Pilih salah satu:
+#           a) pasang/upgrade plugin buildx lalu ulangi `docker compose build`
+#              RHEL/CentOS/Rocky:  dnf install -y docker-buildx-plugin
+#              cek:                docker buildx version   (harus >= 0.17.0)
+#           b) build image langsung (tidak lewat buildx-compose), lalu up tanpa build:
+#                docker build -t new-talawang-backend ./backend
+#                docker build -t new-talawang-frontend \
+#                  --build-arg NEXT_PUBLIC_API_URL="$(grep -E '^NEXT_PUBLIC_API_URL=' .env | cut -d= -f2-)" \
+#                  --build-arg NEXT_PUBLIC_KEYCLOAK_ISSUER="$(grep -E '^NEXT_PUBLIC_KEYCLOAK_ISSUER=' .env | cut -d= -f2-)" \
+#                  --build-arg NEXT_PUBLIC_KEYCLOAK_CLIENT_ID="$(grep -E '^NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
+#                  ./frontend
+#                docker compose up -d --no-build
+#              Nama image harus sama dengan `docker compose config --images`
+#              (default: <nama-folder>-backend / <nama-folder>-frontend).
 #   4) docker compose up -d
 #      Cek: docker compose ps   (kolom STATUS harus "healthy" setelah ± 1 menit)
 #
 # Prasyarat di server:
 #   - Docker + plugin docker compose.
+#   - Plugin buildx >= 0.17.0 (dipakai `docker compose build` versi baru).
+#     Cek: docker buildx version
 #   - MySQL jalan di host (127.0.0.1:3306) dan database sudah dimigrasi.
 #   - Port host berikut belum dipakai proses lain: PORT_BACKEND (5000),
 #     PORT_FRONTEND (3001).
@@ -105,12 +124,16 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - JWT_SECRET=${JWT_SECRET}
       - SIGNED_URL_SECRET=${SIGNED_URL_SECRET}
-      - LOKASI_ENCRYPTION_KEY=${LOKASI_ENCRYPTION_KEY}
+      # Wajib ada di .env (min. 32 karakter). Bila kosong, backend memakai
+      # SESSION_SECRET sebagai kunci cadangan — dan lokasi yang sudah terenkripsi
+      # akan TIDAK bisa dibuka lagi kalau SESSION_SECRET berubah. Isi dengan nilai
+      # yang sama seperti SESSION_SECRET saat ini bila sudah ada data terenkripsi.
+      - LOKASI_ENCRYPTION_KEY=${LOKASI_ENCRYPTION_KEY:-}
       # ---------- URL & CORS ----------
       # FRONTEND_URL dipakai backend/server.js untuk redirect setelah logout.
       - FRONTEND_URL=${FRONTEND_URL}
       # Opsional: URL publik backend untuk link TTD yang dipakai aplikasi lain.
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       # Catatan: backend/server.js saat ini masih memakai `origin: '*'`.
       # Sebaiknya diubah ke CORS_ORIGIN agar browser hanya dari domain sendiri.
       - CORS_ORIGIN=${CORS_ORIGIN}
