@@ -6,7 +6,7 @@ import {
   FaHome, FaCog, FaSignOutAlt, FaBell, FaClipboardList,
   FaTimesCircle, FaReceipt, FaFileAlt, FaChartBar, FaBook, FaSignature, FaEdit
 } from 'react-icons/fa';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession, signOut, getSession } from 'next-auth/react';
 import { useNotifications } from '../hooks/useNotifications';
 import ThemeToggle from './ThemeToggle';
 
@@ -54,10 +54,23 @@ export default function DashboardLayout({ children }) {
     }
   }, [notifications, notifLoading, notifError]);
 
+  // Arahkan ke login hanya bila sesi benar-benar tidak ada. Satu kegagalan
+  // fetch /api/auth/session (jaringan/NextAuth sesaat) membuat status menjadi
+  // "unauthenticated"; dulu user langsung terlempar ke /login karena itu.
   useEffect(() => {
-    if (!loading && !session) {
-      router.push('/login');
-    }
+    if (loading || session) return undefined;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const fresh = await getSession().catch(() => null);
+      if (cancelled) return;
+      if (!fresh?.user) router.push('/login');
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [session, loading, router]);
 
   // ============ FUNGSI CEK ROLE USER ============
@@ -158,7 +171,9 @@ export default function DashboardLayout({ children }) {
     }
   };
 
-  if (loading) {
+  // Tetap tampilkan loading selama sesi belum tersedia (bukan layar kosong),
+  // karena redirect ke login kini menunggu verifikasi ulang sesi.
+  if (loading || !session) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
@@ -168,8 +183,6 @@ export default function DashboardLayout({ children }) {
       </div>
     );
   }
-
-  if (!session) return null;
 
   const getUserName = () => {
     return session?.user?.name || 

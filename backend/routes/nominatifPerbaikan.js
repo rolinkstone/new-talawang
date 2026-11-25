@@ -55,6 +55,70 @@ const requireAdmin = (req, res) => {
     return true;
 };
 
+// Batas panjang kolom teks di database. Tanpa pengecekan ini, teks yang terlalu
+// panjang (mis. keterangan transport > 50 karakter) hanya muncul sebagai
+// "Gagal menyimpan perbaikan nominatif" tanpa penjelasan.
+const MAX_ITEM_TEXT = 50; // nominatif_transportasi.trans, *_items.jenis
+
+const isFilled = (value) => String(value ?? '').trim() !== '';
+const hasNominal = (item) => Number(item?.harga) > 0 || Number(item?.qty) > 0 || Number(item?.total) > 0;
+
+// Validasi isi payload pegawai sebelum menyentuh database.
+const validatePegawaiPayload = (pegawai) => {
+    for (let index = 0; index < pegawai.length; index++) {
+        const p = pegawai[index] || {};
+        const label = `Pegawai ke-${index + 1}${isFilled(p.nama) ? ` (${String(p.nama).trim()})` : ''}`;
+
+        if (String(p.nama || '').trim().length > 255) {
+            return `${label}: nama pegawai maksimal 255 karakter`;
+        }
+        if (String(p.nip || '').trim().length > 50) {
+            return `${label}: NIP maksimal 50 karakter`;
+        }
+        if (String(p.pangkat || '').trim().length > 100 || String(p.jabatan || '').trim().length > 100) {
+            return `${label}: pangkat/jabatan maksimal 100 karakter`;
+        }
+
+        const biayaList = Array.isArray(p.biaya) ? p.biaya : [];
+        for (const biaya of biayaList) {
+            for (const transport of biaya?.transportasi || []) {
+                if (String(transport?.trans || '').length > MAX_ITEM_TEXT) {
+                    return `${label}: jenis transportasi maksimal ${MAX_ITEM_TEXT} karakter`;
+                }
+                if (!isFilled(transport?.trans) && hasNominal(transport)) {
+                    return `${label}: jenis transportasi belum diisi padahal nominalnya sudah ada`;
+                }
+            }
+            for (const item of [...(biaya?.uang_harian_items || []), ...(biaya?.penginapan_items || [])]) {
+                if (String(item?.jenis || '').length > MAX_ITEM_TEXT) {
+                    return `${label}: keterangan uang harian/penginapan maksimal ${MAX_ITEM_TEXT} karakter`;
+                }
+                if (!isFilled(item?.jenis) && hasNominal(item)) {
+                    return `${label}: keterangan uang harian/penginapan belum diisi padahal nominalnya sudah ada`;
+                }
+            }
+        }
+    }
+    return null;
+};
+
+// Terjemahkan error database yang sebenarnya disebabkan input user menjadi
+// pesan yang bisa ditindaklanjuti.
+const describeDatabaseError = (error) => {
+    switch (error?.code) {
+        case 'ER_DATA_TOO_LONG':
+            return `Ada teks yang terlalu panjang. Jenis transportasi/uang harian/penginapan maksimal ${MAX_ITEM_TEXT} karakter.`;
+        case 'ER_BAD_NULL_ERROR':
+            return 'Ada data wajib yang masih kosong (mis. bendahara). Lengkapi datanya lalu simpan kembali.';
+        case 'ER_WARN_DATA_OUT_OF_RANGE':
+        case 'ER_TRUNCATED_WRONG_VALUE':
+        case 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD':
+            return 'Ada nominal yang tidak valid atau terlalu besar. Periksa kembali nilai rincian biaya.';
+        default:
+            return null;
+    }
+};
+
 // ========== GET - Pencarian nominatif (nama nominatif / nomor surat tugas) ==========
 router.get('/', keycloakAuth, async (req, res) => {
     if (!requireAdmin(req, res)) return;
@@ -410,6 +474,24 @@ router.put('/:id', keycloakAuth, async (req, res) => {
         });
     }
 
+    const textTerlaluPanjang = [
+        [String(kegiatanNama || '').trim().length > 255, 'Nama nominatif (kegiatan) maksimal 255 karakter'],
+        [String(mak || '').trim().length > 50, 'MAK maksimal 50 karakter'],
+        [String(bendahara_nama || '').trim().length > 150, 'Nama bendahara maksimal 150 karakter'],
+        [String(bendahara_nip || '').trim().length > 150, 'NIP bendahara maksimal 150 karakter']
+    ].find(([terlaluPanjang]) => terlaluPanjang);
+
+    if (textTerlaluPanjang) {
+        return res.status(400).json({ success: false, message: textTerlaluPanjang[1] });
+    }
+
+    const invalidPegawai = validatePegawaiPayload(
+        pegawai.filter((p) => p && String(p.nama || '').trim())
+    );
+    if (invalidPegawai) {
+        return res.status(400).json({ success: false, message: invalidPegawai });
+    }
+
     let connection;
     try {
         connection = await db.getConnection();
@@ -497,9 +579,9 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                  rencana_tanggal_pelaksanaan = ?,
                  rencana_tanggal_pelaksanaan_akhir = ?,
                  jenis_spm = COALESCE(?, jenis_spm),
-                 bendahara_id = ?,
-                 bendahara_nama = ?,
-                 bendahara_nip = ?,
+                 bendahara_id = COALESCE(NULLIF(?, ''), bendahara_id),
+                 bendahara_nama = COALESCE(NULLIF(?, ''), bendahara_nama),
+                 bendahara_nip = COALESCE(NULLIF(?, ''), bendahara_nip),
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [
@@ -513,9 +595,9 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 rencana_tanggal_pelaksanaan || null,
                 rencana_tanggal_pelaksanaan_akhir || null,
                 jenis_spm || null,
-                bendahara_id || null,
-                bendahara_nama || null,
-                bendahara_nip || null,
+                String(bendahara_id || '').trim(),
+                String(bendahara_nama || '').trim(),
+                String(bendahara_nip || '').trim(),
                 id
             ]
         );
@@ -612,9 +694,10 @@ router.put('/:id', keycloakAuth, async (req, res) => {
                 console.error('❌ Error rollback perbaikan nominatif:', rollbackError);
             }
         }
-        res.status(500).json({
+        const friendlyMessage = describeDatabaseError(error);
+        res.status(friendlyMessage ? 400 : 500).json({
             success: false,
-            message: 'Gagal menyimpan perbaikan nominatif',
+            message: friendlyMessage || 'Gagal menyimpan perbaikan nominatif',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     } finally {

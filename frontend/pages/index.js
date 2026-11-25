@@ -2,25 +2,17 @@
 // Keamanan: hanya menampilkan informasi minimal (nama). Nama role tidak dirender
 // ke client — hanya fitur yang bisa diakses. Detail pribadi di halaman /profile.
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/router';
-import { useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { isAdmin, isKabagTu, isKabalai } from '../utils/roleChecks';
 
 const Home = () => {
   const { data: session, status } = useSession();
-  const router = useRouter();
   const loading = status === 'loading';
 
-  // Redirect ke login bila sesi belum ada
-  useEffect(() => {
-    if (!loading && !session) {
-      router.push('/login');
-    }
-  }, [session, loading, router]);
-
   // Catatan: auto-logout + countdown saat session habis ditangani secara global
-  // oleh komponen SessionExpiryWatcher yang dipasang di _app.js.
+  // oleh komponen SessionExpiryWatcher yang dipasang di _app.js, sedangkan
+  // redirect ke /login saat sesi benar-benar tidak ada ditangani DashboardLayout
+  // (dengan verifikasi ulang supaya gangguan sesaat tidak melempar user keluar).
 
   const displayName =
     session?.user?.name ||
@@ -32,7 +24,7 @@ const Home = () => {
   // Nama role TIDAK dirender ke client — hanya fitur yang bisa diakses.
   const canAccessLaporan = isAdmin(session) || isKabagTu(session) || isKabalai(session);
 
-  if (loading) {
+  if (loading || !session) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
@@ -44,8 +36,6 @@ const Home = () => {
       </DashboardLayout>
     );
   }
-
-  if (!session) return null;
 
   return (
     <DashboardLayout>

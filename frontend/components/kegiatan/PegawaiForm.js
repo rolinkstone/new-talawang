@@ -885,6 +885,7 @@ const PegawaiForm = ({
                                             placeholder="Berangkat/Pulang/Pesawat/dll"
                                             value={transport.trans}
                                             onChange={(e) => handleBiayaChange(pIndex, 0, 'transportasi', tIndex, 'trans', e.target.value)}
+                                            maxLength={50}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                             disabled={formLoading}
                                         />
@@ -954,6 +955,7 @@ const PegawaiForm = ({
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 value={uh.jenis}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'uang_harian_items', uIndex, 'jenis', e.target.value)}
+                                                maxLength={50}
                                                 disabled={formLoading}
                                             />
                                         </div>
@@ -1034,6 +1036,7 @@ const PegawaiForm = ({
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded text-sm"
                                                 value={penginapan.jenis}
                                                 onChange={(e) => handleBiayaChange(pIndex, 0, 'penginapan_items', pIdx, 'jenis', e.target.value)}
+                                                maxLength={50}
                                                 disabled={formLoading}
                                             />
                                         </div>

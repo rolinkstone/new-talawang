@@ -64,10 +64,19 @@ export default function SessionExpiryWatcher() {
 
         // Kembalikan session terbaru bila masih valid; null bila tidak bisa
         // dipulihkan (tidak ada sesi / refresh gagal / sesi sudah habis).
+        // getSession() mengembalikan objek kosong {} ketika cookie sesi sudah
+        // tidak ada — objek itu BUKAN sesi yang bisa dipakai, jadi harus dicek
+        // lewat session.user (kalau tidak, request diulang dengan token basi).
+        const resolveFreshSession = (fresh) => {
+            if (!fresh?.user || fresh.error || isSessionExpired(fresh)) return null;
+            if (!API_VIA_PROXY && !fresh.accessToken) return null;
+            return fresh;
+        };
+
         const recoverSession = () => {
             if (!inFlightRecovery) {
                 inFlightRecovery = getSession()
-                    .then((fresh) => (fresh && !fresh.error && !isSessionExpired(fresh) ? fresh : null))
+                    .then(resolveFreshSession)
                     .catch(() => null)
                     .then((result) => {
                         inFlightRecovery = null;

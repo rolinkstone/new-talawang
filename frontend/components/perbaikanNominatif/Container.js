@@ -478,6 +478,7 @@ export default function PerbaikanNominatifContainer({ session }) {
                             formLoading={formLoading}
                             setFormLoading={setFormLoading}
                             lokasiReadOnly={Boolean(formData.kota_kab_kecamatan_encrypted)}
+                            requireBendahara={false}
                         />
                     </div>
                 </div>

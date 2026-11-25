@@ -28,10 +28,15 @@ function formatNipWithSpaces(nip) {
 // _app.js (30 detik) supaya token yang dipakai komponen selalu masih valid.
 const ACCESS_TOKEN_REFRESH_MARGIN_SECONDS = 60;
 
-// Perbarui access token memakai refresh token yang tersimpan di JWT httpOnly
-// (refresh token tidak pernah dikirim ke browser). Dipanggil dari callback jwt
-// hanya ketika access token sudah/hampir kedaluwarsa.
-async function refreshAccessToken(token) {
+// Refresh token yang gagal sesaat (Keycloak lambat / gangguan jaringan) tidak
+// boleh langsung mengeluarkan user, jadi permintaan diulang dengan batas waktu.
+const REFRESH_TIMEOUT_MS = 8000;
+const REFRESH_MAX_ATTEMPTS = 3;
+const REFRESH_RETRY_DELAY_MS = 1200;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function requestTokenRefresh(token) {
   const issuer = String(process.env.KEYCLOAK_ISSUER || '').replace(/\/+$/, '');
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
@@ -40,26 +45,56 @@ async function refreshAccessToken(token) {
     refresh_token: token.refreshToken,
   });
 
-  const response = await fetch(`${issuer}/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-  const refreshed = await response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
 
-  if (!response.ok || !refreshed.access_token) {
-    throw refreshed;
+  try {
+    const response = await fetch(`${issuer}/protocol/openid-connect/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params,
+      signal: controller.signal,
+    });
+    const refreshed = await response.json();
+
+    if (!response.ok || !refreshed.access_token) {
+      throw refreshed;
+    }
+
+    console.log('🔄 JWT - Access token Keycloak disegarkan');
+    return {
+      ...token,
+      accessToken: refreshed.access_token,
+      idToken: refreshed.id_token || token.idToken,
+      refreshToken: refreshed.refresh_token || token.refreshToken,
+      expiresAt: Math.floor(Date.now() / 1000) + (Number(refreshed.expires_in) || 300),
+      error: null,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Perbarui access token memakai refresh token yang tersimpan di JWT httpOnly
+// (refresh token tidak pernah dikirim ke browser). Dipanggil dari callback jwt
+// hanya ketika access token sudah/hampir kedaluwarsa.
+async function refreshAccessToken(token) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= REFRESH_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await requestTokenRefresh(token);
+    } catch (error) {
+      lastError = error;
+      // Refresh token yang sudah tidak berlaku / client ditolak tidak akan
+      // berhasil bila diulang.
+      const fatal = error?.error === 'invalid_grant' || error?.error === 'invalid_client';
+      if (fatal || attempt === REFRESH_MAX_ATTEMPTS) break;
+      await sleep(REFRESH_RETRY_DELAY_MS * attempt);
+    }
   }
 
-  console.log('🔄 JWT - Access token Keycloak disegarkan');
-  return {
-    ...token,
-    accessToken: refreshed.access_token,
-    idToken: refreshed.id_token || token.idToken,
-    refreshToken: refreshed.refresh_token || token.refreshToken,
-    expiresAt: Math.floor(Date.now() / 1000) + (Number(refreshed.expires_in) || 300),
-    error: null,
-  };
+  throw lastError;
 }
 
 export const authOptions = {
@@ -163,6 +198,14 @@ export const authOptions = {
           return await refreshAccessToken(token);
         } catch (error) {
           console.error('❌ JWT - Gagal menyegarkan token Keycloak:', error?.error || error?.message || error);
+          // Access token lama masih berlaku beberapa detik lagi? Jangan tandai
+          // sesi rusak dulu — poll berikutnya akan mencoba refresh lagi, sehingga
+          // gangguan Keycloak sesaat tidak langsung mengeluarkan user.
+          const stillValid = Number(token.expiresAt) > Math.floor(Date.now() / 1000) + 5;
+          if (stillValid) {
+            console.warn('⚠️ JWT - Refresh gagal sementara, token lama masih dipakai');
+            return { ...token, error: null };
+          }
           return { ...token, error: 'RefreshAccessTokenError' };
         }
       }
@@ -232,7 +275,10 @@ export const authOptions = {
 
   session: {
     strategy: 'jwt',
-    maxAge: 4 * 60 * 60,
+    // Sesi bergulir (cookie diperbarui tiap poll /api/auth/session), jadi nilai
+    // ini adalah batas IDLE. 4 jam terlalu pendek untuk satu hari kerja sehingga
+    // user sering terlempar ke halaman login; 8 jam cukup untuk satu shift.
+    maxAge: 8 * 60 * 60,
   },
 
   debug: process.env.NODE_ENV === 'development',

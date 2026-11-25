@@ -159,7 +159,10 @@ const KegiatanForm = ({
     setFormError,
     formLoading,
     setFormLoading,
-    lokasiReadOnly = false
+    lokasiReadOnly = false,
+    // Mode perbaikan nominatif tidak mewajibkan bendahara: data lama yang
+    // belum punya bendahara tetap harus bisa diperbaiki (transport, pegawai, dst.).
+    requireBendahara = true
 }) => {
     // State untuk data daerah
     const [provinsiList, setProvinsiList] = useState([]);
@@ -287,17 +290,38 @@ const KegiatanForm = ({
                 if ((Number(p?.total_biaya) || 0) <= 0) {
                     add(warnings, 'Data Pegawai', `pegawai_${idx}_total_biaya`, `${label}${nama ? ` (${nama})` : ''}: total biaya masih Rp 0 — periksa rincian transport/uang harian/penginapan`);
                 }
+
+                // Baris rincian yang sudah ada nominalnya tetapi keterangannya kosong
+                // akan dibuang oleh server (kolom keterangan wajib diisi), jadi
+                // hentikan penyimpanan supaya data tidak hilang tanpa pesan.
+                const nominalTanpaKeterangan = (item, fieldKeterangan) =>
+                    item
+                    && !String(item[fieldKeterangan] || '').trim()
+                    && (Number(item.harga) > 0 || Number(item.qty) > 0 || Number(item.total) > 0);
+
+                const rincianKurang = new Set();
+                (Array.isArray(p?.biaya) ? p.biaya : []).forEach((biaya) => {
+                    if ((biaya?.transportasi || []).some((t) => nominalTanpaKeterangan(t, 'trans'))) rincianKurang.add('transportasi');
+                    if ((biaya?.uang_harian_items || []).some((u) => nominalTanpaKeterangan(u, 'jenis'))) rincianKurang.add('uang harian');
+                    if ((biaya?.penginapan_items || []).some((u) => nominalTanpaKeterangan(u, 'jenis'))) rincianKurang.add('penginapan');
+                });
+
+                if (rincianKurang.size > 0) {
+                    add(errors, 'Data Pegawai', `pegawai_${idx}_rincian_belum_lengkap`,
+                        `${label}${nama ? ` (${nama})` : ''}: keterangan ${[...rincianKurang].join(', ')} belum diisi padahal nominalnya sudah ada`);
+                }
             });
         }
 
         // ---------- Data Bendahara ----------
-        if (!String(selectedBendaharaId || formData.bendahara_id || '').trim() &&
+        if (requireBendahara &&
+            !String(selectedBendaharaId || formData.bendahara_id || '').trim() &&
             !String(formData.bendahara_nama || '').trim()) {
             add(errors, 'Data Bendahara', 'bendahara_id', 'Bendahara belum dipilih');
         }
 
         return { errors, warnings };
-    }, [formData, pegawaiList, jenisSPM, makDisplay, selectedBendaharaId]);
+    }, [formData, pegawaiList, jenisSPM, makDisplay, selectedBendaharaId, requireBendahara]);
 
     // Panel rincian hanya muncul setelah percobaan simpan gagal, lalu isinya
     // diperbarui langsung mengikuti perbaikan user (kolom yang sudah diisi otomatis hilang).
