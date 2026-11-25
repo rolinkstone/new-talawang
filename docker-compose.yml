@@ -24,16 +24,12 @@
 #           a) pasang/upgrade plugin buildx lalu ulangi `docker compose build`
 #              RHEL/CentOS/Rocky:  dnf install -y docker-buildx-plugin
 #              cek:                docker buildx version   (harus >= 0.17.0)
-#           b) build image langsung (tidak lewat buildx-compose), lalu up tanpa build:
-#                docker build -t new-talawang-backend ./backend
-#                docker build -t new-talawang-frontend \
-#                  --build-arg NEXT_PUBLIC_API_URL="$(grep -E '^NEXT_PUBLIC_API_URL=' .env | cut -d= -f2-)" \
-#                  --build-arg NEXT_PUBLIC_KEYCLOAK_ISSUER="$(grep -E '^NEXT_PUBLIC_KEYCLOAK_ISSUER=' .env | cut -d= -f2-)" \
-#                  --build-arg NEXT_PUBLIC_KEYCLOAK_CLIENT_ID="$(grep -E '^NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
-#                  ./frontend
-#                docker compose up -d --no-build
-#              Nama image harus sama dengan `docker compose config --images`
-#              (default: <nama-folder>-backend / <nama-folder>-frontend).
+#           b) lewati `compose build` — build image langsung lalu jalankan:
+#                node scripts/build-images.mjs --up
+#              Script itu memakai `docker build` biasa, mengirim build-arg
+#              NEXT_PUBLIC_* dari .env, dan memberi tag sesuai nama image yang
+#              diharapkan compose. Tanpa --up hanya build (up manual:
+#              `docker compose up -d --no-build`).
 #   4) docker compose up -d
 #      Cek: docker compose ps   (kolom STATUS harus "healthy" setelah ± 1 menit)
 #
