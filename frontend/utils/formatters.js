@@ -92,7 +92,12 @@ export const formatDateRange = (startDate, endDate) => {
 // Format MAK: ekstrak kode penting, susun ulang jadi singkatan
 // Ekstrak bagian-bagian MAK (digunakan oleh formatMak dan filter pagu)
 export const getMakParts = (mak) => {
+    if (!mak) return { kodeHuruf: '', kodeJenis: '' };
     const parts = mak.split('.');
+    // Format ringkas dari API aplikasi lain: 3165.AEA.001.054.524111.A
+    if (parts.length === 6 && /^[A-Za-z]+$/.test(parts[1] || '')) {
+        return { kodeHuruf: parts[1], kodeJenis: parts[2] || '' };
+    }
     if (parts.length < 15) return { kodeHuruf: '', kodeJenis: '' };
     const match5 = parts[4].match(/^(\d+)([A-Za-z]+)/);
     return {

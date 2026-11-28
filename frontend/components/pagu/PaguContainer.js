@@ -3,10 +3,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import NotificationModal from '../common/NotificationModal';
 import LoadingSpinner from '../common/LoadingSpinner';
-import PaguModal from './modals/PaguModal';
-import DeletePaguModal from './modals/DeletePaguModal';
-import UploadPaguModal from './modals/UploadPaguModal';
+import TarikPaguModal from './modals/TarikPaguModal';
 import { formatRupiah, formatMak, getMakParts } from '../../utils/formatters';
+
+// Waktu dari API berupa ISO (UTC); tampilkan dalam waktu lokal.
+const formatWaktu = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+};
 
 export default function PaguContainer({ session, status }) {
   const [paguList, setPaguList] = useState([]);
@@ -15,12 +21,7 @@ export default function PaguContainer({ session, status }) {
   const [notification, setNotification] = useState({ show: false, message: '' });
 
   // Modal state
-  const [showPaguModal, setShowPaguModal] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteItem, setDeleteItem] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showTarikModal, setShowTarikModal] = useState(false);
 
   // Cek role admin
   const isAdmin = useMemo(() => {
@@ -46,15 +47,15 @@ export default function PaguContainer({ session, status }) {
 
     try {
       setLoading(true);
+      setError('');
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pagu`, {
         headers: { Authorization: `Bearer ${session.accessToken}` }
       });
 
-      if (response.data.success) {
-        setPaguList(response.data.data);
-      }
+      setPaguList(response.data.data || []);
     } catch (err) {
       console.error('Error fetching pagu:', err);
+      setPaguList([]);
       setError(err.response?.data?.message || 'Gagal memuat data pagu');
     } finally {
       setLoading(false);
@@ -64,65 +65,6 @@ export default function PaguContainer({ session, status }) {
   useEffect(() => {
     fetchPaguList();
   }, [fetchPaguList]);
-
-  const handleAdd = () => {
-    setEditItem(null);
-    setShowPaguModal(true);
-  };
-
-  const handleEdit = (item) => {
-    setEditItem(item);
-    setShowPaguModal(true);
-  };
-
-  const handleDelete = (item) => {
-    setDeleteItem(item);
-    setShowDeleteModal(true);
-  };
-
-  const handleSave = async (data) => {
-    try {
-      const headers = { Authorization: `Bearer ${session.accessToken}` };
-      let response;
-
-      if (editItem) {
-        response = await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/pagu/${editItem.id}`, data, { headers });
-      } else {
-        response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/pagu`, data, { headers });
-      }
-
-      if (response.data.success) {
-        setShowPaguModal(false);
-        setEditItem(null);
-        setNotification({ show: true, message: response.data.message });
-        fetchPaguList();
-      }
-    } catch (err) {
-      throw err.response?.data?.message || err.message;
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteItem) return;
-
-    try {
-      setDeletingId(deleteItem.id);
-      const response = await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/pagu/${deleteItem.id}`, {
-        headers: { Authorization: `Bearer ${session.accessToken}` }
-      });
-
-      if (response.data.success) {
-        setShowDeleteModal(false);
-        setDeleteItem(null);
-        setNotification({ show: true, message: response.data.message });
-        fetchPaguList();
-      }
-    } catch (err) {
-      setNotification({ show: true, message: err.response?.data?.message || 'Gagal menghapus pagu' });
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   // Get unique values for filter
   const tahunList = [...new Set(paguList.map(item => item.tahun_anggaran).filter(Boolean))].sort((a, b) => b - a);
@@ -221,34 +163,40 @@ export default function PaguContainer({ session, status }) {
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Pagu & Realisasi</h2>
           <p className="text-gray-600 mt-1">
-            Kelola pagu dan realisasi anggaran per MAK
+            Pagu dan realisasi anggaran per MAK — langsung dari Jendela Kinerja
           </p>
         </div>
         <div className="flex space-x-2">
           {isAdmin && (
             <button
-              onClick={() => setShowUploadModal(true)}
+              onClick={() => setShowTarikModal(true)}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Upload Excel
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              onClick={handleAdd}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Tambah Pagu
+              Atur Token
             </button>
           )}
         </div>
       </div>
+
+      {/* Error pengambilan data live */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-sm text-red-700 dark:text-red-200">
+            <span className="font-semibold">Gagal memuat data pagu:</span> {error}
+          </p>
+          {isAdmin && (
+            <button
+              onClick={() => setShowTarikModal(true)}
+              className="mt-2 px-3 py-1 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition"
+            >
+              Isi / perbarui token
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -286,7 +234,7 @@ export default function PaguContainer({ session, status }) {
           )}
           {lastUpdateTime && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              🕐 Terakhir diupdate: {lastUpdateTime}
+              🕐 Terakhir diambil: {formatWaktu(lastUpdateTime)}
             </p>
           )}
         </div>
@@ -356,8 +304,8 @@ export default function PaguContainer({ session, status }) {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
             </span>
             <p className="text-sm text-blue-700 dark:text-blue-200">
-              <span className="font-medium">Data terakhir diupdate:</span>{' '}
-              <span className="font-semibold">{lastUpdateTime}</span>
+              <span className="font-medium">Data terakhir diambil dari sumber:</span>{' '}
+              <span className="font-semibold">{formatWaktu(lastUpdateTime)}</span>
             </p>
           </div>
         </div>
@@ -374,7 +322,7 @@ export default function PaguContainer({ session, status }) {
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Pagu</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Realisasi</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">%</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Sisa</th>                {isAdmin && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Aksi</th>}
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase">Sisa</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -411,32 +359,12 @@ export default function PaguContainer({ session, status }) {
                       <td className={`px-4 py-3 text-sm text-right font-medium ${sisaColor}`}>
                         Rp {formatRupiah(sisa)}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        {isAdmin ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => handleEdit(item)}
-                              className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-md hover:bg-indigo-700 transition"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item)}
-                              className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition"
-                            >
-                              Hapus
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">-</span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     {searchMak || filterTahun ? 'Tidak ada data sesuai filter' : 'Belum ada data pagu'}
                   </td>
                 </tr>
@@ -485,27 +413,11 @@ export default function PaguContainer({ session, status }) {
       </div>
 
       {/* Modals */}
-      <PaguModal
-        show={showPaguModal}
-        onClose={() => { setShowPaguModal(false); setEditItem(null); }}
-        onSave={handleSave}
-        editItem={editItem}
-      />
-
-      <DeletePaguModal
-        show={showDeleteModal}
-        onClose={() => { setShowDeleteModal(false); setDeleteItem(null); }}
-        onConfirm={confirmDelete}
-        deletingId={deletingId}
-        item={deleteItem}
-      />
-
-      <UploadPaguModal
-        show={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
+      <TarikPaguModal
+        show={showTarikModal}
+        onClose={() => setShowTarikModal(false)}
         session={session}
         onSuccess={(message) => {
-          setShowUploadModal(false);
           setNotification({ show: true, message });
           fetchPaguList();
         }}
