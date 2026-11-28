@@ -131,7 +131,7 @@ services:
       # Opsional: URL publik backend untuk link TTD yang dipakai aplikasi lain.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       # Sumber data pagu & realisasi (API aplikasi Jendela Kinerja).
-      - TALAWANG_REALISASI_URL=${TALAWANG_REALISASI_URL:-http://localhost:3007/api/talawang/realisasi}
+      - TALAWANG_REALISASI_URL=${TALAWANG_REALISASI_URL:-https://jendela-kinerja.bbpompky.id/api/talawang/realisasi}
       # Catatan: backend/server.js saat ini masih memakai `origin: '*'`.
       # Sebaiknya diubah ke CORS_ORIGIN agar browser hanya dari domain sendiri.
       - CORS_ORIGIN=${CORS_ORIGIN}

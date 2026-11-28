@@ -13,12 +13,31 @@ const db = require('../db');
 const { encryptPaguToken, decryptPaguToken } = require('../utils/paguToken');
 
 const SUMBER_REALISASI_URL =
-    process.env.TALAWANG_REALISASI_URL || 'http://localhost:3007/api/talawang/realisasi';
+    process.env.TALAWANG_REALISASI_URL || 'https://jendela-kinerja.bbpompky.id/api/talawang/realisasi';
 
 const TIMEOUT_MANUAL_MS = 30000;
 const TIMEOUT_HALAMAN_MS = 15000;
 
 const galat = (message, statusCode = 500) => Object.assign(new Error(message), { statusCode });
+
+const cuplikan = (nilai, maks = 200) => String(nilai ?? '').replace(/\s+/g, ' ').trim().slice(0, maks);
+
+function pesanJawabanTakSah(jawaban) {
+    const tipe = String(jawaban.headers?.['content-type'] || 'tidak diketahui');
+
+    if (jawaban.status === 404) {
+        return `Endpoint sumber tidak ditemukan (HTTP 404) di ${SUMBER_REALISASI_URL}. Periksa nilai TALAWANG_REALISASI_URL.`;
+    }
+    if (jawaban.status >= 300 && jawaban.status < 400) {
+        return `Alamat sumber mengalihkan (HTTP ${jawaban.status}) ke ${jawaban.headers?.location || '-'} — kemungkinan URL salah atau butuh login. Periksa TALAWANG_REALISASI_URL.`;
+    }
+    if (tipe.includes('text/html')) {
+        return `Alamat sumber membalas halaman HTML (HTTP ${jawaban.status}), bukan JSON API. Kemungkinan TALAWANG_REALISASI_URL salah.`;
+    }
+
+    const isi = typeof jawaban.data === 'string' ? jawaban.data : JSON.stringify(jawaban.data);
+    return `Aplikasi sumber membalas HTTP ${jawaban.status} (${tipe}): ${cuplikan(isi) || '(tanpa isi)'}`;
+}
 
 async function tarikDariSumber(token, tahun, timeout = TIMEOUT_MANUAL_MS) {
     let jawaban;
@@ -27,21 +46,22 @@ async function tarikDariSumber(token, tahun, timeout = TIMEOUT_MANUAL_MS) {
             params: { token, tahun },
             timeout,
             validateStatus: () => true,
+            maxRedirects: 0,
             headers: { Accept: 'application/json' }
         });
     } catch (error) {
         const pesan = error.code === 'ECONNABORTED'
-            ? 'Aplikasi sumber tidak merespons (timeout)'
-            : `Gagal menghubungi aplikasi sumber: ${error.message}`;
+            ? `Aplikasi sumber tidak merespons (timeout ${Math.round(timeout / 1000)}s): ${SUMBER_REALISASI_URL}`
+            : `Gagal menghubungi aplikasi sumber ${SUMBER_REALISASI_URL}: ${error.code ? `[${error.code}] ` : ''}${error.message}`;
         throw galat(pesan, 502);
     }
 
     const body = jawaban.data;
     if (jawaban.status !== 200 || !body?.success) {
-        throw galat(
-            body?.message || 'Gagal mengambil data dari aplikasi sumber',
-            jawaban.status === 200 ? 502 : jawaban.status
-        );
+        const pesan = body?.message
+            ? `${body.message} (HTTP ${jawaban.status})`
+            : pesanJawabanTakSah(jawaban);
+        throw galat(pesan, jawaban.status === 200 ? 502 : jawaban.status);
     }
 
     const sumber = body.data?.rincian_mak || body.data?.data;
@@ -69,27 +89,41 @@ async function tarikDariSumber(token, tahun, timeout = TIMEOUT_MANUAL_MS) {
 }
 
 async function bacaKonfigurasi() {
-    const [rows] = await db.query(
-        `SELECT token_enc, tahun_anggaran, last_sync_at, last_error
-           FROM pagu_sync_config WHERE id = 1`
-    );
-    return rows[0] || null;
+    try {
+        const [rows] = await db.query(
+            `SELECT token_enc, tahun_anggaran, last_sync_at, last_error
+               FROM pagu_sync_config WHERE id = 1`
+        );
+        return rows[0] || null;
+    } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+            throw galat('Tabel pagu_sync_config belum ada. Jalankan migrasi scripts/db/2026-11-28-pagu-sync.sql di database.', 500);
+        }
+        throw error;
+    }
 }
 
 // Menyimpan token (terenkripsi) + tahun yang dipilih admin.
 async function simpanKonfigurasiSetelahTarik({ token, tahun, username }) {
-    await db.query(
-        `INSERT INTO pagu_sync_config
-            (id, token_enc, tahun_anggaran, last_sync_at, last_error, updated_by)
-         VALUES (1, ?, ?, NOW(), NULL, ?)
-         ON DUPLICATE KEY UPDATE
-            token_enc = VALUES(token_enc),
-            tahun_anggaran = VALUES(tahun_anggaran),
-            last_sync_at = NOW(),
-            last_error = NULL,
-            updated_by = VALUES(updated_by)`,
-        [encryptPaguToken(token), tahun, username || null]
-    );
+    try {
+        await db.query(
+            `INSERT INTO pagu_sync_config
+                (id, token_enc, tahun_anggaran, last_sync_at, last_error, updated_by)
+             VALUES (1, ?, ?, NOW(), NULL, ?)
+             ON DUPLICATE KEY UPDATE
+                token_enc = VALUES(token_enc),
+                tahun_anggaran = VALUES(tahun_anggaran),
+                last_sync_at = NOW(),
+                last_error = NULL,
+                updated_by = VALUES(updated_by)`,
+            [encryptPaguToken(token), tahun, username || null]
+        );
+    } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+            throw galat('Tabel pagu_sync_config belum ada. Jalankan migrasi scripts/db/2026-11-28-pagu-sync.sql di database.', 500);
+        }
+        throw error;
+    }
 }
 
 async function catatGagal(pesan) {
